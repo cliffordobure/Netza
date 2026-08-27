@@ -110,6 +110,7 @@ class _OfflineGuardState extends State<OfflineGuard> {
                               ? null
                               : () async {
                                   setLocal(() => checking = true);
+                                  final messenger = ScaffoldMessenger.of(this.context);
                                   final results = await Connectivity().checkConnectivity();
                                   await Future<void>.delayed(const Duration(milliseconds: 350));
                                   if (!ctx.mounted) return;
@@ -118,7 +119,7 @@ class _OfflineGuardState extends State<OfflineGuard> {
                                     return;
                                   }
                                   setLocal(() => checking = false);
-                                  ScaffoldMessenger.of(this.context).showSnackBar(
+                                  messenger.showSnackBar(
                                     SnackBar(
                                       behavior: SnackBarBehavior.floating,
                                       backgroundColor: navy,

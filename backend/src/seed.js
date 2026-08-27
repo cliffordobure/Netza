@@ -15,6 +15,7 @@ const {
   Order,
   Competition,
 } = require("./models");
+const { normalizeEmail, normalizePhone } = require("./lib/identity");
 
 const img = (id, sig) =>
   `https://images.unsplash.com/${id}?auto=format&fit=crop&w=900&q=80&sig=${sig}`;
@@ -86,8 +87,8 @@ async function seed() {
   await User.create({
     firstName: "Francis",
     lastName: "Admin",
-    email: "admin@netza.co.ke",
-    phone: "0700000000",
+    email: normalizeEmail("admin@netza.co.ke"),
+    phone: normalizePhone("0700000000"),
     passwordHash,
     role: "SUPER_ADMIN",
     referralCode: "NETZAADMIN",
@@ -99,8 +100,8 @@ async function seed() {
     const u = await User.create({
       firstName: p.firstName,
       lastName: p.lastName,
-      email: p.email,
-      phone: p.phone,
+      email: normalizeEmail(p.email),
+      phone: normalizePhone(p.phone),
       passwordHash: customerHash,
       role: "CUSTOMER",
       referralCode: p.referral,

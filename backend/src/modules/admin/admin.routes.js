@@ -20,6 +20,7 @@ const {
 const { auth, requireStaff, requireRoles } = require("../../middleware/auth");
 const { asyncHandler, httpError } = require("../../middleware/error");
 const { slugify, paginate, randomCode } = require("../../lib/utils");
+const { normalizeEmail, normalizePhone, phoneLookupVariants } = require("../../lib/identity");
 const { listCompetitionParticipants, listCompetitionEntries, listCompetitionWinners, participantWidgets } = require("./competition-participants");
 const { listCompetitionPrizes, upsertPrize, removePrize, duplicatePrize } = require("./competition-prizes");
 const { getCompetitionAnalytics } = require("./competition-analytics");
@@ -1619,15 +1620,24 @@ router.post(
         county: z.string().optional(),
       })
       .parse(req.body);
-    const exists = await User.findOne({ phone: body.phone });
-    if (exists) throw httpError(400, "A customer with that phone already exists.");
+    let phone;
+    try {
+      phone = normalizePhone(body.phone);
+    } catch (e) {
+      throw httpError(400, e.message || "Invalid phone");
+    }
+    const email = normalizeEmail(body.email);
+    const exists = await User.findOne({
+      $or: [{ phone: { $in: phoneLookupVariants(phone) } }, ...(email ? [{ email }] : [])],
+    });
+    if (exists) throw httpError(400, "A customer with that phone or email already exists.");
     const n = (await User.countDocuments({ role: "CUSTOMER" })) + 1;
     const passwordHash = await bcrypt.hash("Customer@123", 10);
     const user = await User.create({
       firstName: body.firstName.trim(),
       lastName: body.lastName.trim(),
-      email: body.email || undefined,
-      phone: body.phone.trim(),
+      email: email || undefined,
+      phone,
       passwordHash,
       role: "CUSTOMER",
       referralCode: randomCode("NETZA"),

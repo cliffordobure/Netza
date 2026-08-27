@@ -11,10 +11,11 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final identifier = TextEditingController(text: '0712345678');
-  final password = TextEditingController(text: 'Customer@123');
+  final identifier = TextEditingController();
+  final password = TextEditingController();
   String? error;
   bool busy = false;
+  bool showPassword = false;
 
   @override
   void dispose() {
@@ -24,9 +25,18 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> submit() async {
-    setState(() { busy = true; error = null; });
+    final id = identifier.text.trim();
+    final pass = password.text;
+    if (id.isEmpty || pass.isEmpty) {
+      setState(() => error = 'Enter your phone or email and password');
+      return;
+    }
+    setState(() {
+      busy = true;
+      error = null;
+    });
     try {
-      final data = await context.read<Session>().login(identifier.text.trim(), password.text);
+      final data = await context.read<Session>().login(id, pass);
       if (!mounted) return;
       final daily = data['dailyLogin'];
       if (daily is Map && daily['awarded'] == true && (daily['points'] ?? 0) > 0) {
@@ -64,10 +74,36 @@ class _LoginScreenState extends State<LoginScreen> {
                 children: [
                   const Text('Welcome back', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
                   const SizedBox(height: 16),
-                  TextField(controller: identifier, decoration: const InputDecoration(labelText: 'Phone or email')),
+                  TextField(
+                    controller: identifier,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    autofillHints: const [AutofillHints.username, AutofillHints.email, AutofillHints.telephoneNumber],
+                    decoration: const InputDecoration(
+                      labelText: 'Phone or email',
+                      hintText: '07… or you@email.com',
+                    ),
+                  ),
                   const SizedBox(height: 12),
-                  TextField(controller: password, obscureText: true, decoration: const InputDecoration(labelText: 'Password')),
-                  if (error != null) Padding(padding: const EdgeInsets.only(top: 10), child: Text(error!, style: const TextStyle(color: Colors.red))),
+                  TextField(
+                    controller: password,
+                    obscureText: !showPassword,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => busy ? null : submit(),
+                    autofillHints: const [AutofillHints.password],
+                    decoration: InputDecoration(
+                      labelText: 'Password',
+                      suffixIcon: IconButton(
+                        onPressed: () => setState(() => showPassword = !showPassword),
+                        icon: Icon(showPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+                      ),
+                    ),
+                  ),
+                  if (error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: Text(error!, style: const TextStyle(color: Colors.red)),
+                    ),
                   const SizedBox(height: 16),
                   FilledButton(onPressed: busy ? null : submit, child: Text(busy ? 'Signing in…' : 'Sign in')),
                   TextButton(onPressed: () => context.push('/register'), child: const Text('Create an account')),
@@ -96,6 +132,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final referral = TextEditingController();
   String? error;
   bool busy = false;
+  bool showPassword = false;
 
   @override
   void dispose() {
@@ -109,7 +146,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> submit() async {
-    setState(() { busy = true; error = null; });
+    setState(() {
+      busy = true;
+      error = null;
+    });
     try {
       await context.read<Session>().register({
         'firstName': first.text.trim(),
@@ -134,15 +174,38 @@ class _RegisterScreenState extends State<RegisterScreen> {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          TextField(controller: first, decoration: const InputDecoration(labelText: 'First name')),
-          TextField(controller: last, decoration: const InputDecoration(labelText: 'Last name')),
-          TextField(controller: phone, decoration: const InputDecoration(labelText: 'Phone (07…)')),
-          TextField(controller: email, decoration: const InputDecoration(labelText: 'Email (optional)')),
-          TextField(controller: password, obscureText: true, decoration: const InputDecoration(labelText: 'Password')),
+          TextField(controller: first, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(labelText: 'First name')),
+          TextField(controller: last, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(labelText: 'Last name')),
+          TextField(
+            controller: phone,
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(labelText: 'Phone', hintText: '07XX XXX XXX'),
+          ),
+          TextField(
+            controller: email,
+            keyboardType: TextInputType.emailAddress,
+            decoration: const InputDecoration(labelText: 'Email (optional)'),
+          ),
+          TextField(
+            controller: password,
+            obscureText: !showPassword,
+            decoration: InputDecoration(
+              labelText: 'Password (min 6 characters)',
+              suffixIcon: IconButton(
+                onPressed: () => setState(() => showPassword = !showPassword),
+                icon: Icon(showPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+              ),
+            ),
+          ),
           TextField(controller: referral, decoration: const InputDecoration(labelText: 'Referral code (optional)')),
-          if (error != null) Padding(padding: const EdgeInsets.only(top: 10), child: Text(error!, style: const TextStyle(color: Colors.red))),
+          if (error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Text(error!, style: const TextStyle(color: Colors.red)),
+            ),
           const SizedBox(height: 16),
-          FilledButton(onPressed: busy ? null : submit, child: const Text('Join NETZA')),
+          FilledButton(onPressed: busy ? null : submit, child: Text(busy ? 'Creating…' : 'Join NETZA')),
+          TextButton(onPressed: () => context.pop(), child: const Text('Already have an account? Sign in')),
         ],
       ),
     );

@@ -340,28 +340,65 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class _FlashDropBanner extends StatelessWidget {
-  const _FlashDropBanner({
+class _HomeBannerCarousel extends StatelessWidget {
+  const _HomeBannerCarousel({
     required this.page,
     required this.slide,
     required this.onSlide,
     required this.remaining,
     required this.pad,
-    required this.images,
+    required this.flashImages,
     required this.discount,
-    required this.onView,
+    required this.showFlash,
+    required this.banners,
+    required this.onViewFlash,
   });
   final PageController page;
   final int slide;
   final ValueChanged<int> onSlide;
   final Duration remaining;
   final String Function(int) pad;
-  final List<String> images;
+  final List<String> flashImages;
   final int discount;
-  final VoidCallback onView;
+  final bool showFlash;
+  final List banners;
+  final VoidCallback onViewFlash;
+
+  void _openLink(BuildContext context, String link) {
+    final path = link.trim();
+    if (path.isEmpty) return;
+    if (path.startsWith('/')) {
+      context.push(path);
+      return;
+    }
+    context.push('/catalog');
+  }
 
   @override
   Widget build(BuildContext context) {
+    final slides = <Widget>[
+      if (showFlash)
+        _FlashSlide(
+          remaining: remaining,
+          pad: pad,
+          images: flashImages,
+          discount: discount,
+          onView: onViewFlash,
+        ),
+      ...banners.map((raw) {
+        final b = Map<String, dynamic>.from(raw as Map);
+        return _BannerSlide(
+          title: b['title']?.toString() ?? '',
+          subtitle: b['subtitle']?.toString() ?? '',
+          cta: (b['ctaLabel']?.toString().isNotEmpty == true) ? b['ctaLabel'].toString() : 'Shop now',
+          imageUrl: b['imageUrl']?.toString(),
+          onTap: () => _openLink(context, b['link']?.toString() ?? '/catalog'),
+        );
+      }),
+    ];
+
+    if (slides.isEmpty) return const SizedBox.shrink();
+
     return Column(
       children: [
         SizedBox(
@@ -369,39 +406,27 @@ class _FlashDropBanner extends StatelessWidget {
           child: PageView(
             controller: page,
             onPageChanged: onSlide,
-            children: [
-              _FlashSlide(remaining: remaining, pad: pad, images: images, discount: discount, onView: onView),
-              _PromoSlide(
-                title: 'NETWORKING WEEK',
-                subtitle: 'Routers, switches & APs',
-                cta: 'Shop now',
-                onTap: () => context.push('/catalog?category=networking'),
-              ),
-              _PromoSlide(
-                title: 'EARN POINTS DAILY',
-                subtitle: 'Login, shop and review',
-                cta: 'Open wallet',
-                onTap: () => context.go('/points'),
-              ),
-            ],
+            children: slides,
           ),
         ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(3, (i) {
-            final active = i == slide;
-            return Container(
-              width: active ? 16 : 7,
-              height: 7,
-              margin: const EdgeInsets.symmetric(horizontal: 3),
-              decoration: BoxDecoration(
-                color: active ? orange : const Color(0xFFD8DEE6),
-                borderRadius: BorderRadius.circular(8),
-              ),
-            );
-          }),
-        ),
+        if (slides.length > 1) ...[
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(slides.length, (i) {
+              final active = i == slide;
+              return Container(
+                width: active ? 16 : 7,
+                height: 7,
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                decoration: BoxDecoration(
+                  color: active ? orange : const Color(0xFFD8DEE6),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              );
+            }),
+          ),
+        ],
       ],
     );
   }
@@ -516,108 +541,73 @@ class _TimeBox extends StatelessWidget {
   }
 }
 
-class _PromoSlide extends StatelessWidget {
-  const _PromoSlide({required this.title, required this.subtitle, required this.cta, required this.onTap});
+class _BannerSlide extends StatelessWidget {
+  const _BannerSlide({
+    required this.title,
+    required this.subtitle,
+    required this.cta,
+    required this.onTap,
+    this.imageUrl,
+  });
   final String title;
   final String subtitle;
   final String cta;
+  final String? imageUrl;
   final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFF0B1F3A), Color(0xFF1C4A7A)]),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: inter(size: 20, weight: FontWeight.w800, color: Colors.white)),
-          Text(subtitle, style: T.flashSub),
-          const Spacer(),
-          FilledButton(onPressed: onTap, child: Text(cta, style: T.searchBtn)),
-        ],
-      ),
-    );
-  }
-}
-
-class _ChallengeCard extends StatelessWidget {
-  const _ChallengeCard({required this.selected, required this.onSelect, required this.onPlay, this.cameraUrl});
-  final int? selected;
-  final ValueChanged<int> onSelect;
-  final VoidCallback onPlay;
-  final String? cameraUrl;
-  static const options = ['A. Dome', 'B. Bullet', 'C. PTZ', 'D. Turret'];
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF3E8),
+    final hasImage = imageUrl != null && imageUrl!.isNotEmpty;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFFFE0C2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.emoji_events, color: orange),
-              const SizedBox(width: 6),
-              Text('NETZA CHALLENGE', style: T.challengeTitle),
-              const Spacer(),
-              Text('Win 500 Points!', style: T.challengeWin),
-            ],
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            gradient: hasImage
+                ? null
+                : const LinearGradient(colors: [Color(0xFF0B1F3A), Color(0xFF1C4A7A)]),
+            color: hasImage ? const Color(0xFF0B1F3A) : null,
           ),
-          const SizedBox(height: 10),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-                clipBehavior: Clip.antiAlias,
-                child: NetzaImage(cameraUrl, fallback: Icons.videocam),
-              ),
-              const SizedBox(width: 10),
-              Expanded(child: Text('Identify this CCTV camera type?', style: T.quiz)),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: List.generate(options.length, (i) {
-              final on = selected == i;
-              return ChoiceChip(
-                label: Text(options[i]),
-                selected: on,
-                onSelected: (_) => onSelect(i),
-                selectedColor: orange,
-                labelStyle: T.chip.copyWith(color: on ? Colors.white : navy),
-                backgroundColor: Colors.white,
-                side: BorderSide(color: on ? orange : const Color(0xFFE5E7EB)),
-              );
-            }),
-          ),
-          const SizedBox(height: 10),
-          Align(
-            alignment: Alignment.centerRight,
-            child: FilledButton(
-              onPressed: onPlay,
-              style: FilledButton.styleFrom(
-                backgroundColor: navy,
-                minimumSize: const Size(110, 40),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              child: Text('Play Now', style: T.playNow),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (hasImage) NetzaImage(imageUrl, fit: BoxFit.cover),
+                if (hasImage)
+                  const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        colors: [Color(0xCC0B1F3A), Color(0x660B1F3A)],
+                      ),
+                    ),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (title.isNotEmpty)
+                        Text(title, style: inter(size: 20, weight: FontWeight.w800, color: Colors.white)),
+                      if (subtitle.isNotEmpty) Text(subtitle, style: T.flashSub),
+                      const Spacer(),
+                      FilledButton(
+                        onPressed: onTap,
+                        style: FilledButton.styleFrom(backgroundColor: orange),
+                        child: Text(cta, style: T.searchBtn),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }

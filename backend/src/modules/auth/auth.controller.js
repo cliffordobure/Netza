@@ -5,12 +5,13 @@ const { signAccess, signRefresh, hashToken, verifyRefresh, publicUser } = requir
 const { randomCode, nairobiDateString } = require("../../lib/utils");
 const { creditPoints, getRule } = require("../../services/points.service");
 const { asyncHandler, httpError } = require("../../middleware/error");
+const { normalizeEmail, normalizePhone, phoneLookupVariants } = require("../../lib/identity");
 
 const registerSchema = z.object({
   firstName: z.string().min(2),
   lastName: z.string().min(2),
-  phone: z.string().min(10),
-  email: z.string().email().optional().or(z.literal("")),
+  phone: z.string().min(9),
+  email: z.union([z.string().email(), z.literal("")]).optional(),
   password: z.string().min(6),
   referralCode: z.string().optional(),
 });
@@ -58,13 +59,40 @@ async function maybeDailyLogin(user) {
   return { awarded: true, streak, points };
 }
 
+async function findByIdentifier(identifier) {
+  const raw = String(identifier || "").trim();
+  if (!raw) return null;
+
+  if (raw.includes("@")) {
+    const email = normalizeEmail(raw);
+    return User.findOne({ email });
+  }
+
+  const phones = phoneLookupVariants(raw);
+  return User.findOne({ phone: { $in: phones } });
+}
+
 exports.register = asyncHandler(async (req, res) => {
   const body = registerSchema.parse(req.body);
-  const phone = body.phone.replace(/\s+/g, "");
-  const existing = await User.findOne({
-    $or: [{ phone }, ...(body.email ? [{ email: body.email }] : [])],
-  });
-  if (existing) throw httpError(409, "Phone or email already registered");
+
+  let phone;
+  try {
+    phone = normalizePhone(body.phone);
+  } catch (e) {
+    throw httpError(e.status || 400, e.message || "Invalid phone");
+  }
+
+  const email = normalizeEmail(body.email);
+  const or = [{ phone }];
+  if (email) or.push({ email });
+
+  const existing = await User.findOne({ $or: or });
+  if (existing) {
+    if (existing.phone === phone || phoneLookupVariants(existing.phone).includes(phone)) {
+      throw httpError(409, "This phone number is already registered. Sign in instead.");
+    }
+    throw httpError(409, "This email is already registered. Sign in instead.");
+  }
 
   let referredBy = null;
   if (body.referralCode) {
@@ -73,10 +101,10 @@ exports.register = asyncHandler(async (req, res) => {
   }
 
   const user = await User.create({
-    firstName: body.firstName,
-    lastName: body.lastName,
+    firstName: body.firstName.trim(),
+    lastName: body.lastName.trim(),
     phone,
-    email: body.email || undefined,
+    email: email || undefined,
     passwordHash: await bcrypt.hash(body.password, 10),
     referralCode: randomCode("NETZA"),
     referredBy,
@@ -99,13 +127,29 @@ exports.register = asyncHandler(async (req, res) => {
 
 exports.login = asyncHandler(async (req, res) => {
   const body = loginSchema.parse(req.body);
-  const identifier = body.identifier.trim();
-  const user = await User.findOne({
-    $or: [{ phone: identifier }, { email: identifier.toLowerCase() }],
-  });
-  if (!user || !user.isActive) throw httpError(401, "Invalid credentials");
+  const user = await findByIdentifier(body.identifier);
+  if (!user || !user.isActive) throw httpError(401, "Wrong phone/email or password");
   const ok = await bcrypt.compare(body.password, user.passwordHash);
-  if (!ok) throw httpError(401, "Invalid credentials");
+  if (!ok) throw httpError(401, "Wrong phone/email or password");
+
+  // Heal legacy rows so future logins stay consistent
+  let healed = false;
+  const email = user.email ? normalizeEmail(user.email) : "";
+  if (user.email && email !== user.email) {
+    user.email = email;
+    healed = true;
+  }
+  try {
+    const phone = normalizePhone(user.phone);
+    if (phone !== user.phone) {
+      user.phone = phone;
+      healed = true;
+    }
+  } catch {
+    /* keep legacy phone if it cannot normalize */
+  }
+  if (healed) await user.save().catch(() => {});
+
   const daily = await maybeDailyLogin(user);
   res.json({ ...(await issueTokens(user)), dailyLogin: daily });
 });
@@ -144,8 +188,16 @@ exports.completeProfile = asyncHandler(async (req, res) => {
     lastName: z.string().min(2).optional(),
   });
   const body = schema.parse(req.body);
+  if (body.email) {
+    const email = normalizeEmail(body.email);
+    const taken = await User.findOne({ email, _id: { $ne: req.user._id } });
+    if (taken) throw httpError(409, "This email is already registered");
+    req.user.email = email;
+  }
+  if (body.firstName) req.user.firstName = body.firstName.trim();
+  if (body.lastName) req.user.lastName = body.lastName.trim();
   const wasComplete = req.user.profileCompleted;
-  Object.assign(req.user, body, { profileCompleted: true });
+  req.user.profileCompleted = true;
   await req.user.save();
   if (!wasComplete) {
     const rule = await getRule("COMPLETE_PROFILE");
@@ -157,3 +209,66 @@ exports.completeProfile = asyncHandler(async (req, res) => {
 exports.dailyLogin = asyncHandler(async (req, res) => {
   res.json(await maybeDailyLogin(req.user));
 });
+
+/** One-shot heal for existing accounts (email casing + phone format). */
+exports.normalizeIdentities = async function normalizeIdentities() {
+  const users = await User.find({}).sort({ createdAt: 1 });
+  let updated = 0;
+  let skipped = 0;
+  const seenEmail = new Map();
+  const seenPhone = new Map();
+
+  for (const user of users) {
+    try {
+      let changed = false;
+
+      if (user.email) {
+        const email = normalizeEmail(user.email);
+        if (!email) {
+          user.email = undefined;
+          changed = true;
+        } else if (seenEmail.has(email)) {
+          // Duplicate from the old case-sensitive bug — keep email on the oldest account
+          user.email = undefined;
+          changed = true;
+          skipped += 1;
+        } else {
+          seenEmail.set(email, user._id);
+          if (email !== user.email) {
+            user.email = email;
+            changed = true;
+          }
+        }
+      }
+
+      if (user.phone) {
+        let phone;
+        try {
+          phone = normalizePhone(user.phone);
+        } catch {
+          skipped += 1;
+          if (changed) await user.save();
+          continue;
+        }
+        if (seenPhone.has(phone) && String(seenPhone.get(phone)) !== String(user._id)) {
+          skipped += 1;
+          if (changed) await user.save();
+          continue;
+        }
+        seenPhone.set(phone, user._id);
+        if (phone !== user.phone) {
+          user.phone = phone;
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        await user.save();
+        updated += 1;
+      }
+    } catch {
+      skipped += 1;
+    }
+  }
+  return { updated, skipped, total: users.length };
+};
