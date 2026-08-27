@@ -433,6 +433,8 @@ class _AccountScreenState extends State<AccountScreen> {
                             voucherBadge: vouchers,
                             onTap: (k) {
                               switch (k) {
+                                case 'Quotes':
+                                  context.push('/quotes');
                                 case 'Addresses':
                                   showAddresses();
                                 case 'Payment Methods':
@@ -441,8 +443,6 @@ class _AccountScreenState extends State<AccountScreen> {
                                   showVouchers();
                                 case 'My Coupons':
                                   context.go('/points');
-                                case 'Returns & Refunds':
-                                  toast('No open returns');
                                 case 'Help Center':
                                   showHelp();
                               }
@@ -759,11 +759,11 @@ class _QuickAccess extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const items = [
+      (Icons.request_quote_outlined, 'Quotes'),
       (Icons.shield_outlined, 'Addresses'),
       (Icons.credit_card, 'Payment Methods'),
       (Icons.confirmation_number_outlined, 'My Vouchers'),
       (Icons.local_activity_outlined, 'My Coupons'),
-      (Icons.gps_fixed, 'Returns & Refunds'),
       (Icons.help_outline, 'Help Center'),
     ];
     return GridView.count(

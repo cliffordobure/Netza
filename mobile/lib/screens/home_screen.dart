@@ -7,6 +7,7 @@ import '../core/theme.dart';
 import '../core/type.dart';
 import '../data/shop_categories.dart';
 import '../state/session.dart';
+import '../widgets/offline_guard.dart';
 import '../widgets/storefront_chrome.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -20,11 +21,11 @@ class _HomeScreenState extends State<HomeScreen> {
   final page = PageController();
   List trending = [];
   List moreProducts = [];
+  List banners = [];
   Map? flash;
   List flashProducts = [];
   int slide = 0;
   String? error;
-  int? challengeChoice;
   Timer? _ticker;
   Duration remaining = Duration.zero;
 
@@ -58,6 +59,7 @@ class _HomeScreenState extends State<HomeScreen> {
         session.dio.get('/products', queryParameters: {'trending': 'true', 'limit': 12}),
         session.dio.get('/flash-drops/active'),
         session.dio.get('/products', queryParameters: {'limit': 12}),
+        session.dio.get('/banners', queryParameters: {'placement': 'home'}),
       ]);
       if (session.isLoggedIn) {
         await session.refreshWallet();
@@ -79,11 +81,13 @@ class _HomeScreenState extends State<HomeScreen> {
         moreProducts = trend.isNotEmpty ? extras.take(8).toList() : all.skip(6).take(8).toList();
         flash = results[1].data['flashDrop'];
         flashProducts = results[1].data['products'] as List? ?? [];
+        banners = results[3].data['banners'] as List? ?? [];
         error = null;
+        slide = 0;
       });
       _tick();
     } catch (e) {
-      setState(() => error = apiMessage(e));
+      setState(() => error = isConnectionError(e) ? null : apiMessage(e));
     }
   }
 
@@ -121,15 +125,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Text(error!, style: inter(size: 13, color: Colors.red)),
                 ),
               const SizedBox(height: 14),
-              _FlashDropBanner(
+              _HomeBannerCarousel(
                 page: page,
                 slide: slide,
                 onSlide: (i) => setState(() => slide = i),
                 remaining: remaining,
                 pad: _pad,
-                images: flashProducts.map(_firstImage).whereType<String>().toList(),
+                flashImages: flashProducts.map(_firstImage).whereType<String>().toList(),
                 discount: flash?['discountPercent'] ?? 50,
-                onView: () => context.push('/flash'),
+                showFlash: flash != null,
+                banners: banners,
+                onViewFlash: () => context.push('/flash'),
               ),
               const SizedBox(height: 18),
               GridView.builder(
@@ -189,24 +195,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                   );
-                },
-              ),
-              const SizedBox(height: 8),
-              _ChallengeCard(
-                selected: challengeChoice,
-                cameraUrl: flashProducts.isNotEmpty ? _firstImage(flashProducts.first) : null,
-                onSelect: (i) => setState(() => challengeChoice = i),
-                onPlay: () {
-                  if (challengeChoice == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pick an answer first')));
-                    return;
-                  }
-                  final correct = challengeChoice == 0;
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text(correct
-                        ? 'Correct — Dome camera. Challenge points go live in Phase 4.'
-                        : 'Not quite. The camera shown is a Dome.'),
-                  ));
                 },
               ),
               const SizedBox(height: 18),

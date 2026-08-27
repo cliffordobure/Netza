@@ -349,6 +349,47 @@ const competitionSchema = new mongoose.Schema(
 );
 jsonId(competitionSchema);
 
+const quoteSchema = new mongoose.Schema(
+  {
+    owner: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    companyName: { type: String, default: "" },
+    logoUrl: { type: String, default: "" },
+    clientName: { type: String, default: "" },
+    note: { type: String, default: "" },
+    status: { type: String, enum: ["draft", "sent", "accepted"], default: "draft" },
+    shareToken: { type: String, unique: true, sparse: true },
+    items: [
+      {
+        kind: { type: String, enum: ["catalog", "custom"], default: "custom" },
+        product: { type: mongoose.Schema.Types.ObjectId, ref: "Product", default: null },
+        name: { type: String, required: true },
+        imageUrl: { type: String, default: "" },
+        unitPriceKes: { type: Number, required: true },
+        quantity: { type: Number, default: 1 },
+      },
+    ],
+  },
+  { timestamps: true }
+);
+jsonId(quoteSchema);
+
+const bannerSchema = new mongoose.Schema(
+  {
+    title: { type: String, default: "" },
+    subtitle: { type: String, default: "" },
+    ctaLabel: { type: String, default: "Shop now" },
+    link: { type: String, default: "/catalog" },
+    imageUrl: { type: String, default: "" },
+    placement: { type: String, default: "home", index: true },
+    sortOrder: { type: Number, default: 0 },
+    isActive: { type: Boolean, default: true },
+    startsAt: Date,
+    endsAt: Date,
+  },
+  { timestamps: true }
+);
+jsonId(bannerSchema);
+
 const User = mongoose.model("User", userSchema);
 const RefreshToken = mongoose.model("RefreshToken", refreshTokenSchema);
 const Address = mongoose.model("Address", addressSchema);
@@ -365,6 +406,8 @@ const PointsRule = mongoose.model("PointsRule", pointsRuleSchema);
 const FlashDrop = mongoose.model("FlashDrop", flashDropSchema);
 const Setting = mongoose.model("Setting", settingSchema);
 const Competition = mongoose.model("Competition", competitionSchema);
+const Quote = mongoose.model("Quote", quoteSchema);
+const Banner = mongoose.model("Banner", bannerSchema);
 
 function isOid(id) {
   return mongoose.isValidObjectId(id);
@@ -394,6 +437,8 @@ module.exports = {
   FlashDrop,
   Setting,
   Competition,
+  Quote,
+  Banner,
   isOid,
   idOf,
 };

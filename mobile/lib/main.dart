@@ -15,8 +15,10 @@ import 'screens/points_screen.dart';
 import 'screens/challenges_screen.dart';
 import 'screens/challenge_detail_screen.dart';
 import 'screens/flash_drop_screen.dart';
+import 'screens/quotes_screen.dart';
 import 'screens/shell.dart';
 import 'state/session.dart';
+import 'widgets/offline_guard.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -66,6 +68,23 @@ class _NetzaAppState extends State<NetzaApp> {
           path: '/order/:id',
           builder: (_, state) => OrderDetailScreen(id: state.pathParameters['id']!),
         ),
+        GoRoute(path: '/quotes', builder: (_, state) => const QuotesScreen()),
+        GoRoute(path: '/quotes/new', builder: (_, state) => const QuoteEditScreen()),
+        GoRoute(
+          path: '/quotes/:id/edit',
+          builder: (_, state) => QuoteEditScreen(id: state.pathParameters['id']),
+        ),
+        GoRoute(
+          path: '/quotes/:id',
+          builder: (_, state) => QuoteDetailScreen(id: state.pathParameters['id']!),
+        ),
+        GoRoute(
+          path: '/q/:token',
+          builder: (_, state) => QuoteDetailScreen(
+            id: 'shared',
+            token: state.pathParameters['token'],
+          ),
+        ),
         StatefulShellRoute.indexedStack(
           builder: (context, state, navigationShell) => ShellScreen(navigationShell: navigationShell),
           branches: [
@@ -100,7 +119,7 @@ class _NetzaAppState extends State<NetzaApp> {
                   body: Center(child: CircularProgressIndicator(color: orange)),
                 );
               }
-              return child ?? const SizedBox.shrink();
+              return OfflineGuard(child: child ?? const SizedBox.shrink());
             },
           );
         },

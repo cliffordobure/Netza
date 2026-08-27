@@ -14,6 +14,8 @@ const pointsRoutes = require("./modules/points/points.routes");
 const flashRoutes = require("./modules/flashDrops/flashDrops.routes");
 const addressRoutes = require("./modules/addresses/addresses.routes"); 
 const reviewRoutes = require("./modules/reviews/reviews.routes");
+const quoteRoutes = require("./modules/quotes/quotes.routes");
+const bannerRoutes = require("./modules/banners/banners.routes");
 const adminRoutes = require("./modules/admin/admin.routes");
 
 function createApp() {
@@ -56,6 +58,8 @@ function createApp() {
   app.use("/api/v1/flash-drops", flashRoutes);
   app.use("/api/v1/addresses", addressRoutes);
   app.use("/api/v1/products", reviewRoutes);
+  app.use("/api/v1/quotes", quoteRoutes);
+  app.use("/api/v1/banners", bannerRoutes);
   app.use("/api/v1/admin", adminRoutes);
 
   app.use(notFound);
