@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { Icon } from "../icons";
+import { DeliveryDetailModal, DeliveryRowMenu, DetailMeta } from "../DeliveryRowMenu";
 
 function fmtNum(n, digits = 0) {
   return new Intl.NumberFormat("en-KE", {
@@ -99,7 +100,19 @@ function Sparkline({ data, color }) {
   );
 }
 
+const SHIP_STATUS_LABELS = {
+  draft: "Draft",
+  ready: "Ready to Dispatch",
+  dispatched: "Dispatched",
+  out_for_delivery: "Out for Delivery",
+  in_transit: "In Transit",
+  delivered: "Delivered",
+  failed: "Failed",
+  returned: "Returned",
+};
+
 export default function DeliveryShipments() {
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [q, setQ] = useState("");
   const [statusF, setStatusF] = useState("");
@@ -112,6 +125,8 @@ export default function DeliveryShipments() {
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [selected, setSelected] = useState(() => new Set());
+  const [menu, setMenu] = useState(null);
+  const [viewing, setViewing] = useState(null);
 
   function queryString(next = {}) {
     const p = new URLSearchParams();
@@ -153,6 +168,12 @@ export default function DeliveryShipments() {
     return () => clearTimeout(t);
   }, [toast]);
 
+  useEffect(() => {
+    function close() { setMenu(null); }
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, []);
+
   function search(e) {
     e.preventDefault();
     setPage(1);
@@ -168,6 +189,34 @@ export default function DeliveryShipments() {
     setTo("2026-05-27");
     setPage(1);
     load({ q: "", status: "", courier: "", zone: "", page: 1 });
+  }
+
+  function patchShipment(row, next) {
+    const updated = { ...row, ...next };
+    if (next.status && !next.statusLabel) {
+      updated.statusLabel = SHIP_STATUS_LABELS[next.status] || next.status;
+    }
+    setData((d) => ({
+      ...d,
+      shipments: (d.shipments || []).map((r) => (r.id === row.id ? updated : r)),
+    }));
+    setViewing((v) => (v && v.id === row.id ? updated : v));
+    setMenu(null);
+    return updated;
+  }
+
+  function setStatus(row, status) {
+    patchShipment(row, { status });
+    setToast(`${row.shipmentId} → ${SHIP_STATUS_LABELS[status] || status}`);
+  }
+
+  function copyTracking(row) {
+    const text = row.trackingId || row.shipmentId;
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).catch(() => {});
+    }
+    setMenu(null);
+    setToast(`Copied ${text}`);
   }
 
   if (!data) {
@@ -397,12 +446,28 @@ export default function DeliveryShipments() {
                       </td>
                       <td>
                         <div className="prod-row-acts">
-                          <button type="button" title="View" onClick={() => setToast(`Viewing ${r.shipmentId}`)}>
+                          <button type="button" title="View" onClick={() => { setViewing(r); setMenu(null); }}>
                             <Icon name="eye" size={14} />
                           </button>
-                          <button type="button" title="More" onClick={() => setToast(`Actions for ${r.shipmentId}`)}>
-                            <Icon name="more" size={14} />
-                          </button>
+                          <DeliveryRowMenu id={r.id} menu={menu} setMenu={setMenu} up={r.n >= rows.length}>
+                            <button type="button" onClick={() => { setViewing(r); setMenu(null); }}>View details</button>
+                            <button type="button" onClick={() => copyTracking(r)}>Copy tracking</button>
+                            {r.status !== "in_transit" && r.status !== "delivered" && (
+                              <button type="button" onClick={() => setStatus(r, "in_transit")}>Mark in transit</button>
+                            )}
+                            {r.status !== "out_for_delivery" && r.status !== "delivered" && (
+                              <button type="button" onClick={() => setStatus(r, "out_for_delivery")}>Mark out for delivery</button>
+                            )}
+                            {r.status !== "delivered" && (
+                              <button type="button" onClick={() => setStatus(r, "delivered")}>Mark delivered</button>
+                            )}
+                            {r.status !== "failed" && r.status !== "delivered" && (
+                              <button type="button" className="danger" onClick={() => setStatus(r, "failed")}>Mark failed</button>
+                            )}
+                            <button type="button" onClick={() => { setMenu(null); navigate(`/orders?q=${encodeURIComponent(r.orderId || r.shipmentId)}`); }}>
+                              Open order
+                            </button>
+                          </DeliveryRowMenu>
                         </div>
                       </td>
                     </tr>
@@ -496,6 +561,36 @@ export default function DeliveryShipments() {
             {data.footerMessage}
           </p>
         </footer>
+      )}
+
+      {viewing && (
+        <DeliveryDetailModal
+          title={viewing.shipmentId}
+          subtitle={`${viewing.date} · ${viewing.time}`}
+          statusNode={<span className={`st-pill ${statusCls(viewing.status)}`}>{viewing.statusLabel}</span>}
+          onClose={() => setViewing(null)}
+          actions={(
+            <>
+              {viewing.status !== "delivered" && (
+                <button className="btn btn-purple btn-small" type="button" onClick={() => setStatus(viewing, "delivered")}>
+                  Mark delivered
+                </button>
+              )}
+              <button className="btn btn-ghost btn-small" type="button" onClick={() => copyTracking(viewing)}>
+                Copy tracking
+              </button>
+            </>
+          )}
+        >
+          <DetailMeta
+            rows={[
+              { label: "Customer", value: (<><strong>{viewing.customerName}</strong><span className="muted">{viewing.customerPhone}</span></>) },
+              { label: "Courier", value: (<><strong>{viewing.courierName}</strong><span className="muted">{viewing.trackingId}</span></>) },
+              { label: "Destination", value: viewing.destination },
+              { label: "Zone", value: viewing.zone || "—" },
+            ]}
+          />
+        </DeliveryDetailModal>
       )}
     </div>
   );

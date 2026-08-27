@@ -2,6 +2,9 @@ import { useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import DeliveryReports from "./DeliveryReports";
 import SalesReports from "./SalesReports";
+import OrderReports from "./OrderReports";
+import CustomerReports from "./CustomerReports";
+import InventoryReports from "./InventoryReports";
 
 export default function Reports() {
   const navigate = useNavigate();
@@ -20,6 +23,18 @@ export default function Reports() {
 
   if (tab === "sales") {
     return <SalesReports />;
+  }
+
+  if (tab === "orders") {
+    return <OrderReports />;
+  }
+
+  if (tab === "customers") {
+    return <CustomerReports />;
+  }
+
+  if (tab === "inventory") {
+    return <InventoryReports />;
   }
 
   const titles = {

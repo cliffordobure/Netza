@@ -42,7 +42,7 @@ const NAV = [
     icon: "users",
     children: [
       { to: "/customers", label: "All Customers", end: true, customerFilter: "all" },
-      { to: "/customers?tab=groups", label: "Customer Groups", customerFilter: "groups" },
+      { to: "/customers?tab=groups", label: "Groups", customerFilter: "groups" },
       { to: "/customers?tab=segments", label: "Segments", customerFilter: "segments" },
       { to: "/customers?tab=blacklist", label: "Blacklist", customerFilter: "blacklist" },
       { to: "/customers?tab=activity", label: "Customer Activity", customerFilter: "activity" },
@@ -60,7 +60,7 @@ const NAV = [
       { to: "/points?tab=redeem", label: "Rewards", pointsFilter: "redeem" },
       { to: "/points?tab=tiers", label: "Tiers", pointsFilter: "tiers" },
       { to: "/points?tab=adjust", label: "Reward Claims", pointsFilter: "adjust" },
-      { to: "/points?tab=rules", label: "Referral Program", pointsFilter: "rules" },
+      { to: "/points?tab=rules", label: "Earn Rules", pointsFilter: "rules" },
       { to: "/points?tab=settings", label: "Settings", pointsFilter: "settings" },
     ],
   },
@@ -514,17 +514,38 @@ export default function Shell() {
             </>
           ) : location.pathname.startsWith("/marketing") ? (
             <>
-              <button className="sb-act purple" type="button" onClick={() => window.alert("Create campaign form coming soon")}>
+              <button className="sb-act purple" type="button" onClick={() => navigate("/marketing?tab=campaigns&new=1")}>
                 <Icon name="plus" size={14} /> Create Campaign
               </button>
-              <button className="sb-act outline" type="button" onClick={() => navigate("/marketing?tab=discounts")}>
+              <button className="sb-act outline" type="button" onClick={() => navigate("/marketing?tab=discounts&new=1")}>
                 <Icon name="tag" size={14} /> Create Discount
               </button>
-              <button className="sb-act outline" type="button" onClick={() => navigate("/marketing?tab=banners")}>
+              <button className="sb-act outline" type="button" onClick={() => navigate("/marketing?tab=banners&new=1")}>
                 <Icon name="upload" size={14} /> Upload Banner
               </button>
-              <button className="sb-act outline" type="button" onClick={() => window.alert("Templates coming soon")}>
+              <button className="sb-act outline" type="button" onClick={() => navigate("/marketing?tab=email&templates=1")}>
                 <Icon name="layers" size={14} /> View Templates
+              </button>
+            </>
+          ) : location.pathname.startsWith("/support") ? (
+            <>
+              <button className="sb-act purple" type="button" onClick={() => navigate("/support?new=1")}>
+                <Icon name="plus" size={14} /> New Ticket
+              </button>
+              <button className="sb-act outline" type="button" onClick={() => navigate("/customers")}>
+                <Icon name="users" size={14} /> Customers
+              </button>
+              <button className="sb-act outline" type="button" onClick={() => navigate("/orders")}>
+                <Icon name="receipt" size={14} /> Orders
+              </button>
+            </>
+          ) : location.pathname.startsWith("/settings") ? (
+            <>
+              <button className="sb-act purple" type="button" onClick={() => navigate("/settings")}>
+                <Icon name="save" size={14} /> Save Settings
+              </button>
+              <button className="sb-act outline" type="button" onClick={() => navigate("/support")}>
+                <Icon name="help" size={14} /> Support
               </button>
             </>
           ) : (

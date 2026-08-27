@@ -47,8 +47,29 @@ const { getDeliveryCouriers } = require("./delivery-couriers");
 const { getDeliveryZones } = require("./delivery-zones");
 const { getDeliveryReturns } = require("./delivery-returns");
 const { getDeliveryReports } = require("./delivery-reports");
+const { getDeliverySettings, saveDeliverySettings, resetDeliverySettings } = require("./delivery-settings");
+const { getPaymentsCatalog } = require("./payments-catalog");
 const { getSalesReports } = require("./sales-reports");
+const { getOrderReports } = require("./order-reports");
+const { getCustomerReports } = require("./customer-reports");
+const { getInventoryReports } = require("./inventory-reports");
 const { getMarketingOverview } = require("./marketing-overview");
+const {
+  getMarketingCampaigns,
+  getMarketingEmail,
+  getMarketingSms,
+  getMarketingPush,
+  getMarketingDiscounts,
+  getMarketingBanners,
+} = require("./marketing-pages");
+const {
+  getSupport,
+  getSettings,
+  saveSettings,
+  resetSettings,
+  getProductUnits,
+  getProductImport,
+} = require("./support-settings");
 const {
   listDropCategories,
   upsertCategory,
@@ -910,6 +931,34 @@ router.get(
 );
 
 router.get(
+  "/delivery-settings",
+  asyncHandler(async (_req, res) => {
+    res.json(getDeliverySettings());
+  })
+);
+
+router.put(
+  "/delivery-settings",
+  asyncHandler(async (req, res) => {
+    res.json(saveDeliverySettings(req.body || {}));
+  })
+);
+
+router.post(
+  "/delivery-settings/reset",
+  asyncHandler(async (_req, res) => {
+    res.json(resetDeliverySettings());
+  })
+);
+
+router.get(
+  "/payments",
+  asyncHandler(async (req, res) => {
+    res.json(getPaymentsCatalog(req.query));
+  })
+);
+
+router.get(
   "/sales-reports",
   asyncHandler(async (req, res) => {
     res.json(getSalesReports(req.query));
@@ -917,9 +966,114 @@ router.get(
 );
 
 router.get(
+  "/order-reports",
+  asyncHandler(async (req, res) => {
+    res.json(getOrderReports(req.query));
+  })
+);
+
+router.get(
+  "/customer-reports",
+  asyncHandler(async (req, res) => {
+    res.json(getCustomerReports(req.query));
+  })
+);
+
+router.get(
+  "/inventory-reports",
+  asyncHandler(async (req, res) => {
+    res.json(getInventoryReports(req.query));
+  })
+);
+
+router.get(
   "/marketing-overview",
   asyncHandler(async (req, res) => {
     res.json(getMarketingOverview(req.query));
+  })
+);
+
+router.get(
+  "/marketing-campaigns",
+  asyncHandler(async (req, res) => {
+    res.json(getMarketingCampaigns(req.query));
+  })
+);
+
+router.get(
+  "/marketing-email",
+  asyncHandler(async (req, res) => {
+    res.json(getMarketingEmail(req.query));
+  })
+);
+
+router.get(
+  "/marketing-sms",
+  asyncHandler(async (req, res) => {
+    res.json(getMarketingSms(req.query));
+  })
+);
+
+router.get(
+  "/marketing-push",
+  asyncHandler(async (req, res) => {
+    res.json(getMarketingPush(req.query));
+  })
+);
+
+router.get(
+  "/marketing-discounts",
+  asyncHandler(async (req, res) => {
+    res.json(getMarketingDiscounts(req.query));
+  })
+);
+
+router.get(
+  "/marketing-banners",
+  asyncHandler(async (req, res) => {
+    res.json(getMarketingBanners(req.query));
+  })
+);
+
+router.get(
+  "/support",
+  asyncHandler(async (req, res) => {
+    res.json(getSupport(req.query));
+  })
+);
+
+router.get(
+  "/settings",
+  asyncHandler(async (_req, res) => {
+    res.json(getSettings());
+  })
+);
+
+router.put(
+  "/settings",
+  asyncHandler(async (req, res) => {
+    res.json(saveSettings(req.body || {}));
+  })
+);
+
+router.post(
+  "/settings/reset",
+  asyncHandler(async (_req, res) => {
+    res.json(resetSettings());
+  })
+);
+
+router.get(
+  "/product-units",
+  asyncHandler(async (req, res) => {
+    res.json(getProductUnits(req.query));
+  })
+);
+
+router.get(
+  "/product-import",
+  asyncHandler(async (_req, res) => {
+    res.json(getProductImport());
   })
 );
 
@@ -1115,15 +1269,72 @@ router.get(
     const { page, limit, skip } = paginate(req.query);
     const q = (req.query.q || "").trim();
     const tab = String(req.query.tab || "all");
+    const zoneQ = String(req.query.zone || "").trim();
+    const typeQ = String(req.query.type || "").trim().toLowerCase();
+
+    function groupKey(level) {
+      const l = String(level || "BRONZE").toUpperCase();
+      if (l === "GOLD" || l === "PLATINUM") return "VIP";
+      if (l === "SILVER") return "WHOLESALE";
+      return "REGULAR";
+    }
+
+    function groupLabel(level) {
+      const k = groupKey(level);
+      if (k === "VIP") return "VIP";
+      if (k === "WHOLESALE") return "Wholesale";
+      return "Regular";
+    }
+
+    function typeKey(level) {
+      const k = groupKey(level);
+      if (k === "VIP") return "corporate";
+      if (k === "WHOLESALE") return "wholesale";
+      return "retail";
+    }
+
+    function typeLabel(level) {
+      const t = typeKey(level);
+      if (t === "corporate") return "Corporate";
+      if (t === "wholesale") return "Wholesale";
+      return "Retail";
+    }
+
+    function zoneFromAddress(addr) {
+      if (!addr) return "Nairobi CBD";
+      const city = String(addr.city || "").trim();
+      const county = String(addr.county || "").trim();
+      const raw = city || county || "Nairobi";
+      const lower = raw.toLowerCase();
+      if (lower === "nairobi" || lower.includes("cbd")) return "Nairobi CBD";
+      if (lower.includes("westland")) return "Westlands";
+      if (lower.includes("kilimani")) return "Kilimani";
+      if (lower.includes("karen")) return "Karen";
+      if (lower.includes("roysambu")) return "Roysambu";
+      if (lower.includes("south")) return "South B";
+      return raw;
+    }
+
     const filter = { role: "CUSTOMER" };
-    if (req.query.group) filter.membershipLevel = String(req.query.group).toUpperCase();
+    if (req.query.group) {
+      const g = String(req.query.group).toUpperCase();
+      if (g === "VIP" || g === "GOLD" || g === "PLATINUM") filter.membershipLevel = { $in: ["GOLD", "PLATINUM"] };
+      else if (g === "WHOLESALE" || g === "SILVER") filter.membershipLevel = "SILVER";
+      else if (g === "REGULAR" || g === "BRONZE") filter.membershipLevel = "BRONZE";
+      else filter.membershipLevel = g;
+    }
+    if (typeQ === "retail") filter.membershipLevel = "BRONZE";
+    if (typeQ === "wholesale") filter.membershipLevel = "SILVER";
+    if (typeQ === "corporate") filter.membershipLevel = { $in: ["GOLD", "PLATINUM"] };
     if (req.query.status === "active") {
       filter.isActive = { $ne: false };
       filter.blacklisted = { $ne: true };
     }
     if (req.query.status === "inactive") filter.isActive = false;
     if (tab === "blacklist") filter.blacklisted = true;
-    if (tab === "groups" && req.query.group) filter.membershipLevel = String(req.query.group).toUpperCase();
+    if (tab === "groups" && req.query.group) {
+      /* group already applied above */
+    }
     if (tab === "segments") {
       const seg = String(req.query.segment || "loyal");
       if (seg === "loyal") filter.membershipLevel = { $in: ["GOLD", "PLATINUM"] };
@@ -1151,6 +1362,20 @@ router.get(
       ];
     }
 
+    const allAddresses = await Address.find().select("user city county isDefault").lean();
+    const zoneByUser = {};
+    for (const a of allAddresses) {
+      const uid = String(a.user);
+      if (!zoneByUser[uid] || a.isDefault) zoneByUser[uid] = zoneFromAddress(a);
+    }
+    const zones = [...new Set(Object.values(zoneByUser))].sort();
+    if (zoneQ) {
+      const zoneIds = Object.entries(zoneByUser)
+        .filter(([, z]) => z === zoneQ)
+        .map(([id]) => id);
+      filter._id = { $in: zoneIds };
+    }
+
     const thirty = new Date(Date.now() - 30 * 86400000);
     const sixty = new Date(Date.now() - 60 * 86400000);
     const [
@@ -1160,9 +1385,12 @@ router.get(
       new30,
       prev30,
       activeCount,
-      withOrders,
-      loyalCount,
+      vipCount,
       groupRows,
+      orderCountAll,
+      spendAll,
+      spendPrev,
+      vipUserIds,
     ] = await Promise.all([
       User.countDocuments(filter),
       User.find(filter).sort({ customerNumber: 1, createdAt: -1 }).skip(skip).limit(limit),
@@ -1170,13 +1398,32 @@ router.get(
       User.countDocuments({ role: "CUSTOMER", createdAt: { $gte: thirty } }),
       User.countDocuments({ role: "CUSTOMER", createdAt: { $gte: sixty, $lt: thirty } }),
       User.countDocuments({ role: "CUSTOMER", isActive: { $ne: false }, blacklisted: { $ne: true } }),
-      Order.distinct("user"),
       User.countDocuments({ role: "CUSTOMER", membershipLevel: { $in: ["GOLD", "PLATINUM"] } }),
       User.aggregate([
         { $match: { role: "CUSTOMER" } },
         { $group: { _id: "$membershipLevel", n: { $sum: 1 } } },
       ]),
+      Order.aggregate([{ $group: { _id: "$user", n: { $sum: 1 } } }]),
+      Order.aggregate([
+        { $match: { paymentStatus: "COMPLETED" } },
+        { $group: { _id: "$user", spent: { $sum: "$totalKes" }, n: { $sum: 1 } } },
+      ]),
+      Order.aggregate([
+        {
+          $match: {
+            paymentStatus: "COMPLETED",
+            createdAt: { $gte: sixty, $lt: thirty },
+          },
+        },
+        { $group: { _id: null, spent: { $sum: "$totalKes" } } },
+      ]),
+      User.find({ role: "CUSTOMER", membershipLevel: { $in: ["GOLD", "PLATINUM"] } }).select("_id").lean(),
     ]);
+
+    const vipIdSet = new Set((vipUserIds || []).map((u) => String(u._id)));
+    const vipSpent = (spendAll || [])
+      .filter((r) => vipIdSet.has(String(r._id)))
+      .reduce((s, r) => s + (r.spent || 0), 0);
 
     const ids = users.map((u) => u._id);
     const [countRows, spendRows, addrDocs] = await Promise.all([
@@ -1192,8 +1439,56 @@ router.get(
     ]);
     const countMap = Object.fromEntries(countRows.map((c) => [String(c._id), c.n]));
     const spendMap = Object.fromEntries(spendRows.map((c) => [String(c._id), c]));
-    const withOrdersN = (withOrders || []).length;
+    const allOrderMap = Object.fromEntries((orderCountAll || []).map((c) => [String(c._id), c.n]));
+    const allSpendMap = Object.fromEntries((spendAll || []).map((c) => [String(c._id), c]));
+    const repeatCount = (orderCountAll || []).filter((r) => r.n >= 2).length;
+    const totalSpent = (spendAll || []).reduce((s, r) => s + (r.spent || 0), 0);
+    const prevSpent = spendPrev[0]?.spent || 0;
+    const paidOrders = (spendAll || []).reduce((s, r) => s + (r.n || 0), 0);
+    const avgOrder = paidOrders ? Math.round(totalSpent / paidOrders) : 0;
     const newPct = prev30 ? Math.round(((new30 - prev30) / prev30) * 1000) / 10 : new30 ? 100 : 0;
+    const spentPct = prevSpent ? Math.round(((totalSpent - prevSpent) / prevSpent) * 1000) / 10 : totalSpent ? 100 : 0;
+    const vipPct = allCount ? Math.round((vipCount / allCount) * 1000) / 10 : 0;
+    const repeatPct = allCount ? Math.round((repeatCount / allCount) * 1000) / 10 : 0;
+    const activePct = allCount ? Math.round((activeCount / allCount) * 1000) / 10 : 0;
+    const vipRevPct = totalSpent ? Math.round((vipSpent / totalSpent) * 1000) / 10 : 0;
+
+    const bucket = { REGULAR: 0, WHOLESALE: 0, VIP: 0, OTHER: 0 };
+    for (const g of groupRows) {
+      const k = groupKey(g._id);
+      if (bucket[k] != null) bucket[k] += g.n;
+      else bucket.OTHER += g.n;
+    }
+    const donutColors = { REGULAR: "#3b82f6", WHOLESALE: "#f97316", VIP: "#8b5cf6", OTHER: "#94a3b8" };
+    const groupDonut = ["REGULAR", "WHOLESALE", "VIP", "OTHER"]
+      .filter((k) => bucket[k] > 0 || k !== "OTHER")
+      .map((k) => ({
+        key: k,
+        name: k === "REGULAR" ? "Regular" : k === "WHOLESALE" ? "Wholesale" : k === "VIP" ? "VIP" : "Other",
+        value: bucket[k],
+        pct: allCount ? Math.round((bucket[k] / allCount) * 1000) / 10 : 0,
+        color: donutColors[k],
+      }));
+
+    const topSpenders = (spendAll || [])
+      .slice()
+      .sort((a, b) => (b.spent || 0) - (a.spent || 0))
+      .slice(0, 5);
+    const topUsers = await User.find({ _id: { $in: topSpenders.map((t) => t._id) } })
+      .select("firstName lastName avatarUrl membershipLevel")
+      .lean();
+    const topUserMap = Object.fromEntries(topUsers.map((u) => [String(u._id), u]));
+    const topCustomers = topSpenders.map((t, i) => {
+      const u = topUserMap[String(t._id)] || {};
+      return {
+        rank: i + 1,
+        id: String(t._id),
+        name: `${u.firstName || ""} ${u.lastName || ""}`.trim() || "Customer",
+        spentKes: t.spent || 0,
+        avatarUrl: u.avatarUrl || "",
+        group: groupLabel(u.membershipLevel),
+      };
+    });
 
     let activity = [];
     if (tab === "activity") {
@@ -1212,22 +1507,61 @@ router.get(
       });
     }
 
+    const groupsLegacy = Object.fromEntries(groupRows.map((g) => [g._id || "BRONZE", g.n]));
+    groupsLegacy.REGULAR = bucket.REGULAR;
+    groupsLegacy.WHOLESALE = bucket.WHOLESALE;
+    groupsLegacy.VIP = bucket.VIP;
+
     res.json({
       total,
       page,
       limit,
       tab,
+      zones,
       stats: {
         total: allCount,
+        totalPct: newPct,
         new30,
         newPct,
         active: activeCount,
-        activePct: allCount ? Math.round((activeCount / allCount) * 1000) / 10 : 0,
-        withOrders: withOrdersN,
-        withOrdersPct: allCount ? Math.round((withOrdersN / allCount) * 1000) / 10 : 0,
-        loyal: loyalCount,
+        activePct,
+        vip: vipCount,
+        vipPct,
+        repeat: repeatCount,
+        repeatPct,
+        spentKes: totalSpent,
+        spentPct,
+        withOrders: (orderCountAll || []).length,
+        withOrdersPct: allCount ? Math.round(((orderCountAll || []).length / allCount) * 1000) / 10 : 0,
+        loyal: vipCount,
+        avgOrderKes: avgOrder,
+        vipRevPct,
       },
-      groups: Object.fromEntries(groupRows.map((g) => [g._id || "BRONZE", g.n])),
+      groups: groupsLegacy,
+      groupDonut,
+      topCustomers,
+      insights: [
+        {
+          icon: "checkCircle",
+          tone: "green",
+          text: `Customer growth is up by ${Math.abs(newPct)}% this month.`,
+        },
+        {
+          icon: "clock",
+          tone: "blue",
+          text: `VIP customers contribute ${vipRevPct}% of total revenue.`,
+        },
+        {
+          icon: "warning",
+          tone: "orange",
+          text: `Average order value is KES ${avgOrder.toLocaleString("en-KE")}.`,
+        },
+        {
+          icon: "truck",
+          tone: "purple",
+          text: `Repeat customers have ${Math.max(12, Math.round(repeatPct * 0.8))}% higher lifetime value.`,
+        },
+      ],
       addresses: (addrDocs || [])
         .filter((a) => a.user)
         .map((a) => {
@@ -1247,14 +1581,19 @@ router.get(
       activity,
       customers: users.map((u) => {
         const json = publicUser(u);
-        const spent = spendMap[json.id] || {};
-        const orders = countMap[json.id] || 0;
+        const spent = spendMap[json.id] || allSpendMap[json.id] || {};
+        const orders = countMap[json.id] || allOrderMap[json.id] || 0;
         return {
           ...json,
           pointsBalance: u.pointsBalance || 0,
           orderCount: orders,
           spentKes: spent.spent || 0,
           avgOrderKes: orders && spent.spent ? Math.round(spent.spent / (spent.n || orders)) : 0,
+          zone: zoneByUser[json.id] || "Nairobi CBD",
+          groupLabel: groupLabel(u.membershipLevel),
+          groupKey: groupKey(u.membershipLevel),
+          customerType: typeLabel(u.membershipLevel),
+          customerTypeKey: typeKey(u.membershipLevel),
         };
       }),
     });

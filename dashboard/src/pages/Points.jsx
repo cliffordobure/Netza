@@ -956,7 +956,7 @@ export default function Points() {
           <>
             <div>
               <h1>
-                <span className="prod-title-icon"><Icon name="star" size={18} /></span>
+                <span className="prod-title-icon solid"><Icon name="star" size={16} /></span>
                 Earn Rules
               </h1>
               <p>Create and manage rules that award points to customers automatically.</p>
@@ -1362,7 +1362,7 @@ export default function Points() {
           {tab === "rules" && (
             <>
               <form
-                className="attr-filters"
+                className="attr-filters pts-rules-filters"
                 onSubmit={(e) => {
                   e.preventDefault();
                   setPage(1);
@@ -1410,8 +1410,8 @@ export default function Points() {
                   Reset
                 </button>
               </form>
-              <div className="prod-table-wrap">
-                <table className="table prod-table pts-table">
+              <div className="pts-rules-scroll">
+                <table className="table pts-rules-table">
                   <thead>
                     <tr>
                       <th>Rule Name</th>
@@ -1434,14 +1434,14 @@ export default function Points() {
                               <span className={`rule-ico ${meta.tone}`}><Icon name={meta.icon} size={14} /></span>
                               <span>
                                 <strong>{r.name}</strong>
-                                <div className="muted">{r.key}</div>
+                                <em>{r.key}</em>
                               </span>
                             </button>
                           </td>
                           <td><span className={`st-pill ${meta.cls}`}>{meta.label}</span></td>
-                          <td>{triggerText(r)}</td>
+                          <td><span className="pts-rules-trigger">{triggerText(r)}</span></td>
                           <td className="pts-pos">+{fmtNum(r.points)}</td>
-                          <td>{limitText(r.limit)}</td>
+                          <td className="pts-rules-limit">{limitText(r.limit)}</td>
                           <td>
                             <button
                               className={`pts-switch ${r.isActive !== false ? "on" : ""}`}
@@ -1452,16 +1452,23 @@ export default function Points() {
                               <i />
                             </button>
                           </td>
-                          <td>{r.priority || "—"}</td>
+                          <td className="pts-rules-pri">{r.priority || "—"}</td>
                           <td>
                             <div className="prod-row-acts">
                               <button type="button" title="Edit" onClick={() => openEditRule(r)}><Icon name="pencil" size={14} /></button>
                               <span className="ord-menu-wrap">
-                                <button type="button" title="More" onClick={() => setRuleMenu(ruleMenu === r.id ? null : r.id)}>
+                                <button
+                                  type="button"
+                                  title="More"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setRuleMenu(ruleMenu === r.id ? null : r.id);
+                                  }}
+                                >
                                   <Icon name="more" size={14} />
                                 </button>
                                 {ruleMenu === r.id && (
-                                  <div className="ord-menu">
+                                  <div className="ord-menu" onClick={(e) => e.stopPropagation()}>
                                     <button type="button" onClick={() => openEditRule(r)}>Edit rule</button>
                                     <button type="button" onClick={() => duplicateRule(r)}>Duplicate</button>
                                     <button type="button" onClick={() => { toggleRule(r); setRuleMenu(null); }}>
@@ -1496,11 +1503,14 @@ export default function Points() {
                     <Icon name="chevronRight" size={14} />
                   </button>
                 </div>
-                <select value={limit} onChange={(e) => { const n = Number(e.target.value); setLimit(n); setPage(1); }}>
-                  {[10, 20, 50].map((n) => (
-                    <option key={n} value={n}>{n} / page</option>
-                  ))}
-                </select>
+                <label className="prod-rows">
+                  Rows per page
+                  <select value={limit} onChange={(e) => { const n = Number(e.target.value); setLimit(n); setPage(1); }}>
+                    {[10, 20, 50].map((n) => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                </label>
               </footer>
             </>
           )}
@@ -2291,7 +2301,7 @@ export default function Points() {
       </div>
 
       {tab === "rules" && (
-        <section className="rule-how">
+        <section className="rule-how pts-rules-how">
           <h3>How Earn Rules Work</h3>
           <div className="rule-how-grid">
             <article>

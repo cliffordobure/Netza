@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import { Icon } from "../icons";
+import { DeliveryDetailModal, DeliveryRowMenu, DetailMeta } from "../DeliveryRowMenu";
 
 function fmtNum(n, digits = 0) {
   return new Intl.NumberFormat("en-KE", {
@@ -138,6 +139,8 @@ export default function DeliveryReports() {
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [customOpen, setCustomOpen] = useState(false);
+  const [menu, setMenu] = useState(null);
+  const [viewing, setViewing] = useState(null);
 
   function queryString(next = {}) {
     const p = new URLSearchParams();
@@ -179,6 +182,7 @@ export default function DeliveryReports() {
   useEffect(() => {
     function close() {
       setCustomOpen(false);
+      setMenu(null);
     }
     window.addEventListener("click", close);
     return () => window.removeEventListener("click", close);
@@ -198,6 +202,44 @@ export default function DeliveryReports() {
     setTo("2026-05-27");
     setPage(1);
     load({ q: "", type: "", zone: "", page: 1 });
+  }
+
+  function downloadReport(row, e) {
+    e?.stopPropagation?.();
+    e?.preventDefault?.();
+    try {
+      const lines = [
+        "Field,Value",
+        `Name,${JSON.stringify(row.name || "")}`,
+        `Type,${JSON.stringify(row.typeLabel || row.type || "")}`,
+        `Date Range,${JSON.stringify(row.range || "")}`,
+        `Shipments,${row.shipments ?? 0}`,
+        `Success Rate,${row.successRate ?? 0}%`,
+        `Avg Delivery Time,${JSON.stringify(row.avgTime || "")}`,
+        `Generated On,${JSON.stringify(`${row.generated || ""} ${row.generatedTime || ""}`.trim())}`,
+        `Zone,${JSON.stringify(row.zone || "")}`,
+      ];
+      const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${String(row.name || "delivery-report").replace(/[^\w\-]+/g, "-").toLowerCase()}.csv`;
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 500);
+      setMenu(null);
+      setToast(`Downloaded “${row.name}”`);
+    } catch (err) {
+      setError(err.message || "Download failed.");
+    }
+  }
+
+  function openReport(row, e) {
+    e?.stopPropagation?.();
+    setMenu(null);
+    setViewing(row);
   }
 
   if (!data) {
@@ -221,6 +263,34 @@ export default function DeliveryReports() {
   const pages = Math.max(1, Math.ceil(total / limit));
   const fromN = total === 0 ? 0 : (page - 1) * limit + 1;
   const toN = Math.min(page * limit, total);
+
+  function exportAllReports() {
+    const header = ["#", "Report Name", "Type", "Date Range", "Shipments", "Success Rate", "Avg Delivery Time", "Generated On"];
+    const lines = [header.join(",")];
+    for (const r of rows) {
+      lines.push([
+        r.n,
+        JSON.stringify(r.name || ""),
+        JSON.stringify(r.typeLabel || ""),
+        JSON.stringify(r.range || ""),
+        r.shipments ?? 0,
+        `${r.successRate ?? 0}%`,
+        JSON.stringify(r.avgTime || ""),
+        JSON.stringify(`${r.generated || ""} ${r.generatedTime || ""}`.trim()),
+      ].join(","));
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "delivery-reports.csv";
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 500);
+    setToast("Exported all reports");
+  }
 
   function pageButtons() {
     const btns = [];
@@ -249,7 +319,7 @@ export default function DeliveryReports() {
           <p>Analyze delivery performance, shipments, returns and courier productivity.</p>
         </div>
         <div className="prod-actions">
-          <button className="btn btn-ghost btn-small" type="button" onClick={() => setToast("Export started")}>
+          <button className="btn btn-ghost btn-small" type="button" onClick={exportAllReports}>
             <Icon name="download" size={14} /> Export Report
           </button>
           <div className="dlvrpt-dd-wrap">
@@ -405,13 +475,47 @@ export default function DeliveryReports() {
                         <div className="muted dlvrpt-sub">{r.generatedTime}</div>
                       </td>
                       <td>
-                        <div className="prod-row-acts">
-                          <button type="button" title="View" onClick={() => setToast(`Viewing ${r.name}`)}>
+                        <div className="prod-row-acts" onClick={(e) => e.stopPropagation()}>
+                          <button type="button" title="View report" onClick={(e) => openReport(r, e)}>
                             <Icon name="eye" size={14} />
                           </button>
-                          <button type="button" title="Download" onClick={() => setToast(`Downloading ${r.name}`)}>
+                          <button type="button" title="Download CSV" onClick={(e) => downloadReport(r, e)}>
                             <Icon name="download" size={14} />
                           </button>
+                          <DeliveryRowMenu id={r.id} menu={menu} setMenu={setMenu} up={r.n >= rows.length}>
+                            <button type="button" onClick={(e) => openReport(r, e)}>View details</button>
+                            <button type="button" onClick={(e) => downloadReport(r, e)}>Download CSV</button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setMenu(null);
+                                if (navigator.clipboard?.writeText) {
+                                  navigator.clipboard.writeText(`${window.location.origin}/reports?tab=delivery&report=${r.id}`).catch(() => {});
+                                }
+                                setToast(`Share link copied for “${r.name}”`);
+                              }}
+                            >
+                              Copy share link
+                            </button>
+                            <button
+                              type="button"
+                              className="danger"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!confirm(`Delete report “${r.name}”?`)) { setMenu(null); return; }
+                                setData((d) => ({
+                                  ...d,
+                                  reports: (d.reports || []).filter((x) => x.id !== r.id),
+                                  total: Math.max(0, (d.total || 1) - 1),
+                                }));
+                                setMenu(null);
+                                setToast(`Deleted “${r.name}”`);
+                              }}
+                            >
+                              Delete
+                            </button>
+                          </DeliveryRowMenu>
                         </div>
                       </td>
                     </tr>
@@ -498,6 +602,44 @@ export default function DeliveryReports() {
             {data.footerMessage}
           </p>
         </footer>
+      )}
+
+      {viewing && (
+        <DeliveryDetailModal
+          title={viewing.name}
+          subtitle={viewing.range}
+          statusNode={<span className={`dlvrpt-type ${typeCls(viewing.type)}`}>{viewing.typeLabel}</span>}
+          onClose={() => setViewing(null)}
+          actions={(
+            <>
+              <button className="btn btn-purple btn-small" type="button" onClick={(e) => downloadReport(viewing, e)}>
+                <Icon name="download" size={14} /> Download CSV
+              </button>
+              <button
+                className="btn btn-ghost btn-small"
+                type="button"
+                onClick={() => {
+                  window.print();
+                }}
+              >
+                Print
+              </button>
+            </>
+          )}
+        >
+          <DetailMeta
+            rows={[
+              { label: "Report", value: <strong>{viewing.name}</strong> },
+              { label: "Type", value: viewing.typeLabel },
+              { label: "Date range", value: viewing.range },
+              { label: "Shipments", value: fmtNum(viewing.shipments) },
+              { label: "Success rate", value: `${Number(viewing.successRate).toFixed(1)}%` },
+              { label: "Avg time", value: viewing.avgTime },
+              { label: "Zone", value: viewing.zone || "—" },
+              { label: "Generated", value: `${viewing.generated} · ${viewing.generatedTime}` },
+            ]}
+          />
+        </DeliveryDetailModal>
       )}
     </div>
   );

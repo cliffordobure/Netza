@@ -64,8 +64,8 @@ function typeMeta(type) {
 
 function statusMeta(status) {
   const id = String(status || "upcoming");
-  if (id === "active") return { label: "Active", cls: "st-pub" };
-  if (id === "upcoming") return { label: "Upcoming", cls: "st-draft" };
+  if (id === "active") return { label: "Active", cls: "comp-st-live" };
+  if (id === "upcoming") return { label: "Upcoming", cls: "comp-st-upcoming" };
   if (id === "cancelled") return { label: "Cancelled", cls: "ord-st-cancelled" };
   return { label: "Completed", cls: "comp-st-done" };
 }
@@ -150,6 +150,12 @@ export default function Competitions() {
     const t = setTimeout(() => setToast(""), 2800);
     return () => clearTimeout(t);
   }, [toast]);
+
+  useEffect(() => {
+    function closeMenu() { setMenu(null); }
+    window.addEventListener("click", closeMenu);
+    return () => window.removeEventListener("click", closeMenu);
+  }, []);
 
   useEffect(() => {
     if (params.get("new") === "1") {
@@ -516,8 +522,8 @@ export default function Competitions() {
             </button>
             <button className="link-reset" type="button" onClick={resetFilters}>Reset</button>
           </form>
-          <div className="prod-table-wrap">
-            <table className="table prod-table pts-table comp-table">
+          <div className="comp-table-scroll">
+            <table className="table comp-table">
               <thead>
                 <tr>
                   <th>Competition</th>
@@ -539,38 +545,42 @@ export default function Competitions() {
                   return (
                     <tr key={r.id} className={form.id === r.id ? "is-open" : ""}>
                       <td>
-                        <button className="rule-name rwd-name" type="button" onClick={() => openRow(r)}>
+                        <button className="comp-cell" type="button" onClick={() => openRow(r)}>
                           {r.imageUrl
-                            ? <img src={r.imageUrl} alt="" className="rwd-thumb" />
+                            ? <img src={r.imageUrl} alt="" />
                             : (
-                              <span className="rule-ico purple">
+                              <span className="comp-thumb-ph">
                                 <Icon name="trophy" size={14} />
                               </span>
                             )}
                           <span>
                             <strong>{r.title}</strong>
-                            <div className="muted">#{r.code}</div>
+                            <em>#{r.code}</em>
                           </span>
                         </button>
                       </td>
                       <td><span className={`st-pill ${type.cls}`}>{type.label}</span></td>
                       <td><span className={`st-pill ${st.cls}`}>{st.label}</span></td>
-                      <td>{fmtNum(r.participantCount)} Joined</td>
-                      <td>{fmtDate(r.startsAt)}</td>
-                      <td>{fmtDate(r.endsAt)}</td>
-                      <td className="comp-prize">{r.prize || "—"}</td>
-                      <td>{pointsLabel(r)}</td>
-                      <td>{r.createdBy || "—"}</td>
+                      <td className="comp-joined">{fmtNum(r.participantCount)} Joined</td>
+                      <td className="comp-date">{fmtDate(r.startsAt)}</td>
+                      <td className="comp-date">{fmtDate(r.endsAt)}</td>
+                      <td><span className="comp-prize">{r.prize || "—"}</span></td>
+                      <td className="comp-pts">{pointsLabel(r)}</td>
+                      <td className="comp-by">{r.createdBy || "—"}</td>
                       <td>
                         <div className="prod-row-acts">
-                          <button type="button" title="View" onClick={() => navigate(`/competitions/${r.id}`)}><Icon name="eye" size={14} /></button>
-                          <button type="button" title="Edit" onClick={() => navigate(`/competitions/${r.id}/edit`)}><Icon name="pencil" size={14} /></button>
+                          <button type="button" title="View" onClick={() => navigate(`/competitions/${r.id}`)}>
+                            <Icon name="eye" size={14} />
+                          </button>
+                          <button type="button" title="Edit" onClick={() => navigate(`/competitions/${r.id}/edit`)}>
+                            <Icon name="pencil" size={14} />
+                          </button>
                           <span className="ord-menu-wrap">
-                            <button type="button" title="More" onClick={() => setMenu(menu === r.id ? null : r.id)}>
+                            <button type="button" title="More" onClick={(e) => { e.stopPropagation(); setMenu(menu === r.id ? null : r.id); }}>
                               <Icon name="more" size={14} />
                             </button>
                             {menu === r.id && (
-                              <div className="ord-menu">
+                              <div className="ord-menu" onClick={(e) => e.stopPropagation()}>
                                 <button type="button" onClick={() => navigate(`/competitions/${r.id}`)}>View competition</button>
                                 <button type="button" onClick={() => navigate(`/competitions/${r.id}/edit`)}>Edit competition</button>
                                 <button type="button" onClick={() => duplicate(r)}>Duplicate</button>

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { Icon } from "../icons";
+import { DeliveryDetailModal, DeliveryRowMenu, DetailMeta } from "../DeliveryRowMenu";
 
 function fmtNum(n, digits = 0) {
   return new Intl.NumberFormat("en-KE", {
@@ -97,6 +98,9 @@ export default function DeliveryCouriers() {
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [addOpen, setAddOpen] = useState(false);
+  const [menu, setMenu] = useState(null);
+  const [viewing, setViewing] = useState(null);
+  const [editing, setEditing] = useState(null);
 
   function queryString(next = {}) {
     const p = new URLSearchParams();
@@ -142,6 +146,7 @@ export default function DeliveryCouriers() {
   useEffect(() => {
     function close() {
       setAddOpen(false);
+      setMenu(null);
     }
     window.addEventListener("click", close);
     return () => window.removeEventListener("click", close);
@@ -161,6 +166,47 @@ export default function DeliveryCouriers() {
     setVerifyF("");
     setPage(1);
     load({ q: "", status: "", zone: "", vehicle: "", verification: "", page: 1 });
+  }
+
+  const COU_STATUS = {
+    online: "Online",
+    on_delivery: "On Delivery",
+    offline: "Offline",
+  };
+
+  function patchCourier(row, next) {
+    const updated = {
+      ...row,
+      ...next,
+      statusLabel: next.status ? (COU_STATUS[next.status] || next.status) : (next.statusLabel || row.statusLabel),
+    };
+    setData((d) => ({
+      ...d,
+      couriers: (d.couriers || []).map((r) => (r.id === row.id ? updated : r)),
+    }));
+    setViewing((v) => (v && v.id === row.id ? updated : v));
+    setEditing((v) => (v && v.id === row.id ? updated : v));
+    setMenu(null);
+    return updated;
+  }
+
+  function setCourierStatus(row, status) {
+    patchCourier(row, { status });
+    setToast(`${row.name} → ${COU_STATUS[status] || status}`);
+  }
+
+  function saveEdit(e) {
+    e.preventDefault();
+    if (!editing) return;
+    patchCourier(editing, {
+      name: editing.name,
+      phone: editing.phone,
+      email: editing.email,
+      zone: editing.zone,
+      plate: editing.plate,
+    });
+    setEditing(null);
+    setToast(`${editing.name} updated`);
   }
 
   if (!data) {
@@ -389,15 +435,39 @@ export default function DeliveryCouriers() {
                       <td><strong>{fmtNum(r.completed)}</strong></td>
                       <td>
                         <div className="prod-row-acts">
-                          <button type="button" title="View" onClick={() => setToast(`Viewing ${r.name}`)}>
+                          <button type="button" title="View" onClick={() => { setViewing(r); setMenu(null); }}>
                             <Icon name="eye" size={14} />
                           </button>
-                          <button type="button" title="Edit" onClick={() => setToast(`Editing ${r.name}`)}>
+                          <button type="button" title="Edit" onClick={() => { setEditing({ ...r }); setMenu(null); }}>
                             <Icon name="pencil" size={14} />
                           </button>
-                          <button type="button" title="More" onClick={() => setToast(`Actions for ${r.name}`)}>
-                            <Icon name="more" size={14} />
-                          </button>
+                          <DeliveryRowMenu id={r.id} menu={menu} setMenu={setMenu} up={r.n >= rows.length}>
+                            <button type="button" onClick={() => { setViewing(r); setMenu(null); }}>View details</button>
+                            <button type="button" onClick={() => { setEditing({ ...r }); setMenu(null); }}>Edit courier</button>
+                            {r.status !== "online" && (
+                              <button type="button" onClick={() => setCourierStatus(r, "online")}>Set online</button>
+                            )}
+                            {r.status !== "on_delivery" && (
+                              <button type="button" onClick={() => setCourierStatus(r, "on_delivery")}>Set on delivery</button>
+                            )}
+                            {r.status !== "offline" && (
+                              <button type="button" onClick={() => setCourierStatus(r, "offline")}>Set offline</button>
+                            )}
+                            <button
+                              type="button"
+                              className="danger"
+                              onClick={() => {
+                                if (confirm(`Deactivate ${r.name}?`)) {
+                                  setCourierStatus(r, "offline");
+                                  setToast(`${r.name} deactivated`);
+                                } else {
+                                  setMenu(null);
+                                }
+                              }}
+                            >
+                              Deactivate
+                            </button>
+                          </DeliveryRowMenu>
                         </div>
                       </td>
                     </tr>
@@ -494,6 +564,74 @@ export default function DeliveryCouriers() {
             {data.footerMessage}
           </p>
         </footer>
+      )}
+
+      {viewing && (
+        <DeliveryDetailModal
+          title={viewing.name}
+          subtitle={viewing.code}
+          statusNode={<span className={`st-pill ${statusCls(viewing.status)}`}>{viewing.statusLabel}</span>}
+          onClose={() => setViewing(null)}
+          actions={(
+            <>
+              <button className="btn btn-purple btn-small" type="button" onClick={() => { setEditing({ ...viewing }); setViewing(null); }}>
+                Edit
+              </button>
+              {viewing.status !== "online" && (
+                <button className="btn btn-ghost btn-small" type="button" onClick={() => setCourierStatus(viewing, "online")}>
+                  Set online
+                </button>
+              )}
+            </>
+          )}
+        >
+          <DetailMeta
+            rows={[
+              { label: "Contact", value: (<><strong>{viewing.phone}</strong><span className="muted">{viewing.email}</span></>) },
+              { label: "Vehicle", value: (<><strong>{viewing.vehicleLabel}</strong><span className="muted">{viewing.plate}</span></>) },
+              { label: "Zone", value: viewing.zone },
+              { label: "Rating", value: Number(viewing.rating).toFixed(1) },
+              { label: "Completed", value: fmtNum(viewing.completed) },
+            ]}
+          />
+        </DeliveryDetailModal>
+      )}
+
+      {editing && (
+        <div className="prod-modal" onClick={() => setEditing(null)}>
+          <form className="card prod-modal-card dlv-detail-modal" onClick={(e) => e.stopPropagation()} onSubmit={saveEdit}>
+            <div className="ord-drawer-head">
+              <h2>Edit Courier</h2>
+              <button className="btn btn-ghost btn-small" type="button" onClick={() => setEditing(null)}>
+                <Icon name="x" size={14} />
+              </button>
+            </div>
+            <label className="pfe-field">
+              <span>Name</span>
+              <input value={editing.name} onChange={(e) => setEditing((f) => ({ ...f, name: e.target.value }))} required />
+            </label>
+            <label className="pfe-field">
+              <span>Phone</span>
+              <input value={editing.phone} onChange={(e) => setEditing((f) => ({ ...f, phone: e.target.value }))} />
+            </label>
+            <label className="pfe-field">
+              <span>Email</span>
+              <input value={editing.email} onChange={(e) => setEditing((f) => ({ ...f, email: e.target.value }))} />
+            </label>
+            <label className="pfe-field">
+              <span>Zone</span>
+              <input value={editing.zone} onChange={(e) => setEditing((f) => ({ ...f, zone: e.target.value }))} />
+            </label>
+            <label className="pfe-field">
+              <span>Plate</span>
+              <input value={editing.plate} onChange={(e) => setEditing((f) => ({ ...f, plate: e.target.value }))} />
+            </label>
+            <div className="prod-actions rule-drawer-acts dlv-detail-acts">
+              <button className="btn btn-purple btn-small" type="submit">Save changes</button>
+              <button className="btn btn-ghost btn-small" type="button" onClick={() => setEditing(null)}>Cancel</button>
+            </div>
+          </form>
+        </div>
       )}
     </div>
   );

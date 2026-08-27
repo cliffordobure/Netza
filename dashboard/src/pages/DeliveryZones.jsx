@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { Icon } from "../icons";
+import KENYA_BORDER from "../data/kenya-border.json";
+import { DeliveryDetailModal, DeliveryRowMenu, DetailMeta } from "../DeliveryRowMenu";
 
 function fmtNum(n, digits = 0) {
   return new Intl.NumberFormat("en-KE", {
@@ -30,23 +32,136 @@ function etaCls(tone) {
   return "dlvzon-eta";
 }
 
-function ZoneMap({ legend }) {
+/** Equirectangular project for Kenya bounds → SVG coords */
+function keXY(lon, lat, w = 280, h = 340, pad = 14) {
+  const minLon = 33.75;
+  const maxLon = 42.1;
+  const minLat = -4.95;
+  const maxLat = 5.65;
+  const iw = w - pad * 2;
+  const ih = h - pad * 2;
+  return [
+    pad + ((lon - minLon) / (maxLon - minLon)) * iw,
+    pad + ((maxLat - lat) / (maxLat - minLat)) * ih,
+  ];
+}
+
+function kePath(points) {
+  return points
+    .map(([lon, lat], i) => {
+      const [x, y] = keXY(lon, lat);
+      return `${i === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`;
+    })
+    .join(" ") + " Z";
+}
+
+/* Lake Turkana (approx. shoreline) */
+const LAKE_TURKANA = [
+  [35.95, 4.55], [36.12, 4.48], [36.32, 4.2], [36.48, 3.85],
+  [36.55, 3.35], [36.5, 2.9], [36.35, 2.5], [36.15, 2.32],
+  [35.95, 2.4], [35.82, 2.75], [35.78, 3.2], [35.82, 3.65],
+  [35.88, 4.1], [35.95, 4.55],
+];
+
+/* Eastern Lake Victoria bite (Kenya side) */
+const LAKE_VICTORIA = [
+  [33.9, -0.05], [34.15, -0.35], [34.35, -0.7], [34.55, -1.0],
+  [34.75, -1.15], [34.45, -0.95], [34.15, -0.55], [33.92, -0.15],
+];
+
+const REGION_MARKERS = [
+  { key: "nairobi", lon: 36.82, lat: -1.29, color: "#16a34a", label: "Nairobi" },
+  { key: "rift", lon: 36.08, lat: -0.3, color: "#6c5dd3", label: "Nakuru" },
+  { key: "coast", lon: 39.67, lat: -4.04, color: "#ea580c", label: "Mombasa" },
+  { key: "other", lon: 34.77, lat: -0.09, color: "#2563eb", label: "Kisumu" },
+];
+
+const CITY_COORDS = {
+  Nairobi: [36.82, -1.29],
+  Mombasa: [39.67, -4.04],
+  Kisumu: [34.77, -0.09],
+  Nakuru: [36.08, -0.3],
+  Eldoret: [35.27, 0.52],
+  Thika: [37.07, -1.04],
+};
+
+function ZoneMap({ legend, zones }) {
+  const zonePins = (zones || []).map((z, i) => {
+    const base = CITY_COORDS[z.city] || CITY_COORDS.Nairobi;
+    const jitter = z.city === "Nairobi" ? (i - 1) * 0.12 : 0;
+    const [x, y] = keXY(base[0] + jitter * 0.35, base[1] + jitter * 0.08);
+    const color = z.status === "inactive"
+      ? "#94a3b8"
+      : (legend || []).find((l) => l.key === z.region)?.color || "#16a34a";
+    return { id: z.id, x, y, color, name: z.name, status: z.status };
+  });
+
+  const landPath = kePath(KENYA_BORDER);
+  const [oceanX] = keXY(41.2, -1.5);
+
   return (
     <div className="dlvzon-map">
-      <svg viewBox="0 0 220 260" className="dlvzon-map-svg" aria-hidden="true">
+      <svg viewBox="0 0 280 340" className="dlvzon-map-svg" role="img" aria-label="Map of Kenya with delivery zone coverage">
+        <defs>
+          <linearGradient id="dlvzon-ocean" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#e8f3ff" />
+            <stop offset="100%" stopColor="#cfe4f8" />
+          </linearGradient>
+          <linearGradient id="dlvzon-land" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#e8efe6" />
+            <stop offset="100%" stopColor="#d4e0d2" />
+          </linearGradient>
+          <filter id="dlvzon-soft" x="-10%" y="-10%" width="120%" height="120%">
+            <feDropShadow dx="0" dy="1" stdDeviation="1.4" floodColor="#0B1F3A" floodOpacity="0.16" />
+          </filter>
+        </defs>
+
+        <rect width="280" height="340" fill="url(#dlvzon-ocean)" rx="12" />
+
+        {/* Indian Ocean hint east of the coast */}
+        <rect x={oceanX} y="70" width={280 - oceanX} height="240" fill="#9ec9ef" opacity="0.35" />
+
         <path
           className="dlvzon-map-land"
-          d="M118 18c18 6 34 18 42 36 10 22 18 38 14 58-3 16 6 28 4 44-2 18-12 30-10 46 2 14-6 28-18 36-14 10-30 8-46 12-18 4-34-4-48-14-12-8-22-22-24-38-2-14 4-28 2-42-2-16-12-28-8-44 4-18 16-30 30-40C74 28 98 12 118 18z"
+          fill="url(#dlvzon-land)"
+          filter="url(#dlvzon-soft)"
+          d={landPath}
         />
-        <path fill="#16a34a" opacity="0.85" d="M96 118c10-6 22-4 30 4 6 8 4 18-2 24-8 8-20 8-28 2-8-6-8-18 0-30z" />
-        <path fill="#6c5dd3" opacity="0.85" d="M78 86c12-8 24-2 28 10 4 10-2 20-12 24-12 4-24-4-24-16 0-8 4-14 8-18z" />
-        <path fill="#ea580c" opacity="0.85" d="M118 168c14-4 24 6 26 18 2 12-8 22-20 22-14 0-24-10-22-22 2-8 8-14 16-18z" />
-        <path fill="#2563eb" opacity="0.85" d="M70 150c10-4 18 2 20 12 2 10-4 18-14 18-10 0-16-10-14-20 2-6 4-8 8-10z" />
-        <path fill="#94a3b8" opacity="0.9" d="M132 72c8-2 14 4 14 12s-6 12-14 12c-8 0-12-6-12-12s6-10 12-12z" />
-        <circle cx="108" cy="128" r="3.5" fill="#fff" stroke="#0B1F3A" strokeWidth="1.2" />
-        <circle cx="90" cy="98" r="3" fill="#fff" stroke="#0B1F3A" strokeWidth="1.2" />
-        <circle cx="130" cy="182" r="3" fill="#fff" stroke="#0B1F3A" strokeWidth="1.2" />
-        <circle cx="78" cy="158" r="2.5" fill="#fff" stroke="#0B1F3A" strokeWidth="1.2" />
+
+        <path className="dlvzon-map-lake" d={kePath(LAKE_TURKANA)} />
+        <path className="dlvzon-map-lake" d={kePath(LAKE_VICTORIA)} />
+
+        {/* Equator guide */}
+        {(() => {
+          const [, y] = keXY(36, 0);
+          return (
+            <g className="dlvzon-map-equator">
+              <line x1="18" y1={y} x2="262" y2={y} strokeDasharray="3 4" />
+              <text x="20" y={y - 4}>Equator</text>
+            </g>
+          );
+        })()}
+
+        {REGION_MARKERS.map((m) => {
+          const [x, y] = keXY(m.lon, m.lat);
+          return (
+            <g key={m.key}>
+              <circle cx={x} cy={y} r="8" fill={m.color} opacity="0.18" />
+              <circle cx={x} cy={y} r="3.5" fill={m.color} stroke="#fff" strokeWidth="1.3" />
+              <text className="dlvzon-map-city" x={x + 7} y={y + 3}>{m.label}</text>
+            </g>
+          );
+        })}
+
+        {zonePins.map((p) => (
+          <g key={p.id}>
+            <circle cx={p.x} cy={p.y} r="5.5" fill={p.color} opacity="0.28" />
+            <circle cx={p.x} cy={p.y} r="2.8" fill="#fff" stroke={p.color} strokeWidth="1.8" />
+            <title>{p.name} ({p.status})</title>
+          </g>
+        ))}
+
+        <text x="140" y="328" textAnchor="middle" className="dlvzon-map-caption">Republic of Kenya</text>
       </svg>
       <ul className="dlvzon-map-legend">
         {(legend || []).map((l) => (
@@ -72,6 +187,9 @@ export default function DeliveryZones() {
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [addOpen, setAddOpen] = useState(false);
+  const [menu, setMenu] = useState(null);
+  const [viewing, setViewing] = useState(null);
+  const [editing, setEditing] = useState(null);
 
   function queryString(next = {}) {
     const p = new URLSearchParams();
@@ -115,6 +233,7 @@ export default function DeliveryZones() {
   useEffect(() => {
     function close() {
       setAddOpen(false);
+      setMenu(null);
     }
     window.addEventListener("click", close);
     return () => window.removeEventListener("click", close);
@@ -133,6 +252,64 @@ export default function DeliveryZones() {
     setTypeF("");
     setPage(1);
     load({ q: "", status: "", city: "", deliveryType: "", page: 1 });
+  }
+
+  function patchZone(row, next) {
+    const updated = {
+      ...row,
+      ...next,
+      statusLabel: next.status
+        ? (next.status === "active" ? "Active" : "Inactive")
+        : (next.statusLabel || row.statusLabel),
+    };
+    setData((d) => ({
+      ...d,
+      zones: (d.zones || []).map((r) => (r.id === row.id ? updated : r)),
+    }));
+    setViewing((v) => (v && v.id === row.id ? updated : v));
+    setEditing((v) => (v && v.id === row.id ? updated : v));
+    setMenu(null);
+    return updated;
+  }
+
+  function toggleZoneStatus(row) {
+    const status = row.status === "active" ? "inactive" : "active";
+    patchZone(row, { status });
+    setToast(`${row.name} ${status === "active" ? "activated" : "deactivated"}`);
+  }
+
+  function saveZone(e) {
+    e.preventDefault();
+    if (!editing) return;
+    patchZone(editing, {
+      name: editing.name,
+      city: editing.city,
+      area: editing.area,
+      coverage: editing.coverage,
+      fee: Number(editing.fee) || 0,
+      eta: editing.eta,
+    });
+    setEditing(null);
+    setToast(`${editing.name} updated`);
+  }
+
+  function duplicateZone(row) {
+    const copy = {
+      ...row,
+      id: `${row.id}-copy-${Date.now()}`,
+      n: (data?.zones?.length || 0) + 1,
+      name: `${row.name} (Copy)`,
+      status: "inactive",
+      statusLabel: "Inactive",
+      orders: 0,
+    };
+    setData((d) => ({
+      ...d,
+      zones: [...(d.zones || []), copy],
+      total: (d.total || 0) + 1,
+    }));
+    setMenu(null);
+    setToast(`Duplicated ${row.name}`);
   }
 
   if (!data) {
@@ -335,12 +512,17 @@ export default function DeliveryZones() {
                       <td><strong>{fmtNum(r.orders)}</strong></td>
                       <td>
                         <div className="prod-row-acts">
-                          <button type="button" title="Edit" onClick={() => setToast(`Editing ${r.name}`)}>
+                          <button type="button" title="Edit" onClick={() => { setEditing({ ...r }); setMenu(null); }}>
                             <Icon name="pencil" size={14} />
                           </button>
-                          <button type="button" title="More" onClick={() => setToast(`Actions for ${r.name}`)}>
-                            <Icon name="more" size={14} />
-                          </button>
+                          <DeliveryRowMenu id={r.id} menu={menu} setMenu={setMenu} up={r.n >= rows.length}>
+                            <button type="button" onClick={() => { setViewing(r); setMenu(null); }}>View details</button>
+                            <button type="button" onClick={() => { setEditing({ ...r }); setMenu(null); }}>Edit zone</button>
+                            <button type="button" onClick={() => toggleZoneStatus(r)}>
+                              {r.status === "active" ? "Deactivate" : "Activate"}
+                            </button>
+                            <button type="button" onClick={() => duplicateZone(r)}>Duplicate</button>
+                          </DeliveryRowMenu>
                         </div>
                       </td>
                     </tr>
@@ -390,7 +572,7 @@ export default function DeliveryZones() {
                 View Full Map
               </button>
             </div>
-            <ZoneMap legend={data.mapLegend} />
+            <ZoneMap legend={data.mapLegend} zones={rows} />
           </section>
 
           <section className="card pf-card">
@@ -436,6 +618,75 @@ export default function DeliveryZones() {
             {data.footerMessage}
           </p>
         </footer>
+      )}
+
+      {viewing && (
+        <DeliveryDetailModal
+          title={viewing.name}
+          subtitle={`${viewing.city} · ${viewing.area}`}
+          statusNode={<span className={`st-pill ${statusCls(viewing.status)}`}>{viewing.statusLabel}</span>}
+          onClose={() => setViewing(null)}
+          actions={(
+            <>
+              <button className="btn btn-purple btn-small" type="button" onClick={() => { setEditing({ ...viewing }); setViewing(null); }}>
+                Edit
+              </button>
+              <button className="btn btn-ghost btn-small" type="button" onClick={() => toggleZoneStatus(viewing)}>
+                {viewing.status === "active" ? "Deactivate" : "Activate"}
+              </button>
+            </>
+          )}
+        >
+          <DetailMeta
+            rows={[
+              { label: "Coverage", value: viewing.coverage },
+              { label: "Delivery fee", value: `${fmtNum(viewing.fee)} KSh` },
+              { label: "ETA", value: viewing.eta },
+              { label: "Orders this month", value: fmtNum(viewing.orders) },
+            ]}
+          />
+        </DeliveryDetailModal>
+      )}
+
+      {editing && (
+        <div className="prod-modal" onClick={() => setEditing(null)}>
+          <form className="card prod-modal-card dlv-detail-modal" onClick={(e) => e.stopPropagation()} onSubmit={saveZone}>
+            <div className="ord-drawer-head">
+              <h2>Edit Zone</h2>
+              <button className="btn btn-ghost btn-small" type="button" onClick={() => setEditing(null)}>
+                <Icon name="x" size={14} />
+              </button>
+            </div>
+            <label className="pfe-field">
+              <span>Name</span>
+              <input value={editing.name} onChange={(e) => setEditing((f) => ({ ...f, name: e.target.value }))} required />
+            </label>
+            <label className="pfe-field">
+              <span>City</span>
+              <input value={editing.city} onChange={(e) => setEditing((f) => ({ ...f, city: e.target.value }))} />
+            </label>
+            <label className="pfe-field">
+              <span>Area</span>
+              <input value={editing.area || ""} onChange={(e) => setEditing((f) => ({ ...f, area: e.target.value }))} />
+            </label>
+            <label className="pfe-field">
+              <span>Coverage</span>
+              <input value={editing.coverage} onChange={(e) => setEditing((f) => ({ ...f, coverage: e.target.value }))} />
+            </label>
+            <label className="pfe-field">
+              <span>Fee (KES)</span>
+              <input type="number" value={editing.fee} onChange={(e) => setEditing((f) => ({ ...f, fee: e.target.value }))} />
+            </label>
+            <label className="pfe-field">
+              <span>ETA</span>
+              <input value={editing.eta} onChange={(e) => setEditing((f) => ({ ...f, eta: e.target.value }))} />
+            </label>
+            <div className="prod-actions rule-drawer-acts dlv-detail-acts">
+              <button className="btn btn-purple btn-small" type="submit">Save changes</button>
+              <button className="btn btn-ghost btn-small" type="button" onClick={() => setEditing(null)}>Cancel</button>
+            </div>
+          </form>
+        </div>
       )}
     </div>
   );

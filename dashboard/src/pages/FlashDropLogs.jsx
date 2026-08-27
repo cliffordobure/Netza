@@ -135,6 +135,11 @@ export default function FlashDropLogs() {
     const t = setTimeout(() => setToast(""), 2800);
     return () => clearTimeout(t);
   }, [toast]);
+  useEffect(() => {
+    function closeMenu() { setMenu(null); }
+    window.addEventListener("click", closeMenu);
+    return () => window.removeEventListener("click", closeMenu);
+  }, []);
 
   const stats = meta.stats || {};
   const overview = meta.overview || {};
@@ -291,16 +296,15 @@ export default function FlashDropLogs() {
             <button className="link-reset" type="button" onClick={resetFilters}>Reset</button>
           </form>
 
-          <div className="prod-table-wrap">
-            <table className="table prod-table pts-table fdl-table">
+          <div className="fdl-table-scroll">
+            <table className="table fdl-table">
               <thead>
                 <tr>
                   <th>#</th>
                   <th>Date &amp; Time</th>
                   <th>User</th>
                   <th>Action</th>
-                  <th>Flash Drop / Product</th>
-                  <th>Details</th>
+                  <th>Flash Drop / Details</th>
                   <th>IP Address</th>
                   <th>Status</th>
                   <th>Actions</th>
@@ -309,7 +313,7 @@ export default function FlashDropLogs() {
               <tbody>
                 {rows.map((r) => (
                   <tr key={r.id}>
-                    <td className="muted">{r.n}</td>
+                    <td className="muted fdl-n">{r.n}</td>
                     <td className="fdl-when">{r.atLabel}</td>
                     <td>
                       <div className="fdl-user">
@@ -327,21 +331,34 @@ export default function FlashDropLogs() {
                       </span>
                     </td>
                     <td>
-                      <strong className="fdl-drop">{r.dropName}</strong>
-                      {r.dropSku ? <div className="muted">ID: {r.dropSku}</div> : null}
+                      <div className="fdl-drop-cell">
+                        <strong>{r.dropName}</strong>
+                        {r.dropSku ? <em>ID: {r.dropSku}</em> : null}
+                        {r.details ? <p>{r.details}</p> : null}
+                      </div>
                     </td>
-                    <td className="fdl-details">{r.details}</td>
-                    <td className="muted">{r.ip}</td>
+                    <td className="fdl-ip">{r.ip || "—"}</td>
                     <td>
                       <span className={`st-pill ${r.status === "auto" ? "fdl-st-auto" : "st-pub"}`}>{r.statusLabel}</span>
                     </td>
                     <td>
                       <div className="prod-row-acts">
-                        <button type="button" title="View" onClick={() => { setViewing(r); setMenu(null); }}><Icon name="eye" size={14} /></button>
+                        <button type="button" title="View" onClick={() => { setViewing(r); setMenu(null); }}>
+                          <Icon name="eye" size={14} />
+                        </button>
                         <span className="ord-menu-wrap">
-                          <button type="button" title="More" onClick={() => setMenu(menu === r.id ? null : r.id)}><Icon name="more" size={14} /></button>
+                          <button
+                            type="button"
+                            title="More"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMenu(menu === r.id ? null : r.id);
+                            }}
+                          >
+                            <Icon name="more" size={14} />
+                          </button>
                           {menu === r.id && (
-                            <div className="ord-menu">
+                            <div className="ord-menu" onClick={(e) => e.stopPropagation()}>
                               <button type="button" onClick={() => { setViewing(r); setMenu(null); }}>View details</button>
                               <button type="button" onClick={() => { exportCsv(); setMenu(null); }}>Export row</button>
                             </div>
@@ -352,7 +369,7 @@ export default function FlashDropLogs() {
                   </tr>
                 ))}
                 {rows.length === 0 && (
-                  <tr><td colSpan="9" className="muted">No activity logs match these filters.</td></tr>
+                  <tr><td colSpan="8" className="muted">No activity logs match these filters.</td></tr>
                 )}
               </tbody>
             </table>

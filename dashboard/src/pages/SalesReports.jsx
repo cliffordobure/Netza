@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import { Icon } from "../icons";
+import { DeliveryDetailModal, DeliveryRowMenu, DetailMeta } from "../DeliveryRowMenu";
 
 function fmtNum(n, digits = 0) {
   return new Intl.NumberFormat("en-KE", {
@@ -126,6 +127,8 @@ export default function SalesReports() {
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [customOpen, setCustomOpen] = useState(false);
+  const [menu, setMenu] = useState(null);
+  const [viewing, setViewing] = useState(null);
 
   function queryString(next = {}) {
     const p = new URLSearchParams();
@@ -169,6 +172,7 @@ export default function SalesReports() {
   useEffect(() => {
     function close() {
       setCustomOpen(false);
+      setMenu(null);
     }
     window.addEventListener("click", close);
     return () => window.removeEventListener("click", close);
@@ -189,6 +193,48 @@ export default function SalesReports() {
     setTo("2026-05-27");
     setPage(1);
     load({ q: "", channel: "", payment: "", zone: "", page: 1 });
+  }
+
+  function triggerCsv(filename, lines) {
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 500);
+  }
+
+  function downloadChannel(row, e) {
+    e?.stopPropagation?.();
+    e?.preventDefault?.();
+    try {
+      const lines = [
+        "Field,Value",
+        `Sales Channel,${JSON.stringify(row.channel || "")}`,
+        `Orders,${row.orders ?? 0}`,
+        `Revenue (KES),${row.revenue ?? 0}`,
+        `Discounts (KES),${row.discounts ?? 0}`,
+        `Net Revenue (KES),${row.netRevenue ?? 0}`,
+        `Profit (KES),${row.profit ?? 0}`,
+        `Profit Margin,${Number(row.margin || 0).toFixed(1)}%`,
+        `Growth,${Number(row.growth || 0).toFixed(1)}%`,
+      ];
+      triggerCsv(`${String(row.channel || "sales-channel").replace(/[^\w\-]+/g, "-").toLowerCase()}.csv`, lines);
+      setMenu(null);
+      setToast(`Downloaded “${row.channel}”`);
+    } catch (err) {
+      setError(err.message || "Download failed.");
+    }
+  }
+
+  function openChannel(row, e) {
+    e?.stopPropagation?.();
+    setMenu(null);
+    setViewing(row);
   }
 
   if (!data) {
@@ -213,6 +259,26 @@ export default function SalesReports() {
   const fromN = total === 0 ? 0 : (page - 1) * limit + 1;
   const toN = Math.min(page * limit, total);
 
+  function exportAll() {
+    const header = ["#", "Sales Channel", "Orders", "Revenue", "Discounts", "Net Revenue", "Profit", "Profit Margin", "Growth"];
+    const lines = [header.join(",")];
+    for (const r of rows) {
+      lines.push([
+        r.n,
+        JSON.stringify(r.channel || ""),
+        r.orders ?? 0,
+        r.revenue ?? 0,
+        r.discounts ?? 0,
+        r.netRevenue ?? 0,
+        r.profit ?? 0,
+        `${Number(r.margin || 0).toFixed(1)}%`,
+        `${Number(r.growth || 0).toFixed(1)}%`,
+      ].join(","));
+    }
+    triggerCsv("sales-summary.csv", lines);
+    setToast("Exported sales summary");
+  }
+
   return (
     <div className="slsrpt-page">
       <nav className="crumbs">
@@ -232,7 +298,7 @@ export default function SalesReports() {
           <p>Track sales performance, revenue, trends and product popularity.</p>
         </div>
         <div className="prod-actions">
-          <button className="btn btn-ghost btn-small" type="button" onClick={() => setToast("Export started")}>
+          <button className="btn btn-ghost btn-small" type="button" onClick={exportAll}>
             <Icon name="download" size={14} /> Export Report
           </button>
           <div className="slsrpt-dd-wrap">
@@ -400,13 +466,30 @@ export default function SalesReports() {
                         </span>
                       </td>
                       <td>
-                        <div className="prod-row-acts">
-                          <button type="button" title="View" onClick={() => setToast(`Viewing ${r.channel}`)}>
+                        <div className="prod-row-acts" onClick={(e) => e.stopPropagation()}>
+                          <button type="button" title="View channel" onClick={(e) => openChannel(r, e)}>
                             <Icon name="eye" size={14} />
                           </button>
-                          <button type="button" title="Download" onClick={() => setToast(`Downloading ${r.channel}`)}>
+                          <button type="button" title="Download CSV" onClick={(e) => downloadChannel(r, e)}>
                             <Icon name="download" size={14} />
                           </button>
+                          <DeliveryRowMenu id={r.id} menu={menu} setMenu={setMenu} up={r.n >= rows.length}>
+                            <button type="button" onClick={(e) => openChannel(r, e)}>View details</button>
+                            <button type="button" onClick={(e) => downloadChannel(r, e)}>Download CSV</button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setMenu(null);
+                                if (navigator.clipboard?.writeText) {
+                                  navigator.clipboard.writeText(`${window.location.origin}/reports?tab=sales&channel=${encodeURIComponent(r.channel)}`).catch(() => {});
+                                }
+                                setToast(`Share link copied for “${r.channel}”`);
+                              }}
+                            >
+                              Copy share link
+                            </button>
+                          </DeliveryRowMenu>
                         </div>
                       </td>
                     </tr>
@@ -486,10 +569,41 @@ export default function SalesReports() {
             <span className="slsrpt-insight-ico"><Icon name="star" size={16} /></span>
             <p>{data.insight}</p>
           </div>
-          <button className="btn btn-ghost btn-small" type="button" onClick={() => setToast("Detailed analysis coming soon")}>
+          <button className="btn btn-ghost btn-small" type="button" onClick={() => setViewing(rows[0] || null)}>
             <Icon name="chart" size={14} /> View Detailed Analysis
           </button>
         </footer>
+      )}
+
+      {viewing && (
+        <DeliveryDetailModal
+          title={viewing.channel}
+          subtitle="Sales channel summary"
+          statusNode={(
+            <span className={`slsrpt-growth ${deltaCls(viewing.growth)}`}>
+              {deltaArrow(viewing.growth)} {Math.abs(viewing.growth).toFixed(1)}% growth
+            </span>
+          )}
+          onClose={() => setViewing(null)}
+          actions={(
+            <button className="btn btn-purple btn-small" type="button" onClick={(e) => downloadChannel(viewing, e)}>
+              <Icon name="download" size={14} /> Download CSV
+            </button>
+          )}
+        >
+          <DetailMeta
+            rows={[
+              { label: "Channel", value: <strong>{viewing.channel}</strong> },
+              { label: "Orders", value: fmtNum(viewing.orders) },
+              { label: "Revenue", value: fmtKes(viewing.revenue) },
+              { label: "Discounts", value: fmtKes(viewing.discounts) },
+              { label: "Net revenue", value: fmtKes(viewing.netRevenue) },
+              { label: "Profit", value: fmtKes(viewing.profit) },
+              { label: "Profit margin", value: `${Number(viewing.margin).toFixed(1)}%` },
+              { label: "Growth", value: `${Number(viewing.growth).toFixed(1)}%` },
+            ]}
+          />
+        </DeliveryDetailModal>
       )}
     </div>
   );

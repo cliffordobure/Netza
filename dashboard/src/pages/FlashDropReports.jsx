@@ -315,8 +315,8 @@ export default function FlashDropReports() {
         <div className="fdr-row2">
           <section className="card pf-card fdr-top">
             <h2>Top Performing Flash Drops</h2>
-            <div className="prod-table-wrap">
-              <table className="table prod-table fdr-table">
+            <div className="fdr-table-scroll">
+              <table className="table fdr-table">
                 <thead>
                   <tr>
                     <th>#</th>
@@ -327,30 +327,30 @@ export default function FlashDropReports() {
                     <th>Revenue (KSh)</th>
                     <th>Avg. Discount</th>
                     <th>Participants</th>
-                    <th>Conversion Rate</th>
+                    <th>Conversion</th>
                     <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {top.map((r) => (
                     <tr key={r.sku}>
-                      <td className="muted">{r.n}</td>
+                      <td className="muted fdr-n">{r.n}</td>
                       <td>
-                        <span className="rule-name rwd-name">
-                          {r.image ? <img className="rwd-thumb" src={r.image} alt="" /> : null}
+                        <div className="fdr-prod">
+                          {r.image ? <img src={r.image} alt="" /> : <span className="fdr-ph" />}
                           <span>
                             <strong>{r.name}</strong>
-                            <div className="muted">{r.sku}</div>
+                            <em>{r.sku}</em>
                           </span>
-                        </span>
+                        </div>
                       </td>
                       <td><span className={`fd-cat ${catClass(r.category)}`}>{r.category}</span></td>
-                      <td>{r.startLabel}</td>
-                      <td>{fmtNum(r.sold)}</td>
-                      <td>{kes(r.revenue)}</td>
-                      <td>{r.discount}</td>
-                      <td>{fmtNum(r.participants)}</td>
-                      <td>{pct(r.conversion)}</td>
+                      <td className="fdr-date">{r.startLabel}</td>
+                      <td className="fdr-num">{fmtNum(r.sold)}</td>
+                      <td className="fdr-num">{kes(r.revenue)}</td>
+                      <td className="fdr-num">{r.discount}</td>
+                      <td className="fdr-num">{fmtNum(r.participants)}</td>
+                      <td className="fdr-num">{pct(r.conversion)}</td>
                       <td><span className="st-pill st-pub">Completed</span></td>
                     </tr>
                   ))}
@@ -406,8 +406,8 @@ export default function FlashDropReports() {
           {showParticipants && (
             <section className="card pf-card">
               <h2>Device &amp; Channel Performance</h2>
-              <div className="prod-table-wrap">
-                <table className="table prod-table fdr-chan">
+              <div className="fdr-table-scroll">
+                <table className="table fdr-chan">
                   <thead>
                     <tr>
                       <th>Channel</th>
@@ -421,10 +421,10 @@ export default function FlashDropReports() {
                     {channels.map((c) => (
                       <tr key={c.key}>
                         <td><strong>{c.name}</strong></td>
-                        <td>{fmtNum(c.participants)}</td>
-                        <td>{fmtNum(c.sold)}</td>
-                        <td>{kes(c.revenue)}</td>
-                        <td>{pct(c.conversion)}</td>
+                        <td className="fdr-num">{fmtNum(c.participants)}</td>
+                        <td className="fdr-num">{fmtNum(c.sold)}</td>
+                        <td className="fdr-num">{kes(c.revenue)}</td>
+                        <td className="fdr-num">{pct(c.conversion)}</td>
                       </tr>
                     ))}
                   </tbody>

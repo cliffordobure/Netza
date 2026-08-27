@@ -188,7 +188,9 @@ export default function ProductForm() {
       .then(({ product: p }) => {
         const next = mapProduct(p);
         setForm(next);
-        if (editorRef.current) editorRef.current.innerText = next.description;
+        requestAnimationFrame(() => {
+          if (editorRef.current) editorRef.current.innerText = next.description || "";
+        });
       })
       .catch((e) => setError(e.message || "Could not load product."));
   }, [id, isNew]);
@@ -206,10 +208,32 @@ export default function ProductForm() {
     setTagDraft("");
   }
 
-  function cmd(command) {
-    document.execCommand(command, false, null);
+  function cmd(command, value = null) {
     editorRef.current?.focus();
+    try {
+      if (command === "formatBlock") {
+        document.execCommand("formatBlock", false, value || "p");
+      } else if (command === "createLink") {
+        const url = window.prompt("Enter link URL", "https://");
+        if (!url) return;
+        document.execCommand("createLink", false, url);
+      } else {
+        document.execCommand(command, false, value);
+      }
+    } catch {
+      /* ignore unsupported command */
+    }
     set("description", editorRef.current?.innerText || "");
+  }
+
+  function onEditorInput(e) {
+    set("description", e.currentTarget.innerText || "");
+  }
+
+  function onEditorPaste(e) {
+    e.preventDefault();
+    const text = e.clipboardData?.getData("text/plain") || "";
+    document.execCommand("insertText", false, text);
   }
 
   function payload() {
@@ -379,29 +403,42 @@ export default function ProductForm() {
                 <span>Short Description</span>
                 <textarea rows={2} value={form.shortDescription} onChange={(e) => set("shortDescription", e.target.value)} />
               </label>
-              <label className="pfe-field">
+              <div className="pfe-field">
                 <span>Full Description</span>
                 <div className="pf-rich">
-                  <div className="pf-toolbar">
-                    <select onChange={(e) => { document.execCommand("formatBlock", false, e.target.value); editorRef.current?.focus(); }}>
+                  <div className="pf-toolbar" onMouseDown={(e) => e.preventDefault()}>
+                    <select
+                      defaultValue="p"
+                      onChange={(e) => {
+                        cmd("formatBlock", e.target.value === "h2" ? "h2" : "p");
+                        e.target.value = "p";
+                      }}
+                    >
                       <option value="p">Paragraph</option>
                       <option value="h2">Heading</option>
                     </select>
-                    <button type="button" onClick={() => cmd("bold")}><b>B</b></button>
-                    <button type="button" onClick={() => cmd("italic")}><i>I</i></button>
-                    <button type="button" onClick={() => cmd("underline")}><u>U</u></button>
-                    <button type="button" onClick={() => cmd("insertUnorderedList")}>• List</button>
-                    <button type="button" onClick={() => cmd("createLink")}>Link</button>
+                    <button type="button" title="Bold" onClick={() => cmd("bold")}><b>B</b></button>
+                    <button type="button" title="Italic" onClick={() => cmd("italic")}><i>I</i></button>
+                    <button type="button" title="Underline" onClick={() => cmd("underline")}><u>U</u></button>
+                    <button type="button" title="Bullet list" onClick={() => cmd("insertUnorderedList")}>• List</button>
+                    <button type="button" title="Insert link" onClick={() => cmd("createLink")}>Link</button>
                   </div>
                   <div
                     ref={editorRef}
                     className="pf-editor"
                     contentEditable
+                    suppressContentEditableWarning
+                    role="textbox"
+                    aria-multiline="true"
+                    aria-label="Full Description"
                     data-placeholder="Write a detailed product description..."
-                    onInput={(e) => set("description", e.currentTarget.innerText)}
+                    onInput={onEditorInput}
+                    onBlur={onEditorInput}
+                    onPaste={onEditorPaste}
                   />
                 </div>
-              </label>
+                <em>{(form.description || "").length} characters</em>
+              </div>
               <div className="pfe-subhead">Classification</div>
               <label className="pfe-field">
                 <span>Category</span>

@@ -349,16 +349,369 @@ export default function PointsSettings() {
                 </div>
               </section>
             </form>
+          ) : tab === "earning" ? (
+            <form className="ptsset-form" onSubmit={save}>
+              <section className="card pf-card ptsset-section">
+                <header className="ptsset-sec-head">
+                  <span className="ptsset-sec-ico"><Icon name="star" size={14} /></span>
+                  <div>
+                    <h2>Earning Rules</h2>
+                    <p className="muted">Choose which events award points and how bonuses work.</p>
+                  </div>
+                </header>
+
+                <div className="ptsset-row">
+                  <div>
+                    <span className="ptsset-label">Earn on Purchase</span>
+                    <small className="muted">Award points when an order is paid</small>
+                  </div>
+                  <Toggle on={form.earnOnPurchase} onChange={(v) => set("earnOnPurchase", v)} />
+                </div>
+                <div className="ptsset-row">
+                  <div>
+                    <span className="ptsset-label">Earn on Signup</span>
+                    <small className="muted">Welcome bonus for new accounts</small>
+                  </div>
+                  <Toggle on={form.earnOnSignup} onChange={(v) => set("earnOnSignup", v)} />
+                </div>
+                <div className="ptsset-row">
+                  <div>
+                    <span className="ptsset-label">Earn on Referral</span>
+                    <small className="muted">Reward both referrer and friend</small>
+                  </div>
+                  <Toggle on={form.earnOnReferral} onChange={(v) => set("earnOnReferral", v)} />
+                </div>
+                <div className="ptsset-row">
+                  <div>
+                    <span className="ptsset-label">Earn on Product Review</span>
+                    <small className="muted">Bonus when a review is approved</small>
+                  </div>
+                  <Toggle on={form.earnOnReview} onChange={(v) => set("earnOnReview", v)} />
+                </div>
+                <div className="ptsset-row">
+                  <div>
+                    <span className="ptsset-label">Birthday Bonus</span>
+                    <small className="muted">Annual birthday points</small>
+                  </div>
+                  <Toggle on={form.earnOnBirthday} onChange={(v) => set("earnOnBirthday", v)} />
+                </div>
+              </section>
+
+              <section className="card pf-card ptsset-section">
+                <header className="ptsset-sec-head">
+                  <span className="ptsset-sec-ico"><Icon name="gift" size={14} /></span>
+                  <div>
+                    <h2>Bonus Amounts</h2>
+                    <p className="muted">Fixed point bonuses for non-purchase events.</p>
+                  </div>
+                </header>
+                <div className="ptsset-grid-2">
+                  <Field label="Review Bonus (pts)">
+                    <input type="number" min="0" value={form.reviewBonus} onChange={(e) => set("reviewBonus", Number(e.target.value))} />
+                  </Field>
+                  <Field label="Birthday Bonus (pts)">
+                    <input type="number" min="0" value={form.birthdayBonus} onChange={(e) => set("birthdayBonus", Number(e.target.value))} />
+                  </Field>
+                  <Field label="Referral Bonus — Referrer (pts)">
+                    <input type="number" min="0" value={form.referralBonusReferrer} onChange={(e) => set("referralBonusReferrer", Number(e.target.value))} />
+                  </Field>
+                  <Field label="Referral Bonus — Friend (pts)">
+                    <input type="number" min="0" value={form.referralBonusFriend} onChange={(e) => set("referralBonusFriend", Number(e.target.value))} />
+                  </Field>
+                </div>
+              </section>
+
+              <section className="card pf-card ptsset-section">
+                <header className="ptsset-sec-head">
+                  <span className="ptsset-sec-ico"><Icon name="sliders" size={14} /></span>
+                  <div>
+                    <h2>Earning Conditions</h2>
+                    <p className="muted">Control when and how purchase points are credited.</p>
+                  </div>
+                </header>
+                <Field label="Credit Delay (days)" hint="0 = credit immediately after payment">
+                  <input type="number" min="0" value={form.earnDelayDays} onChange={(e) => set("earnDelayDays", Number(e.target.value))} />
+                </Field>
+                <div className="ptsset-row">
+                  <span className="ptsset-label">Exclude Discounted Items</span>
+                  <Toggle on={form.excludeDiscountedItems} onChange={(v) => set("excludeDiscountedItems", v)} />
+                </div>
+                <div className="ptsset-row">
+                  <span className="ptsset-label">Exclude Shipping Fees</span>
+                  <Toggle on={form.excludeShipping} onChange={(v) => set("excludeShipping", v)} />
+                </div>
+                <div className="ptsset-row">
+                  <span className="ptsset-label">Stack with Promotions</span>
+                  <Toggle on={form.stackWithPromotions} onChange={(v) => set("stackWithPromotions", v)} />
+                </div>
+                <button className="btn btn-ghost btn-small" type="button" onClick={() => navigate("/points?tab=rules")}>
+                  Manage detailed earn rules →
+                </button>
+              </section>
+            </form>
+          ) : tab === "redemption" ? (
+            <form className="ptsset-form" onSubmit={save}>
+              <section className="card pf-card ptsset-section">
+                <header className="ptsset-sec-head">
+                  <span className="ptsset-sec-ico"><Icon name="exchange" size={14} /></span>
+                  <div>
+                    <h2>Redemption Rules</h2>
+                    <p className="muted">Control how members spend points at checkout and on rewards.</p>
+                  </div>
+                </header>
+                <div className="ptsset-grid-2">
+                  <Field label="Minimum Points to Redeem">
+                    <input type="number" min="0" value={form.minRedeemPoints} onChange={(e) => set("minRedeemPoints", Number(e.target.value))} />
+                  </Field>
+                  <Field label="Max Order Coverage (%)" hint="Share of cart that points can cover">
+                    <input type="number" min="0" max="100" value={form.maxRedeemPercent} onChange={(e) => set("maxRedeemPercent", Number(e.target.value))} />
+                  </Field>
+                  <Field label="Redeem Increment (pts)">
+                    <input type="number" min="1" value={form.redeemIncrement} onChange={(e) => set("redeemIncrement", Number(e.target.value))} />
+                  </Field>
+                  <Field label="Points → KES Rate" hint="How many points equal KES 1">
+                    <input type="number" min="0" step="0.1" value={form.pointsToKesRate} onChange={(e) => set("pointsToKesRate", Number(e.target.value))} />
+                  </Field>
+                </div>
+                <Field label="Cooldownemption Cooldown (hours)" hint="0 = no cooldown between redemptions">
+                  <input type="number" min="0" value={form.redeemCooldownHours} onChange={(e) => set("redeemCooldownHours", Number(e.target.value))} />
+                </Field>
+              </section>
+
+              <section className="card pf-card ptsset-section">
+                <header className="ptsset-sec-head">
+                  <span className="ptsset-sec-ico"><Icon name="shield" size={14} /></span>
+                  <div>
+                    <h2>Checkout Options</h2>
+                    <p className="muted">Rules applied when redeeming at checkout.</p>
+                  </div>
+                </header>
+                <div className="ptsset-row">
+                  <span className="ptsset-label">Require Login to Redeem</span>
+                  <Toggle on={form.requireLoginToRedeem} onChange={(v) => set("requireLoginToRedeem", v)} />
+                </div>
+                <div className="ptsset-row">
+                  <span className="ptsset-label">Block Redeem on Sale Items</span>
+                  <Toggle on={form.blockRedeemOnSaleItems} onChange={(v) => set("blockRedeemOnSaleItems", v)} />
+                </div>
+                <div className="ptsset-row">
+                  <span className="ptsset-label">Auto-apply Best Redemption</span>
+                  <Toggle on={form.autoApplyBestRedeem} onChange={(v) => set("autoApplyBestRedeem", v)} />
+                </div>
+                <button className="btn btn-ghost btn-small" type="button" onClick={() => navigate("/points?tab=redeem")}>
+                  Manage redeem rewards catalog →
+                </button>
+              </section>
+            </form>
+          ) : tab === "expiry" ? (
+            <form className="ptsset-form" onSubmit={save}>
+              <section className="card pf-card ptsset-section">
+                <header className="ptsset-sec-head">
+                  <span className="ptsset-sec-ico"><Icon name="clock" size={14} /></span>
+                  <div>
+                    <h2>Expiry Settings</h2>
+                    <p className="muted">Configure when unused points expire and how members are warned.</p>
+                  </div>
+                </header>
+                <div className="ptsset-row">
+                  <span className="ptsset-label">Enable Points Expiry</span>
+                  <Toggle on={form.pointsExpire} onChange={(v) => set("pointsExpire", v)} />
+                </div>
+                <div className="ptsset-grid-2">
+                  <Field label="Expiry Period (months)">
+                    <input type="number" min="1" value={form.expiryMonths} onChange={(e) => set("expiryMonths", Number(e.target.value))} disabled={!form.pointsExpire} />
+                  </Field>
+                  <Field label="Warning Before Expiry (days)">
+                    <input type="number" min="0" value={form.expiryWarningDays} onChange={(e) => set("expiryWarningDays", Number(e.target.value))} disabled={!form.pointsExpire} />
+                  </Field>
+                  <Field label="Grace Period (days)">
+                    <input type="number" min="0" value={form.gracePeriodDays} onChange={(e) => set("gracePeriodDays", Number(e.target.value))} disabled={!form.pointsExpire} />
+                  </Field>
+                  <Field label="Auto-expire Schedule">
+                    <select value={form.autoExpireCron} onChange={(e) => set("autoExpireCron", e.target.value)} disabled={!form.pointsExpire}>
+                      {(opts.cronOptions || []).map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+                <div className="ptsset-row">
+                  <div>
+                    <span className="ptsset-label">Expire Unused Points Only</span>
+                    <small className="muted">Recently earned points stay active first (FIFO)</small>
+                  </div>
+                  <Toggle on={form.expireUnusedOnly} onChange={(v) => set("expireUnusedOnly", v)} />
+                </div>
+                <div className="ptsset-row">
+                  <div>
+                    <span className="ptsset-label">Extend Expiry on Purchase</span>
+                    <small className="muted">Reset the expiry clock when a member shops</small>
+                  </div>
+                  <Toggle on={form.extendOnPurchase} onChange={(v) => set("extendOnPurchase", v)} />
+                </div>
+                <button className="btn btn-ghost btn-small" type="button" onClick={() => navigate("/points?tab=expiry")}>
+                  Open expiry management →
+                </button>
+              </section>
+            </form>
+          ) : tab === "notifications" ? (
+            <form className="ptsset-form" onSubmit={save}>
+              <section className="card pf-card ptsset-section">
+                <header className="ptsset-sec-head">
+                  <span className="ptsset-sec-ico"><Icon name="bell" size={14} /></span>
+                  <div>
+                    <h2>Notifications</h2>
+                    <p className="muted">Choose which loyalty events notify members.</p>
+                  </div>
+                </header>
+                <div className="ptsset-row">
+                  <span className="ptsset-label">Notify on Points Earned</span>
+                  <Toggle on={form.notifyEarn} onChange={(v) => set("notifyEarn", v)} />
+                </div>
+                <div className="ptsset-row">
+                  <span className="ptsset-label">Notify on Redemption</span>
+                  <Toggle on={form.notifyRedeem} onChange={(v) => set("notifyRedeem", v)} />
+                </div>
+                <div className="ptsset-row">
+                  <span className="ptsset-label">Notify Before Expiry</span>
+                  <Toggle on={form.notifyExpiry} onChange={(v) => set("notifyExpiry", v)} />
+                </div>
+                <div className="ptsset-row">
+                  <span className="ptsset-label">Notify on Tier Change</span>
+                  <Toggle on={form.notifyTier} onChange={(v) => set("notifyTier", v)} />
+                </div>
+              </section>
+
+              <section className="card pf-card ptsset-section">
+                <header className="ptsset-sec-head">
+                  <span className="ptsset-sec-ico"><Icon name="mail" size={14} /></span>
+                  <div>
+                    <h2>Delivery Channels</h2>
+                    <p className="muted">How and how often members receive loyalty messages.</p>
+                  </div>
+                </header>
+                <div className="ptsset-grid-2">
+                  <Field label="Preferred Channels">
+                    <select value={form.notifyChannels} onChange={(e) => set("notifyChannels", e.target.value)}>
+                      {(opts.notifyChannels || []).map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Digest Frequency">
+                    <select value={form.digestFrequency} onChange={(e) => set("digestFrequency", e.target.value)}>
+                      {(opts.digestFrequencies || []).map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+                <Field label="Expiry Reminder Lead Time (days)">
+                  <input type="number" min="1" value={form.expiryReminderDays} onChange={(e) => set("expiryReminderDays", Number(e.target.value))} />
+                </Field>
+              </section>
+            </form>
+          ) : tab === "fraud" ? (
+            <form className="ptsset-form" onSubmit={save}>
+              <section className="card pf-card ptsset-section">
+                <header className="ptsset-sec-head">
+                  <span className="ptsset-sec-ico"><Icon name="shield" size={14} /></span>
+                  <div>
+                    <h2>Fraud & Limits</h2>
+                    <p className="muted">Protect the program from abuse and unusual activity.</p>
+                  </div>
+                </header>
+                <div className="ptsset-grid-2">
+                  <Field label="Max Earn per Day (pts)">
+                    <input type="number" min="0" value={form.maxEarnPerDay} onChange={(e) => set("maxEarnPerDay", Number(e.target.value))} />
+                  </Field>
+                  <Field label="Max Redeem per Day (pts)">
+                    <input type="number" min="0" value={form.maxRedeemPerDay} onChange={(e) => set("maxRedeemPerDay", Number(e.target.value))} />
+                  </Field>
+                  <Field label="Max Accounts per Phone">
+                    <input type="number" min="1" value={form.maxAccountsPerPhone} onChange={(e) => set("maxAccountsPerPhone", Number(e.target.value))} />
+                  </Field>
+                  <Field label="Manual Review Threshold (pts)" hint="Flag large earn/redeem events">
+                    <input type="number" min="0" value={form.manualReviewThreshold} onChange={(e) => set("manualReviewThreshold", Number(e.target.value))} />
+                  </Field>
+                </div>
+                <div className="ptsset-row">
+                  <span className="ptsset-label">Flag Suspicious Earning Patterns</span>
+                  <Toggle on={form.flagSuspiciousEarn} onChange={(v) => set("flagSuspiciousEarn", v)} />
+                </div>
+                <div className="ptsset-row">
+                  <div>
+                    <span className="ptsset-label">Require Order Completion</span>
+                    <small className="muted">Only credit points after delivery / no refund window</small>
+                  </div>
+                  <Toggle on={form.requireOrderCompletion} onChange={(v) => set("requireOrderCompletion", v)} />
+                </div>
+                <div className="ptsset-row">
+                  <span className="ptsset-label">Block Redemption via VPN</span>
+                  <Toggle on={form.blockVpnRedeem} onChange={(v) => set("blockVpnRedeem", v)} />
+                </div>
+              </section>
+            </form>
           ) : (
-            <section className="card pf-card ptsset-placeholder">
-              <h2>{TABS.find((t) => t.id === tab)?.label}</h2>
-              <p className="muted">
-                Configure {TABS.find((t) => t.id === tab)?.label.toLowerCase()} for the loyalty program. This section is ready for detailed rule setup.
-              </p>
-              <button className="btn btn-purple btn-small" type="button" onClick={() => setTab("general")}>
-                Back to General Settings
-              </button>
+            <form className="ptsset-form" onSubmit={save}>
+              <section className="card pf-card ptsset-section">
+                <header className="ptsset-sec-head">
+                  <span className="ptsset-sec-ico"><Icon name="bolt" size={14} /></span>
+                  <div>
+                    <h2>Automation</h2>
+                    <p className="muted">Background jobs that keep the loyalty program running.</p>
+                  </div>
+                </header>
+                <div className="ptsset-row">
+                  <span className="ptsset-label">Auto Welcome Bonus</span>
+                  <Toggle on={form.autoWelcomeBonus} onChange={(v) => set("autoWelcomeBonus", v)} />
+                </div>
+                <div className="ptsset-row">
+                  <span className="ptsset-label">Auto Tier Upgrades</span>
+                  <Toggle on={form.autoTierUpgrade} onChange={(v) => set("autoTierUpgrade", v)} />
+                </div>
+                <div className="ptsset-row">
+                  <span className="ptsset-label">Auto Expiry Reminders</span>
+                  <Toggle on={form.autoExpiryReminders} onChange={(v) => set("autoExpiryReminders", v)} />
+                </div>
+                <div className="ptsset-row">
+                  <span className="ptsset-label">Auto Monthly Digest</span>
+                  <Toggle on={form.autoMonthlyDigest} onChange={(v) => set("autoMonthlyDigest", v)} />
+                </div>
+                <div className="ptsset-row">
+                  <div>
+                    <span className="ptsset-label">Sync Points with Orders</span>
+                    <small className="muted">Recalculate on refunds and cancellations</small>
+                  </div>
+                  <Toggle on={form.syncWithOrders} onChange={(v) => set("syncWithOrders", v)} />
+                </div>
+              </section>
+
+              <section className="card pf-card ptsset-section">
+                <header className="ptsset-sec-head">
+                  <span className="ptsset-sec-ico"><Icon name="gear" size={14} /></span>
+                  <div>
+                    <h2>Integrations</h2>
+                    <p className="muted">Optional webhook and scheduling preferences.</p>
+                  </div>
+                </header>
+                <Field label="Webhook URL" hint="Receive loyalty events as JSON POSTs">
+                  <input
+                    type="url"
+                    placeholder="https://example.com/hooks/points"
+                    value={form.webhookUrl || ""}
+                    onChange={(e) => set("webhookUrl", e.target.value)}
+                  />
+                </Field>
+                <Field label="Automation Timezone">
+                  <select value={form.automationTimezone} onChange={(e) => set("automationTimezone", e.target.value)}>
+                    {(opts.timezones || []).map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </Field>
             </section>
+            </form>
           )}
         </div>
 

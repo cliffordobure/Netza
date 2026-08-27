@@ -91,6 +91,8 @@ export default function DeliveryReturns() {
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  const [menu, setMenu] = useState(null);
+  const [viewing, setViewing] = useState(null);
 
   function queryString(next = {}) {
     const p = new URLSearchParams();
@@ -134,6 +136,7 @@ export default function DeliveryReturns() {
   useEffect(() => {
     function close() {
       setCreateOpen(false);
+      setMenu(null);
     }
     window.addEventListener("click", close);
     return () => window.removeEventListener("click", close);
@@ -154,6 +157,49 @@ export default function DeliveryReturns() {
     setTo("2026-05-27");
     setPage(1);
     load({ q: "", status: "", reason: "", returnType: "", page: 1 });
+  }
+
+  function patchReturn(row, next) {
+    const updated = { ...row, ...next };
+    setData((d) => ({
+      ...d,
+      returns: (d.returns || []).map((r) => (r.id === row.id ? updated : r)),
+    }));
+    setViewing((v) => (v && v.id === row.id ? updated : v));
+    setMenu(null);
+    return updated;
+  }
+
+  function markCompleted(row) {
+    patchReturn(row, { status: "completed", statusLabel: "Completed", refund: row.refund || 0 });
+    setToast(`${row.returnId} marked completed`);
+  }
+
+  function markRejected(row) {
+    if (!confirm(`Reject return ${row.returnId}?`)) return;
+    patchReturn(row, { status: "rejected", statusLabel: "Rejected", refund: 0 });
+    setToast(`${row.returnId} rejected`);
+  }
+
+  function processRefund(row) {
+    if (row.status === "rejected") {
+      setToast("Cannot refund a rejected return");
+      setMenu(null);
+      return;
+    }
+    const amount = row.refund > 0 ? row.refund : 0;
+    patchReturn(row, {
+      status: "completed",
+      statusLabel: "Completed",
+      refund: amount || row.refund,
+    });
+    setToast(amount > 0 ? `Refund of ${fmtKes(amount)} processed` : `Refund processed for ${row.returnId}`);
+  }
+
+  function openOrder(row) {
+    setMenu(null);
+    setViewing(null);
+    navigate(`/orders?q=${encodeURIComponent(row.orderId)}`);
   }
 
   if (!data) {
@@ -341,12 +387,12 @@ export default function DeliveryReturns() {
                     <tr key={r.id}>
                       <td className="muted">{r.n}</td>
                       <td>
-                        <button className="link-reset dlvret-id" type="button" onClick={() => setToast(`Opening ${r.returnId}`)}>
+                        <button className="link-reset dlvret-id" type="button" onClick={() => { setViewing(r); setMenu(null); }}>
                           {r.returnId}
                         </button>
                       </td>
                       <td>
-                        <button className="link-reset dlvret-id muted" type="button" onClick={() => setToast(`Opening order ${r.orderId}`)}>
+                        <button className="link-reset dlvret-id muted" type="button" onClick={() => openOrder(r)}>
                           {r.orderId}
                         </button>
                       </td>
@@ -368,12 +414,36 @@ export default function DeliveryReturns() {
                       <td><strong>{r.refund > 0 ? fmtNum(r.refund) : "—"}</strong></td>
                       <td>
                         <div className="prod-row-acts">
-                          <button type="button" title="View" onClick={() => setToast(`Viewing ${r.returnId}`)}>
+                          <button type="button" title="View" onClick={() => { setViewing(r); setMenu(null); }}>
                             <Icon name="eye" size={14} />
                           </button>
-                          <button type="button" title="More" onClick={() => setToast(`Actions for ${r.returnId}`)}>
-                            <Icon name="more" size={14} />
-                          </button>
+                          <span className="ord-menu-wrap">
+                            <button
+                              type="button"
+                              title="More"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setMenu(menu === r.id ? null : r.id);
+                              }}
+                            >
+                              <Icon name="more" size={14} />
+                            </button>
+                            {menu === r.id && (
+                              <div className={`ord-menu ${r.n >= rows.length ? "dlvret-menu-up" : ""}`} onClick={(e) => e.stopPropagation()}>
+                                <button type="button" onClick={() => { setViewing(r); setMenu(null); }}>View details</button>
+                                <button type="button" onClick={() => openOrder(r)}>Open order</button>
+                                {r.status === "pending" && (
+                                  <button type="button" onClick={() => markCompleted(r)}>Mark completed</button>
+                                )}
+                                {r.status !== "rejected" && (
+                                  <button type="button" onClick={() => processRefund(r)}>Process refund</button>
+                                )}
+                                {r.status !== "rejected" && (
+                                  <button type="button" className="danger" onClick={() => markRejected(r)}>Reject return</button>
+                                )}
+                              </div>
+                            )}
+                          </span>
                         </div>
                       </td>
                     </tr>
@@ -466,6 +536,69 @@ export default function DeliveryReturns() {
             {data.footerMessage}
           </p>
         </footer>
+      )}
+
+      {viewing && (
+        <div className="prod-modal" onClick={() => setViewing(null)}>
+          <div className="card prod-modal-card dlvret-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="ord-drawer-head">
+              <div>
+                <h2>{viewing.returnId}</h2>
+                <p className="muted">{viewing.date} · {viewing.time}</p>
+              </div>
+              <button className="btn btn-ghost btn-small" type="button" onClick={() => setViewing(null)}>
+                <Icon name="x" size={14} />
+              </button>
+            </div>
+            <div className="dlvret-modal-status">
+              <span className={`st-pill ${statusCls(viewing.status)}`}>{viewing.statusLabel}</span>
+              <span className="muted">{viewing.returnTypeLabel || viewing.returnType}</span>
+            </div>
+            <dl className="dlvret-modal-meta">
+              <div>
+                <dt>Customer</dt>
+                <dd>
+                  <strong>{viewing.customerName}</strong>
+                  <span className="muted">{viewing.customerPhone}</span>
+                </dd>
+              </div>
+              <div>
+                <dt>Order</dt>
+                <dd>
+                  <button className="link-reset dlvret-id" type="button" onClick={() => openOrder(viewing)}>
+                    {viewing.orderId}
+                  </button>
+                </dd>
+              </div>
+              <div>
+                <dt>Reason</dt>
+                <dd>{viewing.reason}</dd>
+              </div>
+              <div>
+                <dt>Refund amount</dt>
+                <dd><strong>{viewing.refund > 0 ? fmtKes(viewing.refund) : "—"}</strong></dd>
+              </div>
+            </dl>
+            <div className="prod-actions rule-drawer-acts dlvret-modal-acts">
+              {viewing.status === "pending" && (
+                <button className="btn btn-purple btn-small" type="button" onClick={() => markCompleted(viewing)}>
+                  Mark completed
+                </button>
+              )}
+              {viewing.status !== "rejected" && (
+                <button className="btn btn-ghost btn-small" type="button" onClick={() => processRefund(viewing)}>
+                  Process refund
+                </button>
+              )}
+              {viewing.status !== "rejected" && (
+                <button className="btn btn-ghost btn-small danger" type="button" onClick={() => markRejected(viewing)}>
+                  Reject
+                </button>
+              )}
+              <button className="btn btn-ghost btn-small" type="button" onClick={() => setViewing(null)}>Close</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

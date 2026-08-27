@@ -4,7 +4,6 @@ import Shell from "./Shell";
 import Login from "./pages/Login";
 import Categories from "./pages/Categories";
 import Brands from "./pages/Brands";
-import ComingSoon from "./pages/ComingSoon";
 import Attributes from "./pages/Attributes";
 import Overview from "./pages/Overview";
 import Products from "./pages/Products";
@@ -20,7 +19,12 @@ import Points from "./pages/Points";
 import DeliveryOverview from "./pages/DeliveryOverview";
 import DeliveryReports from "./pages/DeliveryReports";
 import Reports from "./pages/Reports";
-import MarketingOverview from "./pages/MarketingOverview";
+import Marketing from "./pages/Marketing";
+import Payments from "./pages/Payments";
+import Support from "./pages/Support";
+import Settings from "./pages/Settings";
+import ProductUnits from "./pages/ProductUnits";
+import ProductImport from "./pages/ProductImport";
 import Competitions from "./pages/Competitions";
 import CompetitionForm from "./pages/CompetitionForm";
 import CompetitionAnalytics from "./pages/CompetitionAnalytics";
@@ -52,6 +56,8 @@ export default function App() {
             <Route path="products/categories" element={<Categories />} />
             <Route path="products/brands" element={<Brands />} />
             <Route path="products/attributes" element={<Attributes />} />
+            <Route path="products/units" element={<ProductUnits />} />
+            <Route path="products/import" element={<ProductImport />} />
             <Route path="products/adjustments" element={<InventoryAdjustments />} />
             <Route path="products/:id" element={<ProductForm />} />
             <Route path="orders" element={<Orders />} />
@@ -68,12 +74,12 @@ export default function App() {
             <Route path="competitions/:id/edit" element={<CompetitionForm />} />
             <Route path="competitions/:id" element={<CompetitionDetail />} />
             <Route path="delivery" element={<DeliveryOverview />} />
-            <Route path="payments" element={<ComingSoon title="Payments" />} />
+            <Route path="payments" element={<Payments />} />
             <Route path="reports" element={<Reports />} />
             <Route path="reports/delivery" element={<DeliveryReports />} />
-            <Route path="marketing" element={<MarketingOverview />} />
-            <Route path="support" element={<ComingSoon title="Support" />} />
-            <Route path="settings" element={<ComingSoon title="Settings" />} />
+            <Route path="marketing" element={<Marketing />} />
+            <Route path="support" element={<Support />} />
+            <Route path="settings" element={<Settings />} />
           </Route>
         </Routes>
       </BrowserRouter>

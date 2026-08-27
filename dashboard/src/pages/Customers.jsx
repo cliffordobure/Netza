@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { api, kes } from "../api";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { api } from "../api";
 import { Icon } from "../icons";
 
 function fmtNum(n) {
@@ -27,17 +27,6 @@ function fmtTime(value) {
   }).format(new Date(value));
 }
 
-function fmtPhone(phone) {
-  const d = String(phone || "").replace(/\D/g, "");
-  if (d.length === 10) return `${d.slice(0, 4)} ${d.slice(4, 7)} ${d.slice(7)}`;
-  return phone || "—";
-}
-
-function fmtDateTime(value) {
-  if (!value) return "—";
-  return `${fmtDate(value)}, ${fmtTime(value)}`;
-}
-
 function initials(c) {
   return `${(c.firstName || "C")[0]}${(c.lastName || "U")[0]}`.toUpperCase();
 }
@@ -46,42 +35,72 @@ function fullName(c) {
   return `${c.firstName || ""} ${c.lastName || ""}`.trim() || "Customer";
 }
 
-function groupCls(level) {
-  const l = String(level || "BRONZE").toUpperCase();
-  if (l === "GOLD" || l === "PLATINUM") return "grp-gold";
-  if (l === "SILVER") return "grp-silver";
-  return "grp-bronze";
+function groupCls(keyOrLevel) {
+  const k = String(keyOrLevel || "REGULAR").toUpperCase();
+  if (k === "VIP" || k === "GOLD" || k === "PLATINUM") return "grp-vip";
+  if (k === "WHOLESALE" || k === "SILVER") return "grp-wholesale";
+  if (k === "REGULAR" || k === "BRONZE") return "grp-regular";
+  return "grp-regular";
 }
 
-function groupLabel(level) {
-  const l = String(level || "BRONZE").toLowerCase();
-  return l.charAt(0).toUpperCase() + l.slice(1);
+function groupLabel(c) {
+  if (c?.groupLabel) return c.groupLabel;
+  const l = String(c?.membershipLevel || c || "BRONZE").toUpperCase();
+  if (l === "GOLD" || l === "PLATINUM" || l === "VIP") return "VIP";
+  if (l === "SILVER" || l === "WHOLESALE") return "Wholesale";
+  return "Regular";
 }
 
-function payLabel(method) {
-  const m = String(method || "").toUpperCase();
-  if (m === "MPESA") return "M-Pesa";
-  if (m === "POINTS") return "NETZA Points";
-  if (m === "PESAPAL" || m === "CARD") return "Card (Pesapal)";
-  return method || "—";
+function deltaHint(n, suffix = "vs last month") {
+  const v = Number(n) || 0;
+  const arrow = v >= 0 ? "↑" : "↓";
+  return `${arrow} ${Math.abs(v).toFixed(1)}% ${suffix}`;
 }
 
-const STATS = [
-  { key: "total", label: "Total Customers", hint: "All time", icon: "users", tone: "purple" },
-  { key: "new30", label: "New Customers (30 Days)", hint: "newPct", icon: "trend", tone: "green" },
-  { key: "active", label: "Active Customers", hint: "activePct", icon: "checkCircle", tone: "blue" },
-  { key: "withOrders", label: "Customers with Orders", hint: "withOrdersPct", icon: "bag", tone: "orange" },
-  { key: "loyal", label: "Loyal Customers", hint: "Lifetime value high", icon: "crown", tone: "gold" },
-];
-
-const CRUMB = {
-  all: "All Customers",
-  groups: "Customer Groups",
-  segments: "Segments",
-  blacklist: "Blacklist",
-  activity: "Customer Activity",
-  addresses: "Addresses",
-};
+function Donut({ parts, total }) {
+  const slices = (parts || []).reduce((s, p) => s + (p.value || 0), 0) || total || 1;
+  const r = 48;
+  const c = 2 * Math.PI * r;
+  let offset = 0;
+  return (
+    <div className="donut-wrap prod-donut cust-donut">
+      <svg viewBox="0 0 140 140" className="donut-svg">
+        <circle cx="70" cy="70" r={r} fill="none" stroke="#EEF2F7" strokeWidth="16" />
+        {(parts || []).map((p) => {
+          const value = p.value || 0;
+          const len = slices ? (value / slices) * c : 0;
+          const el = (
+            <circle
+              key={p.key}
+              cx="70"
+              cy="70"
+              r={r}
+              fill="none"
+              stroke={p.color}
+              strokeWidth="16"
+              strokeDasharray={`${len} ${c - len}`}
+              strokeDashoffset={-offset}
+              transform="rotate(-90 70 70)"
+            />
+          );
+          offset += len;
+          return el;
+        })}
+        <text x="70" y="64" textAnchor="middle" className="donut-total">{fmtNum(total)}</text>
+        <text x="70" y="80" textAnchor="middle" className="donut-sub">Total</text>
+      </svg>
+      <ul className="donut-legend prod-donut-legend">
+        {(parts || []).map((p) => (
+          <li key={p.key}>
+            <i style={{ background: p.color }} />
+            <span>{p.name}</span>
+            <b>{Number(p.pct || 0).toFixed(1)}%</b>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 const emptyForm = {
   firstName: "",
@@ -97,21 +116,32 @@ const emptyForm = {
 };
 
 export default function Customers() {
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const tab = params.get("tab") || "all";
   const headerQ = params.get("q") || "";
   const importRef = useRef(null);
 
-  const [data, setData] = useState({ customers: [], stats: {}, groups: {}, addresses: [], activity: [], total: 0 });
+  const [data, setData] = useState({
+    customers: [],
+    stats: {},
+    groups: {},
+    groupDonut: [],
+    topCustomers: [],
+    insights: [],
+    zones: [],
+    addresses: [],
+    activity: [],
+    total: 0,
+  });
   const [q, setQ] = useState(headerQ);
   const [group, setGroup] = useState("");
   const [status, setStatus] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  const [zone, setZone] = useState("");
+  const [custType, setCustType] = useState("");
   const [segment, setSegment] = useState("loyal");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
-  const [selected, setSelected] = useState([]);
   const [open, setOpen] = useState(null);
   const [create, setCreate] = useState(params.get("new") === "1");
   const [editing, setEditing] = useState(null);
@@ -120,27 +150,28 @@ export default function Customers() {
   const [pointsAmt, setPointsAmt] = useState("100");
   const [msgModal, setMsgModal] = useState(false);
   const [msgBody, setMsgBody] = useState("");
-  const [orderModal, setOrderModal] = useState(false);
-  const [products, setProducts] = useState([]);
-  const [orderProduct, setOrderProduct] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState("");
+  const [addOpen, setAddOpen] = useState(false);
+  const [moreId, setMoreId] = useState(null);
+
+  const showCatalog = tab !== "activity" && tab !== "addresses";
 
   function queryString(next = {}) {
     const p = new URLSearchParams();
     const query = next.q ?? q;
     const gr = next.group ?? group;
     const st = next.status ?? status;
-    const df = next.from ?? from;
-    const dt = next.to ?? to;
+    const zn = next.zone ?? zone;
+    const ty = next.type ?? custType;
     const tb = next.tab ?? tab;
     const seg = next.segment ?? segment;
     if (query) p.set("q", query);
     if (gr) p.set("group", gr);
     if (st) p.set("status", st);
-    if (df) p.set("from", df);
-    if (dt) p.set("to", dt);
+    if (zn) p.set("zone", zn);
+    if (ty) p.set("type", ty);
     if (tb && tb !== "all") p.set("tab", tb);
     if (tb === "segments") p.set("segment", seg);
     p.set("page", String(next.page ?? page));
@@ -152,18 +183,8 @@ export default function Customers() {
     api(`/admin/customers?${queryString(overrides)}`)
       .then((d) => {
         setData(d);
-        setSelected([]);
         setError("");
-        const list = d.customers || [];
-        setOpen((cur) => {
-          const pick = (cur && list.find((c) => c.id === cur.id)) || list[0] || null;
-          if (pick) {
-            api(`/admin/customers/${pick.id}`)
-              .then((det) => setOpen(det.customer))
-              .catch(() => setOpen(pick));
-          }
-          return pick;
-        });
+        setOpen(null);
       })
       .catch((e) => setError(e.message));
   }
@@ -183,14 +204,22 @@ export default function Customers() {
     }
   }, [params]);
 
+  useEffect(() => {
+    function closeMenus() {
+      setAddOpen(false);
+      setMoreId(null);
+    }
+    window.addEventListener("click", closeMenus);
+    return () => window.removeEventListener("click", closeMenus);
+  }, []);
+
   const customers = data.customers || [];
   const stats = data.stats || {};
   const total = data.total || 0;
   const pages = Math.max(1, Math.ceil(total / limit));
   const fromN = total === 0 ? 0 : (page - 1) * limit + 1;
   const toN = Math.min(page * limit, total);
-  const allChecked = customers.length > 0 && customers.every((c) => selected.includes(c.id));
-  const crumb = CRUMB[tab] || "All Customers";
+  const zones = data.zones || [];
 
   const pageButtons = useMemo(() => {
     const maxBtns = Math.min(pages, 5);
@@ -199,16 +228,6 @@ export default function Customers() {
     for (let i = 0; i < maxBtns; i += 1) list.push(start + i);
     return list;
   }, [page, pages]);
-
-  function hintFor(s) {
-    if (s.key === "new30") {
-      const n = stats.newPct || 0;
-      return `${n >= 0 ? "↑ +" : "↓ "}${Math.abs(n)}%`;
-    }
-    if (s.key === "active") return `${stats.activePct || 0}% of total`;
-    if (s.key === "withOrders") return `${stats.withOrdersPct || 0}% of total`;
-    return s.hint;
-  }
 
   function apply(e) {
     e?.preventDefault();
@@ -220,10 +239,10 @@ export default function Customers() {
     setQ("");
     setGroup("");
     setStatus("");
-    setFrom("");
-    setTo("");
+    setZone("");
+    setCustType("");
     setPage(1);
-    load({ q: "", group: "", status: "", from: "", to: "", page: 1 });
+    load({ q: "", group: "", status: "", zone: "", type: "", page: 1 });
   }
 
   async function saveCustomer(e) {
@@ -257,18 +276,17 @@ export default function Customers() {
   async function exportCsv() {
     const d = await api(`/admin/customers?${queryString({ page: 1, limit: 200 })}`);
     const rows = [
-      ["ID", "Name", "Email", "Phone", "Group", "Orders", "Spent", "Points", "Status", "Joined"],
+      ["ID", "Name", "Email", "Phone", "Group", "Zone", "Orders", "Spent", "Status"],
       ...(d.customers || []).map((c) => [
         c.customerNumber,
         fullName(c),
         c.email || "",
         c.phone,
-        c.membershipLevel,
+        groupLabel(c),
+        c.zone || "",
         c.orderCount,
         c.spentKes,
-        c.pointsBalance,
         c.blacklisted ? "Blacklisted" : c.isActive === false ? "Inactive" : "Active",
-        c.createdAt,
       ]),
     ];
     const csv = rows.map((r) => r.map((x) => `"${String(x ?? "").replaceAll('"', '""')}"`).join(",")).join("\n");
@@ -335,31 +353,6 @@ export default function Customers() {
     setToast("Message queued");
   }
 
-  async function addOrder(e) {
-    e.preventDefault();
-    if (!open || !orderProduct) return;
-    setBusy(true);
-    try {
-      await api("/admin/orders", {
-        method: "POST",
-        body: JSON.stringify({
-          userId: open.id,
-          items: [{ productId: orderProduct, quantity: 1 }],
-          paymentMethod: "MPESA",
-          paymentStatus: "PENDING",
-          status: "PENDING_PAYMENT",
-        }),
-      });
-      setOrderModal(false);
-      setToast("Order created");
-      load();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
   function startEdit(c) {
     setEditing(c.id);
     setForm({
@@ -377,20 +370,6 @@ export default function Customers() {
     setCreate(true);
   }
 
-  async function select(c) {
-    try {
-      const d = await api(`/admin/customers/${c.id}`);
-      setOpen(d.customer);
-    } catch {
-      setOpen(c);
-    }
-  }
-
-  function openAddOrder() {
-    setOrderModal(true);
-    api("/admin/products?limit=50").then((d) => setProducts(d.products || [])).catch(() => {});
-  }
-
   useEffect(() => {
     if (!toast) return undefined;
     const t = setTimeout(() => setToast(""), 2400);
@@ -398,30 +377,75 @@ export default function Customers() {
   }, [toast]);
 
   return (
-    <div className="cust">
+    <div className="cust cust-page">
       <nav className="crumbs">
         <Link to="/">Dashboard</Link>
         <span>›</span>
-        <Link to="/customers">Customers</Link>
-        <span>›</span>
-        <strong>{crumb}</strong>
+        <strong>Customers</strong>
       </nav>
 
       <div className="prod-head">
         <div>
           <h1>
-            <span className="prod-title-icon"><Icon name="users" size={18} /></span>
+            <span className="prod-title-icon solid"><Icon name="users" size={16} /></span>
             Customers
           </h1>
-          <p>Manage your customers and view their activity.</p>
+          <p>Manage customer information, groups and purchase history.</p>
         </div>
         <div className="prod-actions">
-          <button className="btn btn-ghost btn-small" type="button" onClick={exportCsv}>
-            <Icon name="download" size={14} /> Export
+          <button
+            className="btn btn-ghost btn-small"
+            type="button"
+            onClick={() => setToast("Customer settings coming soon")}
+          >
+            <Icon name="gear" size={14} /> Customer Settings
           </button>
-          <button className="btn btn-ghost btn-small" type="button" onClick={() => importRef.current?.click()}>
-            <Icon name="upload" size={14} /> Import
-          </button>
+          <div className="dlvzon-dd-wrap">
+            <button
+              className="btn btn-purple btn-small dlvzon-create-dd"
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setAddOpen((v) => !v);
+              }}
+            >
+              <Icon name="plus" size={14} /> Add Customer
+              <Icon name="chevron" size={14} />
+            </button>
+            {addOpen && (
+              <div className="dlvzon-dd" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAddOpen(false);
+                    setEditing(null);
+                    setForm(emptyForm);
+                    setCreate(true);
+                  }}
+                >
+                  Single Customer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAddOpen(false);
+                    importRef.current?.click();
+                  }}
+                >
+                  Bulk Import
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAddOpen(false);
+                    exportCsv();
+                  }}
+                >
+                  Export CSV
+                </button>
+              </div>
+            )}
+          </div>
           <input
             ref={importRef}
             type="file"
@@ -432,307 +456,418 @@ export default function Customers() {
               e.target.value = "";
             }}
           />
-          <button
-            className="btn btn-purple btn-small"
-            type="button"
-            onClick={() => {
-              setEditing(null);
-              setForm(emptyForm);
-              setCreate(true);
-            }}
-          >
-            <Icon name="plus" size={14} /> Add Customer
-          </button>
         </div>
       </div>
 
       {error && <p className="error">{error}</p>}
       {toast && <p className="cust-toast">{toast}</p>}
 
-      <section className="cust-stats">
-        {STATS.map((s) => (
-          <article key={s.key} className="prod-stat cat-stat">
+      {showCatalog && (
+        <section className="pts-stats six cust-kpis">
+          <article className="prod-stat cat-stat">
             <div>
-              <div className="muted">{s.label}</div>
-              <div className={`prod-stat-n ${s.tone}`}>{fmtNum(stats[s.key])}</div>
-              <div className={`cat-stat-hint ${s.key === "new30" && (stats.newPct || 0) >= 0 ? "up" : ""}`}>{hintFor(s)}</div>
+              <div className="muted">Total Customers</div>
+              <div className="prod-stat-n purple">{fmtNum(stats.total)}</div>
+              <div className={`cat-stat-hint ${(stats.totalPct || 0) >= 0 ? "up" : "down"}`}>
+                {deltaHint(stats.totalPct)}
+              </div>
             </div>
-            <div className={`prod-stat-icon ${s.tone}`}>
-              <Icon name={s.icon} size={16} />
-            </div>
+            <div className="prod-stat-icon purple"><Icon name="users" size={16} /></div>
           </article>
-        ))}
-      </section>
-
-      <div className={`ord-layout ${open && tab !== "activity" && tab !== "addresses" ? "has-drawer" : ""}`}>
-        <section className="card cat-table-card">
-          {tab !== "activity" && tab !== "addresses" && (
-            <form className="attr-filters" onSubmit={apply}>
-              <div className="prod-search">
-                <Icon name="search" size={16} />
-                <input
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  placeholder="Search by name, email, phone, ID..."
-                />
-              </div>
-              <select value={group} onChange={(e) => { setGroup(e.target.value); setPage(1); load({ group: e.target.value, page: 1 }); }}>
-                <option value="">All Groups</option>
-                <option value="GOLD">Gold</option>
-                <option value="SILVER">Silver</option>
-                <option value="BRONZE">Bronze</option>
-              </select>
-              <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); load({ status: e.target.value, page: 1 }); }}>
-                <option value="">All Status</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-              <div className="ord-dates" title="Select Date Range">
-                <Icon name="calendar" size={14} />
-                <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} title="From date" />
-                <span className="muted">–</span>
-                <input type="date" value={to} onChange={(e) => setTo(e.target.value)} title="To date" />
-              </div>
-              <button className="btn btn-ghost btn-small" type="submit">
-                <Icon name="filter" size={14} /> Filter
-              </button>
-              <button className="link-reset" type="button" onClick={reset}>Reset</button>
-            </form>
-          )}
-
-          {tab === "groups" && (
-            <div className="cust-group-bar">
-              {["GOLD", "SILVER", "BRONZE"].map((g) => (
-                <button key={g} type="button" className={group === g ? "on" : ""} onClick={() => { setGroup(g); load({ group: g, page: 1 }); }}>
-                  {groupLabel(g)} · {fmtNum(data.groups?.[g] || 0)}
-                </button>
-              ))}
+          <article className="prod-stat cat-stat">
+            <div>
+              <div className="muted">Active Customers</div>
+              <div className="prod-stat-n green">{fmtNum(stats.active)}</div>
+              <div className="cat-stat-hint up">↑ {Number(stats.activePct || 0).toFixed(1)}% of total</div>
             </div>
-          )}
+            <div className="prod-stat-icon green"><Icon name="checkCircle" size={16} /></div>
+          </article>
+          <article className="prod-stat cat-stat">
+            <div>
+              <div className="muted">New Customers</div>
+              <div className="prod-stat-n blue">{fmtNum(stats.new30)}</div>
+              <div className={`cat-stat-hint ${(stats.newPct || 0) >= 0 ? "up" : "down"}`}>
+                {deltaHint(stats.newPct)}
+              </div>
+            </div>
+            <div className="prod-stat-icon blue"><Icon name="usersPlus" size={16} /></div>
+          </article>
+          <article className="prod-stat cat-stat">
+            <div>
+              <div className="muted">VIP Customers</div>
+              <div className="prod-stat-n orange">{fmtNum(stats.vip)}</div>
+              <div className="cat-stat-hint up">↑ {Number(stats.vipPct || 0).toFixed(1)}% of total</div>
+            </div>
+            <div className="prod-stat-icon orange"><Icon name="crown" size={16} /></div>
+          </article>
+          <article className="prod-stat cat-stat">
+            <div>
+              <div className="muted">Repeat Customers</div>
+              <div className="prod-stat-n red">{fmtNum(stats.repeat)}</div>
+              <div className="cat-stat-hint up">↑ {Number(stats.repeatPct || 0).toFixed(1)}% of total</div>
+            </div>
+            <div className="prod-stat-icon red"><Icon name="bag" size={16} /></div>
+          </article>
+          <article className="prod-stat cat-stat">
+            <div>
+              <div className="muted">Total Spent (KES)</div>
+              <div className="prod-stat-n indigo">{fmtNum(stats.spentKes)}</div>
+              <div className={`cat-stat-hint ${(stats.spentPct || 0) >= 0 ? "up" : "down"}`}>
+                {deltaHint(stats.spentPct)}
+              </div>
+            </div>
+            <div className="prod-stat-icon indigo"><Icon name="coin" size={16} /></div>
+          </article>
+        </section>
+      )}
 
-          {tab === "segments" && (
-            <div className="cust-group-bar">
-              {[
-                { id: "loyal", label: "Loyal (Gold)" },
-                { id: "new", label: "New (30 days)" },
-                { id: "inactive", label: "Inactive" },
-              ].map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  className={segment === s.id ? "on" : ""}
-                  onClick={() => { setSegment(s.id); load({ segment: s.id, page: 1 }); }}
+      <div className={showCatalog ? "cust-layout" : ""}>
+        <div className={showCatalog ? "cust-main" : ""}>
+          <section className="card cat-table-card">
+            {showCatalog && (
+              <form className="attr-filters cust-filters" onSubmit={apply}>
+                <div className="prod-search">
+                  <Icon name="search" size={16} />
+                  <input
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                    placeholder="Search customers..."
+                  />
+                </div>
+                <select
+                  value={group}
+                  onChange={(e) => {
+                    setGroup(e.target.value);
+                    setPage(1);
+                    load({ group: e.target.value, page: 1 });
+                  }}
                 >
-                  {s.label}
+                  <option value="">All Customer Groups</option>
+                  <option value="REGULAR">Regular</option>
+                  <option value="VIP">VIP</option>
+                  <option value="WHOLESALE">Wholesale</option>
+                </select>
+                <select
+                  value={status}
+                  onChange={(e) => {
+                    setStatus(e.target.value);
+                    setPage(1);
+                    load({ status: e.target.value, page: 1 });
+                  }}
+                >
+                  <option value="">All Status</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+                <select
+                  value={zone}
+                  onChange={(e) => {
+                    setZone(e.target.value);
+                    setPage(1);
+                    load({ zone: e.target.value, page: 1 });
+                  }}
+                >
+                  <option value="">All Zones</option>
+                  {zones.map((z) => (
+                    <option key={z} value={z}>{z}</option>
+                  ))}
+                </select>
+                <select
+                  value={custType}
+                  onChange={(e) => {
+                    setCustType(e.target.value);
+                    setPage(1);
+                    load({ type: e.target.value, page: 1 });
+                  }}
+                >
+                  <option value="">All Customer Types</option>
+                  <option value="retail">Retail</option>
+                  <option value="wholesale">Wholesale</option>
+                  <option value="corporate">Corporate</option>
+                </select>
+                <button className="btn btn-ghost btn-small" type="submit">
+                  <Icon name="filter" size={14} /> Filter
                 </button>
-              ))}
-            </div>
-          )}
-
-          <div className="cat-table-wrap">
-            {tab === "activity" ? (
-              <table className="table cat-table">
-                <thead>
-                  <tr><th>Activity</th><th>When</th></tr>
-                </thead>
-                <tbody>
-                  {(data.activity || []).map((a) => (
-                    <tr key={a.id}>
-                      <td>{a.text}</td>
-                      <td>{fmtDate(a.at)} <span className="muted">{fmtTime(a.at)}</span></td>
-                    </tr>
-                  ))}
-                  {(data.activity || []).length === 0 && (
-                    <tr><td colSpan="2" className="muted">No recent customer activity.</td></tr>
-                  )}
-                </tbody>
-              </table>
-            ) : tab === "addresses" ? (
-              <table className="table cat-table">
-                <thead>
-                  <tr><th>Customer</th><th>Label</th><th>Address</th><th>Phone</th></tr>
-                </thead>
-                <tbody>
-                  {(data.addresses || []).map((a) => (
-                    <tr key={a.id}>
-                      <td><strong>{a.customer}</strong><div className="muted">#{a.customerNumber}</div></td>
-                      <td>{a.label}</td>
-                      <td>{a.street}<div className="muted">{a.city}{a.county ? `, ${a.county}` : ""}</div></td>
-                      <td>{a.phone}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <table className="table cat-table cust-table">
-                <thead>
-                  <tr>
-                    <th>
-                      <input
-                        type="checkbox"
-                        checked={allChecked}
-                        onChange={(e) => setSelected(e.target.checked ? customers.map((c) => c.id) : [])}
-                      />
-                    </th>
-                    <th>Customer</th>
-                    <th>Email / Phone</th>
-                    <th>Group</th>
-                    <th>Orders</th>
-                    <th>Total Spent</th>
-                    <th>Points Balance</th>
-                    <th>Status</th>
-                    <th>Joined Date</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {customers.map((c) => {
-                    const active = c.isActive !== false && !c.blacklisted;
-                    return (
-                      <tr key={c.id} className={open?.id === c.id ? "is-open" : ""}>
-                        <td>
-                          <input
-                            type="checkbox"
-                            checked={selected.includes(c.id)}
-                            onChange={(e) => setSelected((s) => (e.target.checked ? [...s, c.id] : s.filter((id) => id !== c.id)))}
-                          />
-                        </td>
-                        <td>
-                          <button className="cust-cell" type="button" onClick={() => select(c)}>
-                            {c.avatarUrl ? <img src={c.avatarUrl} alt="" /> : <span className="cust-av">{initials(c)}</span>}
-                            <span>
-                              <strong>{fullName(c)}</strong>
-                              <div className="muted">#{c.customerNumber || "CUST"}</div>
-                            </span>
-                          </button>
-                        </td>
-                        <td>
-                          <div>{c.email || "—"}</div>
-                          <div className="muted">{fmtPhone(c.phone)}</div>
-                        </td>
-                        <td><span className={`st-pill ${groupCls(c.membershipLevel)}`}>{groupLabel(c.membershipLevel)}</span></td>
-                        <td>{fmtNum(c.orderCount)}</td>
-                        <td>{kes(c.spentKes)}</td>
-                        <td className="cust-pts"><Icon name="coin" size={14} /> {fmtNum(c.pointsBalance)}</td>
-                        <td>
-                          <span className={`st-pill ${active ? "ord-st-delivered" : "ord-st-cancelled"}`}>
-                            {c.blacklisted ? "Blacklisted" : active ? "Active" : "Inactive"}
-                          </span>
-                        </td>
-                        <td>
-                          <div>{fmtDate(c.createdAt)}</div>
-                          <div className="muted">{fmtTime(c.createdAt)}</div>
-                        </td>
-                        <td>
-                          <div className="prod-row-acts">
-                            <button type="button" title="View" onClick={() => select(c)}><Icon name="eye" size={14} /></button>
-                            <button type="button" title="Edit" onClick={() => startEdit(c)}><Icon name="pencil" size={14} /></button>
-                            <button
-                              type="button"
-                              title="Delete"
-                              className="danger"
-                              onClick={() => {
-                                if (confirm(`Deactivate ${fullName(c)}?`)) patch(c.id, { isActive: false });
-                              }}
-                            >
-                              <Icon name="trash" size={14} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {customers.length === 0 && (
-                    <tr><td colSpan="10" className="muted">No customers match these filters.</td></tr>
-                  )}
-                </tbody>
-              </table>
+                <button className="link-reset" type="button" onClick={reset}>Reset</button>
+              </form>
             )}
-          </div>
 
-          {tab !== "activity" && tab !== "addresses" && (
-            <footer className="prod-pager">
-              <span>Showing {fromN} to {toN} of {fmtNum(total)} customers</span>
-              <div className="pager-btns">
-                <button type="button" disabled={page <= 1} onClick={() => { setPage(page - 1); load({ page: page - 1 }); }}>
-                  <Icon name="chevronLeft" size={14} />
-                </button>
-                {pageButtons.map((n) => (
-                  <button key={n} type="button" className={n === page ? "on" : ""} onClick={() => { setPage(n); load({ page: n }); }}>
-                    {n}
+            {tab === "groups" && (
+              <div className="cust-group-bar">
+                {[
+                  { id: "REGULAR", label: "Regular" },
+                  { id: "VIP", label: "VIP" },
+                  { id: "WHOLESALE", label: "Wholesale" },
+                ].map((g) => (
+                  <button
+                    key={g.id}
+                    type="button"
+                    className={group === g.id ? "on" : ""}
+                    onClick={() => {
+                      setGroup(g.id);
+                      setPage(1);
+                      load({ group: g.id, page: 1 });
+                    }}
+                  >
+                    {g.label} · {fmtNum(data.groups?.[g.id] || 0)}
                   </button>
                 ))}
-                {pages > 5 && <span className="muted">… {pages}</span>}
-                <button type="button" disabled={page >= pages} onClick={() => { setPage(page + 1); load({ page: page + 1 }); }}>
-                  <Icon name="chevronRight" size={14} />
-                </button>
               </div>
-              <select value={limit} onChange={(e) => { const n = Number(e.target.value); setLimit(n); setPage(1); load({ limit: n, page: 1 }); }}>
-                {[10, 20, 50].map((n) => (
-                  <option key={n} value={n}>{n} / page</option>
-                ))}
-              </select>
-            </footer>
-          )}
-        </section>
+            )}
 
-        {open && tab !== "activity" && tab !== "addresses" && (
-          <aside className="ord-drawer cust-drawer">
-            <div className="cust-drawer-top">
-              {open.avatarUrl ? <img src={open.avatarUrl} alt="" /> : <span className="cust-av lg">{initials(open)}</span>}
-              <div>
-                <h2>{fullName(open)}</h2>
-                <div className="muted">#{open.customerNumber}</div>
-                <div className="cust-badges">
-                  <span className={`st-pill ${open.isActive !== false && !open.blacklisted ? "ord-st-delivered" : "ord-st-cancelled"}`}>
-                    {open.blacklisted ? "Blacklisted" : open.isActive === false ? "Inactive" : "Active"}
-                  </span>
-                  <span className={`st-pill ${groupCls(open.membershipLevel)}`}>{groupLabel(open.membershipLevel)} Member</span>
-                </div>
+            {tab === "segments" && (
+              <div className="cust-group-bar">
+                {[
+                  { id: "loyal", label: "Loyal (VIP)" },
+                  { id: "new", label: "New (30 days)" },
+                  { id: "inactive", label: "Inactive" },
+                ].map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    className={segment === s.id ? "on" : ""}
+                    onClick={() => {
+                      setSegment(s.id);
+                      setPage(1);
+                      load({ segment: s.id, page: 1 });
+                    }}
+                  >
+                    {s.label}
+                  </button>
+                ))}
               </div>
-              <button className="icon-btn" type="button" aria-label="Close" onClick={() => setOpen(null)}>
-                <Icon name="x" size={16} />
+            )}
+
+            <div className="cat-table-wrap">
+              {tab === "activity" ? (
+                <table className="table cat-table">
+                  <thead>
+                    <tr><th>Activity</th><th>When</th></tr>
+                  </thead>
+                  <tbody>
+                    {(data.activity || []).map((a) => (
+                      <tr key={a.id}>
+                        <td>{a.text}</td>
+                        <td>{fmtDate(a.at)} <span className="muted">{fmtTime(a.at)}</span></td>
+                      </tr>
+                    ))}
+                    {(data.activity || []).length === 0 && (
+                      <tr><td colSpan="2" className="muted">No recent customer activity.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              ) : tab === "addresses" ? (
+                <table className="table cat-table">
+                  <thead>
+                    <tr><th>Customer</th><th>Label</th><th>Address</th><th>Phone</th></tr>
+                  </thead>
+                  <tbody>
+                    {(data.addresses || []).map((a) => (
+                      <tr key={a.id}>
+                        <td><strong>{a.customer}</strong><div className="muted">#{a.customerNumber}</div></td>
+                        <td>{a.label}</td>
+                        <td>{a.street}<div className="muted">{a.city}{a.county ? `, ${a.county}` : ""}</div></td>
+                        <td>{a.phone}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <table className="table cat-table cust-table cust-table-v2">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Customer</th>
+                      <th>Contact</th>
+                      <th>Group</th>
+                      <th>Zone</th>
+                      <th>Total Orders</th>
+                      <th>Total Spent (KES)</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {customers.map((c, i) => {
+                      const active = c.isActive !== false && !c.blacklisted;
+                      const rowN = fromN + i;
+                      return (
+                        <tr key={c.id}>
+                          <td className="muted">{rowN}</td>
+                          <td>
+                            <button className="cust-cell" type="button" onClick={() => navigate(`/customers/${c.id}`)}>
+                              {c.avatarUrl ? <img src={c.avatarUrl} alt="" /> : <span className="cust-av">{initials(c)}</span>}
+                              <span>
+                                <strong>{fullName(c)}</strong>
+                                <div className="muted">{c.customerNumber || "CUS-0000"}</div>
+                              </span>
+                            </button>
+                          </td>
+                          <td>
+                            <div className="cust-contact">
+                              <strong>{c.phone || "—"}</strong>
+                              <span className="muted">{c.email || "—"}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <span className={`st-pill ${groupCls(c.groupKey || c.membershipLevel)}`}>
+                              {groupLabel(c)}
+                            </span>
+                          </td>
+                          <td>{c.zone || "Nairobi CBD"}</td>
+                          <td><b>{fmtNum(c.orderCount)}</b></td>
+                          <td>{fmtNum(c.spentKes)}</td>
+                          <td>
+                            <span className={`st-pill ${active ? "cust-st-active" : "cust-st-inactive"}`}>
+                              {c.blacklisted ? "Blacklisted" : active ? "Active" : "Inactive"}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="prod-row-acts">
+                              <button type="button" title="View" onClick={() => navigate(`/customers/${c.id}`)}>
+                                <Icon name="eye" size={14} />
+                              </button>
+                              <button type="button" title="Edit" onClick={() => startEdit(c)}>
+                                <Icon name="pencil" size={14} />
+                              </button>
+                              <div className="cust-more-wrap">
+                                <button
+                                  type="button"
+                                  title="More"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setMoreId(moreId === c.id ? null : c.id);
+                                  }}
+                                >
+                                  <Icon name="more" size={14} />
+                                </button>
+                                {moreId === c.id && (
+                                  <div className="cust-more-dd" onClick={(e) => e.stopPropagation()}>
+                                    <button type="button" onClick={() => { setMoreId(null); setOpen(c); setMsgModal(true); }}>Send Message</button>
+                                    <button type="button" onClick={() => { setMoreId(null); setOpen(c); setPointsModal(true); }}>Add Points</button>
+                                    <button
+                                      type="button"
+                                      className="danger"
+                                      onClick={() => {
+                                        setMoreId(null);
+                                        if (confirm(`Deactivate ${fullName(c)}?`)) patch(c.id, { isActive: false });
+                                      }}
+                                    >
+                                      Deactivate
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {customers.length === 0 && (
+                      <tr><td colSpan="9" className="muted">No customers match these filters.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {showCatalog && (
+              <footer className="prod-pager">
+                <span>Showing {fromN} to {toN} of {fmtNum(total)} customers</span>
+                <div className="pager-btns">
+                  <button type="button" disabled={page <= 1} onClick={() => { setPage(page - 1); load({ page: page - 1 }); }}>
+                    <Icon name="chevronLeft" size={14} />
+                  </button>
+                  {pageButtons.map((n) => (
+                    <button key={n} type="button" className={n === page ? "on" : ""} onClick={() => { setPage(n); load({ page: n }); }}>
+                      {n}
+                    </button>
+                  ))}
+                  {pages > 5 && (
+                    <>
+                      <span className="muted">…</span>
+                      <button type="button" onClick={() => { setPage(pages); load({ page: pages }); }}>{pages}</button>
+                    </>
+                  )}
+                  <button type="button" disabled={page >= pages} onClick={() => { setPage(page + 1); load({ page: page + 1 }); }}>
+                    <Icon name="chevronRight" size={14} />
+                  </button>
+                </div>
+                <label className="prod-rows">
+                  Rows per page
+                  <select
+                    value={limit}
+                    onChange={(e) => {
+                      const n = Number(e.target.value);
+                      setLimit(n);
+                      setPage(1);
+                      load({ limit: n, page: 1 });
+                    }}
+                  >
+                    {[10, 20, 50].map((n) => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                </label>
+              </footer>
+            )}
+          </section>
+        </div>
+
+        {showCatalog && (
+          <aside className="cust-side">
+            <section className="card pf-card">
+              <h2><Icon name="chart" size={14} /> Customers by Group</h2>
+              <Donut parts={data.groupDonut} total={stats.total} />
+            </section>
+            <section className="card pf-card">
+              <h2><Icon name="crown" size={14} /> Top Customers by Spend</h2>
+              <ul className="cust-top-list">
+                {(data.topCustomers || []).map((c) => (
+                  <li key={c.id || c.rank}>
+                    <span className="prod-top-rank">{c.rank}</span>
+                    {c.avatarUrl ? <img src={c.avatarUrl} alt="" /> : <div className="cust-av">{(c.name || "C")[0]}</div>}
+                    <div>
+                      <strong>{c.name}</strong>
+                      <span className="muted">KES {fmtNum(c.spentKes)}</span>
+                    </div>
+                  </li>
+                ))}
+                {(data.topCustomers || []).length === 0 && (
+                  <li className="muted">No spend data yet.</li>
+                )}
+              </ul>
+            </section>
+            <section className="card pf-card">
+              <h2><Icon name="bolt" size={14} /> Customer Insights</h2>
+              <ul className="cust-insights">
+                {(data.insights || []).map((ins, i) => (
+                  <li key={i} className={`tone-${ins.tone}`}>
+                    <span className="cust-ins-ico"><Icon name={ins.icon} size={14} /></span>
+                    <span>{ins.text}</span>
+                  </li>
+                ))}
+              </ul>
+              <button
+                className="btn btn-ghost btn-small cust-analytics-btn"
+                type="button"
+                onClick={() => setToast("Customer analytics coming soon")}
+              >
+                <Icon name="chart" size={14} /> View Customer Analytics
               </button>
-            </div>
-            <div className="ord-meta">
-              <div><Icon name="mail" size={14} /> {open.email || "—"}</div>
-              <div><Icon name="phone" size={14} /> {fmtPhone(open.phone)}</div>
-              <div><Icon name="pin" size={14} /> {open.addresses?.[0] ? `${open.addresses[0].county || open.addresses[0].city || "Nairobi"}, Kenya` : "Kenya"}</div>
-              <div><Icon name="calendar" size={14} /> Joined {fmtDate(open.createdAt)}</div>
-            </div>
-            <div className="cust-mini">
-              <article><div className="muted">Total Orders</div><b>{fmtNum(open.orderCount)}</b></article>
-              <article><div className="muted">Total Spent</div><b>{kes(open.spentKes)}</b></article>
-              <article><div className="muted">Points Balance</div><b>{kes(open.pointsBalance)}</b></article>
-              <article><div className="muted">Average Order</div><b>{kes(open.avgOrderKes)}</b></article>
-            </div>
-            <div className="cust-qacts">
-              <Link className="btn btn-ghost btn-small" to={`/orders?q=${encodeURIComponent(open.email || open.phone || "")}`}>View Orders</Link>
-              <button className="btn btn-ghost btn-small" type="button" onClick={openAddOrder}>Add Order</button>
-              <button className="btn btn-ghost btn-small" type="button" onClick={() => setPointsModal(true)}>Add Points</button>
-              <button className="btn btn-ghost btn-small" type="button" onClick={() => setMsgModal(true)}>Send Message</button>
-            </div>
-            <h3>Additional Information</h3>
-            <dl className="ord-sum">
-              <div><dt>Group</dt><dd>{groupLabel(open.membershipLevel)}</dd></div>
-              <div><dt>Status</dt><dd>{open.blacklisted ? "Blacklisted" : open.isActive === false ? "Inactive" : "Active"}</dd></div>
-              <div><dt>Gender</dt><dd>{open.gender || "—"}</dd></div>
-              <div><dt>DOB</dt><dd>{fmtDate(open.dateOfBirth)}</dd></div>
-              <div><dt>Last Login</dt><dd>{fmtDateTime(open.lastLoginAt)}</dd></div>
-              <div><dt>Preferred Payment</dt><dd>{payLabel(open.preferredPayment)}</dd></div>
-              <div><dt>Referral Code</dt><dd>{open.referralCode}</dd></div>
-            </dl>
-            <h3>Notes</h3>
-            <textarea
-              rows={3}
-              value={open.adminNotes || ""}
-              onChange={(e) => setOpen({ ...open, adminNotes: e.target.value })}
-              onBlur={() => patch(open.id, { adminNotes: open.adminNotes || "" })}
-            />
-            <Link className="btn btn-purple" to={`/customers/${open.id}`}>View Full Profile</Link>
+            </section>
           </aside>
         )}
       </div>
+
+      {showCatalog && (
+        <footer className="card pf-card prod-foot-banner cust-foot">
+          <p>
+            <Icon name="info" size={14} />
+            <strong>Tip:</strong> Use customer groups to personalize offers and improve customer retention.
+          </p>
+        </footer>
+      )}
 
       {create && (
         <div className="prod-modal" onClick={() => setCreate(false)}>
@@ -756,9 +891,9 @@ export default function Customers() {
               <div>
                 <label>Group</label>
                 <select value={form.membershipLevel} onChange={(e) => setForm((f) => ({ ...f, membershipLevel: e.target.value }))}>
-                  <option value="BRONZE">Bronze</option>
-                  <option value="SILVER">Silver</option>
-                  <option value="GOLD">Gold</option>
+                  <option value="BRONZE">Regular</option>
+                  <option value="SILVER">Wholesale</option>
+                  <option value="GOLD">VIP</option>
                 </select>
               </div>
               <div>
@@ -805,25 +940,6 @@ export default function Customers() {
             <div className="cat-form-actions">
               <button className="btn btn-ghost btn-small" type="button" onClick={() => setMsgModal(false)}>Cancel</button>
               <button className="btn btn-purple btn-small" type="submit">Send</button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {orderModal && (
-        <div className="prod-modal" onClick={() => setOrderModal(false)}>
-          <form className="card prod-modal-card" onClick={(e) => e.stopPropagation()} onSubmit={addOrder}>
-            <h2>Add Order</h2>
-            <label>Product</label>
-            <select value={orderProduct} onChange={(e) => setOrderProduct(e.target.value)} required>
-              <option value="">Select product</option>
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>{p.name} · {kes(p.priceKes)}</option>
-              ))}
-            </select>
-            <div className="cat-form-actions">
-              <button className="btn btn-ghost btn-small" type="button" onClick={() => setOrderModal(false)}>Cancel</button>
-              <button className="btn btn-purple btn-small" disabled={busy} type="submit">{busy ? "Saving…" : "Create Order"}</button>
             </div>
           </form>
         </div>

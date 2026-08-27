@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api, kes } from "../api";
 import { Icon } from "../icons";
+import { DeliveryDetailModal, DeliveryRowMenu, DetailMeta } from "../DeliveryRowMenu";
 
 const VIEW_TABS = [
   { id: "recent", label: "Recent Campaigns" },
@@ -74,8 +75,6 @@ function Gauge({ value }) {
 
 export default function MarketingOverview() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const section = searchParams.get("tab") || "overview";
   const [data, setData] = useState(null);
   const [view, setView] = useState("recent");
   const [q, setQ] = useState("");
@@ -88,6 +87,8 @@ export default function MarketingOverview() {
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  const [menu, setMenu] = useState(null);
+  const [viewing, setViewing] = useState(null);
 
   function queryString(next = {}) {
     const p = new URLSearchParams();
@@ -131,6 +132,7 @@ export default function MarketingOverview() {
   useEffect(() => {
     function close() {
       setCreateOpen(false);
+      setMenu(null);
     }
     window.addEventListener("click", close);
     return () => window.removeEventListener("click", close);
@@ -152,40 +154,40 @@ export default function MarketingOverview() {
     load({ q: "", type: "", channel: "", page: 1 });
   }
 
-  if (section !== "overview" && section !== "campaigns") {
-    const titles = {
-      email: "Email Marketing",
-      sms: "SMS Marketing",
-      push: "Push Notifications",
-      discounts: "Discounts & Coupons",
-      banners: "Banners",
-      settings: "Marketing Settings",
-    };
-    return (
-      <div className="mktov-page">
-        <nav className="crumbs">
-          <Link to="/">Dashboard</Link>
-          <span>›</span>
-          <Link to="/marketing">Marketing</Link>
-          <span>›</span>
-          <strong>{titles[section] || "Marketing"}</strong>
-        </nav>
-        <div className="prod-head">
-          <div>
-            <h1>
-              <span className="prod-title-icon solid"><Icon name="megaphone" size={16} /></span>
-              {titles[section] || "Marketing"}
-            </h1>
-            <p>This section is ready for configuration. Overview data is on the main Marketing page.</p>
-          </div>
-          <div className="prod-actions">
-            <button className="btn btn-purple btn-small" type="button" onClick={() => navigate("/marketing")}>
-              Back to Overview
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+  function openCampaign(r, e) {
+    e?.stopPropagation?.();
+    setMenu(null);
+    setViewing(r);
+  }
+
+  function duplicateCampaign(r, e) {
+    e?.stopPropagation?.();
+    setMenu(null);
+    setToast(`Duplicated “${r.name}” as draft`);
+  }
+
+  function pauseOrCancel(r, e) {
+    e?.stopPropagation?.();
+    setMenu(null);
+    if (r.status === "active") setToast(`Paused “${r.name}”`);
+    else if (r.status === "scheduled") setToast(`Cancelled schedule for “${r.name}”`);
+    else setToast(`Archived “${r.name}”`);
+  }
+
+  function copyCampaignLink(r, e) {
+    e?.stopPropagation?.();
+    setMenu(null);
+    const url = `${window.location.origin}/marketing?campaign=${encodeURIComponent(r.id)}`;
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(url).catch(() => {});
+    }
+    setToast(`Share link copied for “${r.name}”`);
+  }
+
+  function startCampaignType(type) {
+    setCreateOpen(false);
+    const map = { email: "email", sms: "sms", push: "push" };
+    navigate(`/marketing?tab=${map[type] || "campaigns"}&new=1`);
   }
 
   if (!data) {
@@ -238,8 +240,8 @@ export default function MarketingOverview() {
           <p>Track campaigns, engagement and promotional performance across channels.</p>
         </div>
         <div className="prod-actions">
-          <button className="btn btn-ghost btn-small" type="button" onClick={() => navigate("/marketing?tab=settings")}>
-            <Icon name="gear" size={14} /> Marketing Settings
+          <button className="btn btn-ghost btn-small" type="button" onClick={() => navigate("/marketing?tab=campaigns")}>
+            <Icon name="megaphone" size={14} /> All Campaigns
           </button>
           <div className="mktov-dd-wrap">
             <button
@@ -255,9 +257,9 @@ export default function MarketingOverview() {
             </button>
             {createOpen && (
               <div className="mktov-dd" onClick={(e) => e.stopPropagation()}>
-                <button type="button" onClick={() => { setCreateOpen(false); setToast("Email campaign form coming soon"); }}>Email Campaign</button>
-                <button type="button" onClick={() => { setCreateOpen(false); setToast("SMS campaign form coming soon"); }}>SMS Campaign</button>
-                <button type="button" onClick={() => { setCreateOpen(false); setToast("Push campaign form coming soon"); }}>Push Campaign</button>
+                <button type="button" onClick={() => startCampaignType("email")}>Email Campaign</button>
+                <button type="button" onClick={() => startCampaignType("sms")}>SMS Campaign</button>
+                <button type="button" onClick={() => startCampaignType("push")}>Push Campaign</button>
               </div>
             )}
           </div>
@@ -364,7 +366,7 @@ export default function MarketingOverview() {
             </form>
           </section>
 
-          <section className="card prod-table-wrap">
+          <section className="card prod-table-wrap mktov-table-card">
             <table className="table prod-table mktov-table">
               <thead>
                 <tr>
@@ -384,12 +386,14 @@ export default function MarketingOverview() {
                   <tr key={r.id}>
                     <td className="muted">{r.n}</td>
                     <td>
-                      <div className="prod-cell mktov-camp">
-                        <img src={r.thumb} alt="" />
-                        <div>
-                          <strong>{r.name}</strong>
+                      <button className="link-reset mktov-camp-btn" type="button" onClick={(e) => openCampaign(r, e)}>
+                        <div className="prod-cell mktov-camp">
+                          <img src={r.thumb} alt="" />
+                          <div>
+                            <strong>{r.name}</strong>
+                          </div>
                         </div>
-                      </div>
+                      </button>
                     </td>
                     <td><span className={`mktov-type ${typeCls(r.type)}`}>{r.typeLabel}</span></td>
                     <td>
@@ -403,13 +407,28 @@ export default function MarketingOverview() {
                     <td className="mktov-sent">{r.sent}</td>
                     <td className="mktov-perf-cell">{r.performance}</td>
                     <td>
-                      <div className="prod-row-acts">
-                        <button type="button" title="View" onClick={() => setToast(`Viewing ${r.name}`)}>
+                      <div className="prod-row-acts" onClick={(e) => e.stopPropagation()}>
+                        <button type="button" title="View" onClick={(e) => openCampaign(r, e)}>
                           <Icon name="eye" size={14} />
                         </button>
-                        <button type="button" title="More" onClick={() => setToast(`Actions for ${r.name}`)}>
-                          <Icon name="more" size={14} />
-                        </button>
+                        <DeliveryRowMenu id={r.id} menu={menu} setMenu={setMenu} up={r.n >= rows.length - 1}>
+                          <button type="button" onClick={(e) => openCampaign(r, e)}>View details</button>
+                          <button type="button" onClick={(e) => duplicateCampaign(r, e)}>Duplicate</button>
+                          <button type="button" onClick={(e) => pauseOrCancel(r, e)}>
+                            {r.status === "active" ? "Pause campaign" : r.status === "scheduled" ? "Cancel schedule" : "Archive"}
+                          </button>
+                          <button type="button" onClick={(e) => copyCampaignLink(r, e)}>Copy share link</button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMenu(null);
+                              navigate(`/marketing?tab=${r.type}`);
+                            }}
+                          >
+                            Open {r.typeLabel} channel
+                          </button>
+                        </DeliveryRowMenu>
                       </div>
                     </td>
                   </tr>
@@ -526,6 +545,59 @@ export default function MarketingOverview() {
             {data.footerMessage}
           </p>
         </footer>
+      )}
+
+      {viewing && (
+        <DeliveryDetailModal
+          title={viewing.name}
+          subtitle={`${viewing.typeLabel} · ${viewing.channel}`}
+          statusNode={<span className={`st-pill ${statusCls(viewing.status)}`}>{viewing.statusLabel}</span>}
+          onClose={() => setViewing(null)}
+          actions={(
+            <>
+              <button
+                className="btn btn-ghost btn-small"
+                type="button"
+                onClick={(e) => {
+                  duplicateCampaign(viewing, e);
+                  setViewing(null);
+                }}
+              >
+                Duplicate
+              </button>
+              <button
+                className="btn btn-purple btn-small"
+                type="button"
+                onClick={() => {
+                  setViewing(null);
+                  navigate(`/marketing?tab=${viewing.type}`);
+                }}
+              >
+                Open channel
+              </button>
+            </>
+          )}
+        >
+          <DetailMeta
+            rows={[
+              { label: "Audience", value: viewing.audience },
+              { label: "Sent / Scheduled", value: viewing.sent },
+              { label: "Performance", value: <strong>{viewing.performance}</strong> },
+              {
+                label: "Open rate",
+                value: viewing.status === "scheduled" || viewing.status === "draft"
+                  ? "—"
+                  : `${fmtNum(viewing.openRate, 1)}%`,
+              },
+              {
+                label: "CTR",
+                value: viewing.status === "scheduled" || viewing.status === "draft"
+                  ? "—"
+                  : `${fmtNum(viewing.ctr, 1)}%`,
+              },
+            ]}
+          />
+        </DeliveryDetailModal>
       )}
     </div>
   );

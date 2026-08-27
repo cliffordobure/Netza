@@ -2,10 +2,12 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { Icon } from "../icons";
+import { DeliveryDetailModal, DeliveryRowMenu, DetailMeta } from "../DeliveryRowMenu";
 import DeliveryShipments from "./DeliveryShipments";
 import DeliveryCouriers from "./DeliveryCouriers";
 import DeliveryZones from "./DeliveryZones";
 import DeliveryReturns from "./DeliveryReturns";
+import DeliverySettings from "./DeliverySettings";
 
 function fmtNum(n, digits = 0) {
   return new Intl.NumberFormat("en-KE", {
@@ -96,6 +98,8 @@ export default function DeliveryOverview() {
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  const [menu, setMenu] = useState(null);
+  const [viewing, setViewing] = useState(null);
 
   function queryString(next = {}) {
     const p = new URLSearchParams();
@@ -140,6 +144,7 @@ export default function DeliveryOverview() {
   useEffect(() => {
     function close() {
       setCreateOpen(false);
+      setMenu(null);
     }
     window.addEventListener("click", close);
     return () => window.removeEventListener("click", close);
@@ -162,6 +167,41 @@ export default function DeliveryOverview() {
     load({ q: "", status: "", courier: "", zone: "", page: 1 });
   }
 
+  const OV_STATUS = {
+    delivered: "Delivered",
+    in_transit: "In Transit",
+    pending_pickup: "Pending Pickup",
+    failed: "Failed",
+    returned: "Returned",
+  };
+
+  function patchShipment(row, next) {
+    const updated = {
+      ...row,
+      ...next,
+      statusLabel: next.status ? (OV_STATUS[next.status] || next.status) : row.statusLabel,
+    };
+    setData((d) => ({
+      ...d,
+      shipments: (d.shipments || []).map((r) => (r.id === row.id ? updated : r)),
+    }));
+    setViewing((v) => (v && v.id === row.id ? updated : v));
+    setMenu(null);
+    return updated;
+  }
+
+  function setStatus(row, status) {
+    patchShipment(row, { status });
+    setToast(`${row.shipmentId} → ${OV_STATUS[status] || status}`);
+  }
+
+  function copyTracking(row) {
+    const text = row.trackingId || row.shipmentId;
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).catch(() => {});
+    setMenu(null);
+    setToast(`Copied ${text}`);
+  }
+
   if (tab === "shipments" || tab === "all") {
     return <DeliveryShipments />;
   }
@@ -176,6 +216,10 @@ export default function DeliveryOverview() {
 
   if (tab === "returns") {
     return <DeliveryReturns />;
+  }
+
+  if (tab === "settings") {
+    return <DeliverySettings />;
   }
 
   if (tab && tab !== "overview") {
@@ -437,12 +481,25 @@ export default function DeliveryOverview() {
                       </td>
                       <td>
                         <div className="prod-row-acts">
-                          <button type="button" title="View" onClick={() => setToast(`Viewing ${r.shipmentId}`)}>
+                          <button type="button" title="View" onClick={() => { setViewing(r); setMenu(null); }}>
                             <Icon name="eye" size={14} />
                           </button>
-                          <button type="button" title="More" onClick={() => setToast(`Actions for ${r.shipmentId}`)}>
-                            <Icon name="more" size={14} />
-                          </button>
+                          <DeliveryRowMenu id={r.id} menu={menu} setMenu={setMenu} up={r.n >= rows.length}>
+                            <button type="button" onClick={() => { setViewing(r); setMenu(null); }}>View details</button>
+                            <button type="button" onClick={() => copyTracking(r)}>Copy tracking</button>
+                            {r.status !== "in_transit" && r.status !== "delivered" && (
+                              <button type="button" onClick={() => setStatus(r, "in_transit")}>Mark in transit</button>
+                            )}
+                            {r.status !== "delivered" && (
+                              <button type="button" onClick={() => setStatus(r, "delivered")}>Mark delivered</button>
+                            )}
+                            {r.status !== "failed" && r.status !== "delivered" && (
+                              <button type="button" className="danger" onClick={() => setStatus(r, "failed")}>Mark failed</button>
+                            )}
+                            <button type="button" onClick={() => { setMenu(null); navigate(`/orders?q=${encodeURIComponent(r.orderId || r.shipmentId)}`); }}>
+                              Open order
+                            </button>
+                          </DeliveryRowMenu>
                         </div>
                       </td>
                     </tr>
@@ -533,6 +590,36 @@ export default function DeliveryOverview() {
             {data.footerMessage}
           </p>
         </footer>
+      )}
+
+      {viewing && (
+        <DeliveryDetailModal
+          title={viewing.shipmentId}
+          subtitle={`${viewing.date} · ${viewing.time}`}
+          statusNode={<span className={`st-pill ${statusCls(viewing.status)}`}>{viewing.statusLabel}</span>}
+          onClose={() => setViewing(null)}
+          actions={(
+            <>
+              {viewing.status !== "delivered" && (
+                <button className="btn btn-purple btn-small" type="button" onClick={() => setStatus(viewing, "delivered")}>
+                  Mark delivered
+                </button>
+              )}
+              <button className="btn btn-ghost btn-small" type="button" onClick={() => copyTracking(viewing)}>
+                Copy tracking
+              </button>
+            </>
+          )}
+        >
+          <DetailMeta
+            rows={[
+              { label: "Customer", value: (<><strong>{viewing.customerName}</strong><span className="muted">{viewing.customerPhone}</span></>) },
+              { label: "Courier", value: (<><strong>{viewing.courierName}</strong><span className="muted">{viewing.trackingId}</span></>) },
+              { label: "Zone", value: viewing.zone || "—" },
+              { label: "Order", value: viewing.orderId || "—" },
+            ]}
+          />
+        </DeliveryDetailModal>
       )}
     </div>
   );
