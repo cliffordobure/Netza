@@ -503,7 +503,7 @@ router.get(
 router.get(
   "/products-catalog",
   asyncHandler(async (req, res) => {
-    res.json(getProductsCatalog(req.query));
+    res.json(await getProductsCatalog(req.query));
   })
 );
 

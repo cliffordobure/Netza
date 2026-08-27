@@ -1,8 +1,8 @@
-const TOTAL = 5784;
-const TODAY = 128;
-const UNIQUE_USERS = 18;
-const DROPS_AFFECTED = 324;
-const LAST_7 = 896;
+const TOTAL = 3;
+const TODAY = 2;
+const UNIQUE_USERS = 2;
+const DROPS_AFFECTED = 3;
+const LAST_7 = 3;
 
 const USERS = {
   admin: { name: "Admin User", role: "Super Admin", roleKey: "super_admin", avatar: "https://ui-avatars.com/api/?name=Admin+User&background=6D28D9&color=fff" },
@@ -224,26 +224,20 @@ function widgets() {
     },
     overview: {
       total: LAST_7,
-      successful: 842,
-      failed: 12,
-      system: 42,
+      successful: 3,
+      failed: 0,
+      system: 0,
     },
     days: [
-      { d: "2026-05-21", label: "21 May", dateLabel: "21 May 2026", activities: 98 },
-      { d: "2026-05-22", label: "22 May", dateLabel: "22 May 2026", activities: 112 },
-      { d: "2026-05-23", label: "23 May", dateLabel: "23 May 2026", activities: 124 },
-      { d: "2026-05-24", label: "24 May", dateLabel: "24 May 2026", activities: 118 },
-      { d: "2026-05-25", label: "25 May", dateLabel: "25 May 2026", activities: 132 },
-      { d: "2026-05-26", label: "26 May", dateLabel: "26 May 2026", activities: 148 },
-      { d: "2026-05-27", label: "27 May", dateLabel: "27 May 2026", activities: 164 },
+      { d: "2026-05-25", label: "25 May", dateLabel: "25 May 2026", activities: 1 },
+      { d: "2026-05-26", label: "26 May", dateLabel: "26 May 2026", activities: 1 },
+      { d: "2026-05-27", label: "27 May", dateLabel: "27 May 2026", activities: 1 },
     ],
     tipIndex: 6,
     topUsers: [
-      { id: "admin", name: "Admin User", role: "Super Admin", roleKey: "super_admin", count: 1245, avatar: USERS.admin.avatar },
-      { id: "mercy", name: "Mercy Wanjiku", role: "Administrator", roleKey: "admin", count: 862, avatar: USERS.mercy.avatar },
-      { id: "francis", name: "Francis Kimani", role: "Manager", roleKey: "manager", count: 654, avatar: USERS.francis.avatar },
-      { id: "system", name: "System", role: "Automated", roleKey: "system", count: 428, avatar: USERS.system.avatar },
-      { id: "david", name: "David Mwangi", role: "Manager", roleKey: "manager", count: 312, avatar: USERS.david.avatar },
+      { id: "admin", name: "Admin User", role: "Super Admin", roleKey: "super_admin", count: 2, avatar: USERS.admin.avatar },
+      { id: "mercy", name: "Mercy Wanjiku", role: "Administrator", roleKey: "admin", count: 1, avatar: USERS.mercy.avatar },
+      { id: "francis", name: "Francis Kimani", role: "Manager", roleKey: "manager", count: 0, avatar: USERS.francis.avatar },
     ],
     actionsList: ACTIONS,
     usersList: Object.entries(USERS).map(([id, u]) => ({ id, name: u.name, role: u.role })),
@@ -251,8 +245,6 @@ function widgets() {
       "Networking Flash Sale",
       "TP-Link Archer C6 Router",
       "Hikvision DS-2CD2143G2-I 4MP Dome",
-      "Dahua 2MP CCTV Camera",
-      "KSh 1,000 Shopping Voucher",
     ],
   };
 }

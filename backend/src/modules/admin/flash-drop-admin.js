@@ -11,31 +11,9 @@ const CORE = [
   { name: "TP-Link Archer C6 Router", category: "Networking", type: "percentage", discount: 40, startLabel: "27 May 2026, 10:00 AM", endLabel: "27 May 2026, 11:59 PM", stock: 44, sold: 156, revenue: 234000, image: img("photo-1606904825846-647eb07f5be2", 1) },
   { name: "Hikvision DS-2CD2143G2-I 4MP Dome", category: "CCTV", type: "percentage", discount: 35, startLabel: "27 May 2026, 08:00 AM", endLabel: "27 May 2026, 10:00 PM", stock: 38, sold: 112, revenue: 386400, image: img("photo-1557597774-9d273bd59043", 2) },
   { name: "KSh 5,000 Shopping Voucher", category: "Vouchers", type: "voucher", discount: 0, startLabel: "26 May 2026, 09:00 AM", endLabel: "27 May 2026, 11:59 PM", stock: 80, sold: 120, revenue: 600000, image: img("photo-1556742049-0cfed4f6a45d", 3) },
-  { name: "Dahua IPC-HDW3849H 8MP Turret", category: "CCTV", type: "percentage", discount: 30, startLabel: "28 May 2026, 10:00 AM", endLabel: "28 May 2026, 10:00 PM", stock: 24, sold: 0, revenue: 0, image: img("photo-1585771724684-38269d6639fd", 4) },
-  { name: "ZKTeco F18 Fingerprint Terminal", category: "Access Control", type: "percentage", discount: 25, startLabel: "29 May 2026, 09:00 AM", endLabel: "29 May 2026, 09:00 PM", stock: 18, sold: 0, revenue: 0, image: img("photo-1563013544-824ae1b704d3", 5) },
-  { name: "NETZA Smart Watch", category: "Gadgets", type: "fixed", discount: 2000, startLabel: "01 Jun 2026, 10:00 AM", endLabel: "01 Jun 2026, 08:00 PM", stock: 40, sold: 0, revenue: 0, image: img("photo-1523275335684-37898b6baf30", 6) },
-  { name: "APC Back-UPS 650VA", category: "Power", type: "percentage", discount: 20, startLabel: "03 Jun 2026, 08:00 AM", endLabel: "03 Jun 2026, 08:00 PM", stock: 30, sold: 0, revenue: 0, image: img("photo-1473341304170-971dccb5ac1e", 7) },
-  { name: "Cat6 UTP Cable 305m Box", category: "Cabling", type: "percentage", discount: 18, startLabel: "06 Jun 2026, 10:00 AM", endLabel: "06 Jun 2026, 06:00 PM", stock: 50, sold: 0, revenue: 0, image: img("photo-1544197150-b99a5804f08d", 8) },
 ];
 
-const COMPLETED = [
-  ["TP-Link Archer AX55 Wi-Fi 6 Router", "Networking", "percentage", 45, "12 May 2026, 10:00 AM", "12 May 2026, 10:00 PM", 8, 420, 1890000, "photo-1606904825846-647eb07f5be2", 9],
-  ["Ubiquiti UniFi 6 Lite Access Point", "Networking", "percentage", 28, "11 May 2026, 09:00 AM", "11 May 2026, 09:00 PM", 4, 310, 1426000, "photo-1544197150-b99a5804f08d", 10],
-  ["MikroTik hEX S Gigabit Router", "Networking", "fixed", 1500, "10 May 2026, 08:00 AM", "10 May 2026, 08:00 PM", 6, 265, 980000, "photo-1558494949-ef010cbdcc31", 11],
-  ["Hikvision DS-7608NI-K2 8-Channel NVR", "CCTV", "percentage", 22, "09 May 2026, 10:00 AM", "09 May 2026, 10:00 PM", 3, 188, 1124000, "photo-1557597774-9d273bd59043", 12],
-  ["Seagate SkyHawk 4TB Surveillance HDD", "CCTV", "percentage", 15, "08 May 2026, 09:00 AM", "08 May 2026, 09:00 PM", 12, 540, 972000, "photo-1531492746076-161ca2bcad58", 13],
-  ["280kg Magnetic Lock Kit", "Access Control", "percentage", 35, "07 May 2026, 10:00 AM", "07 May 2026, 08:00 PM", 20, 410, 738000, "photo-1558002038-1055907df827", 14],
-  ["TP-Link Deco X20 Mesh 2-Pack", "Networking", "percentage", 32, "06 May 2026, 10:00 AM", "06 May 2026, 10:00 PM", 2, 156, 890000, "photo-1606904825846-647eb07f5be2", 15],
-  ["Cisco SG350-10P PoE Switch", "Networking", "percentage", 18, "05 May 2026, 08:00 AM", "05 May 2026, 08:00 PM", 1, 48, 720000, "photo-1518770660439-4636190af475", 16],
-  ["Dahua 4MP PTZ Speed Dome", "CCTV", "percentage", 25, "04 May 2026, 09:00 AM", "04 May 2026, 09:00 PM", 2, 72, 1512000, "photo-1558002038-1055907df827", 17],
-  ["KSh 2,000 Shopping Voucher", "Vouchers", "voucher", 0, "03 May 2026, 08:00 AM", "03 May 2026, 11:59 PM", 0, 980, 1960000, "photo-1556742049-0cfed4f6a45d", 18],
-  ["RFID Proximity Cards — Pack of 50", "Access Control", "percentage", 40, "02 May 2026, 10:00 AM", "02 May 2026, 06:00 PM", 40, 860, 516000, "photo-1586953208448-b95d79e6060e", 19],
-  ["Cat6A SFTP Cable 305m Box", "Cabling", "percentage", 20, "01 May 2026, 09:00 AM", "01 May 2026, 09:00 PM", 8, 190, 888000, "photo-1518770660439-4636190af475", 20],
-  ["TP-Link TL-SG108 8-Port Switch", "Networking", "percentage", 30, "30 Apr 2026, 10:00 AM", "30 Apr 2026, 08:00 PM", 15, 640, 864000, "photo-1551703599-2a3125d0c2c6", 21],
-  ["LC-LC Single-mode Fiber Patch 3m", "Cabling", "fixed", 150, "28 Apr 2026, 08:00 AM", "28 Apr 2026, 08:00 PM", 80, 2100, 546000, "photo-1544197150-b99a5804f08d", 22],
-  ["KSh 1,000 Shopping Voucher", "Vouchers", "voucher", 0, "24 Apr 2026, 09:00 AM", "24 Apr 2026, 11:59 PM", 0, 1240, 1240000, "photo-1556742049-0cfed4f6a45d", 23],
-  ["NETZA Branded Cap", "Gadgets", "percentage", 50, "20 Apr 2026, 10:00 AM", "20 Apr 2026, 06:00 PM", 25, 996, 199200, "photo-1521369909029-2afed882baee", 24],
-];
+const COMPLETED = [];
 
 let catalog = null;
 let seq = 0;
@@ -112,13 +90,6 @@ function buildCatalog() {
     };
     rows.push(row(spec, rows.length, "completed", null));
   });
-  const soldSum = rows.reduce((s, r) => s + (r.sold || 0), 0);
-  const revSum = rows.reduce((s, r) => s + (r.revenue || 0), 0);
-  const last = rows[rows.length - 1];
-  last.sold += (8642 - soldSum);
-  last.revenue += (12485600 - revSum);
-  const total = (last.stock || 0) + (last.sold || 0) || 1;
-  last.soldPct = Math.round((last.sold / total) * 100);
   return rows;
 }
 

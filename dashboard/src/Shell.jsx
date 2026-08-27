@@ -179,14 +179,15 @@ export default function Shell() {
   }, [location.pathname]);
 
   useEffect(() => {
-    const next = {};
-    for (const item of NAV) {
-      if (item.children) {
-        next[item.to] = location.pathname.startsWith(item.to);
-      }
-    }
-    setOpen(next);
+    const match = NAV
+      .filter((item) => item.children && (location.pathname === item.to || location.pathname.startsWith(`${item.to}/`)))
+      .sort((a, b) => b.to.length - a.to.length)[0];
+    setOpen(match ? { [match.to]: true } : {});
   }, [location.pathname]);
+
+  function toggleNav(key) {
+    setOpen((s) => (s[key] ? {} : { [key]: true }));
+  }
 
   const displayName = useMemo(
     () => `${user?.firstName || "Admin"} ${user?.lastName || "User"}`.trim(),
@@ -269,7 +270,7 @@ export default function Shell() {
                   {item.children && (
                     <button
                       className={`sb-caret ${expanded ? "open" : ""}`}
-                      onClick={() => setOpen((s) => ({ ...s, [item.to]: !s[item.to] }))}
+                      onClick={() => toggleNav(item.to)}
                       type="button"
                       aria-label="Toggle submenu"
                     >

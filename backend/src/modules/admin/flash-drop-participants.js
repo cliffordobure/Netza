@@ -13,11 +13,11 @@ const LAST = [
   "Wanjiru", "Kibet", "Hassan", "Barasa", "Njeri", "Omondi", "Chebet", "Wambui", "Mutua", "Okoth",
 ];
 
-const TOTAL = 25736;
-const ACTIVE = 12842;
-const BANNED = 18;
-const NEW_N = 2871;
-const WINNERS = 342;
+const TOTAL = 3;
+const ACTIVE = 2;
+const BANNED = 0;
+const NEW_N = 1;
+const WINNERS = 2;
 
 const CORE = [
   { name: "David Mwangi", email: "david.mwangi@gmail.com", phone: "0712345601", level: "GOLD", drops: 12, entries: 28, spent: 24560, points: 4200, status: "active", channel: "app", lastAt: "2026-05-27T07:15:00.000Z", winner: true, isNew: false },
@@ -35,11 +35,9 @@ const CORE = [
 ];
 
 const DROPS = [
-  { id: "fd-1", name: "TP-Link Archer C6 Router", participants: 4555, pct: 17.7, image: img("photo-1606904825846-647eb07f5be2", 1) },
-  { id: "fd-2", name: "Dahua 2MP CCTV Camera", participants: 3294, pct: 12.8, image: img("photo-1558002038-1055907df827", 17) },
-  { id: "fd-3", name: "Hikvision DS-2CD2143G2-I 4MP Dome", participants: 3655, pct: 14.2, image: img("photo-1557597774-9d273bd59043", 2) },
-  { id: "fd-4", name: "KSh 1,000 Shopping Voucher", participants: 2857, pct: 11.1, image: img("photo-1556742049-0cfed4f6a45d", 23) },
-  { id: "fd-5", name: "TP-Link Archer AX55 Wi-Fi 6 Router", participants: 2471, pct: 9.6, image: img("photo-1606904825846-647eb07f5be2", 9) },
+  { id: "fd-1", name: "TP-Link Archer C6 Router", participants: 1, pct: 33.3, image: img("photo-1606904825846-647eb07f5be2", 1) },
+  { id: "fd-2", name: "Dahua 2MP CCTV Camera", participants: 1, pct: 33.3, image: img("photo-1558002038-1055907df827", 17) },
+  { id: "fd-3", name: "Hikvision DS-2CD2143G2-I 4MP Dome", participants: 1, pct: 33.4, image: img("photo-1557597774-9d273bd59043", 2) },
 ];
 
 function avatar(name) {
@@ -47,11 +45,8 @@ function avatar(name) {
 }
 
 function channelOf(i) {
-  if (i < 12842) return "app";
-  if (i < 20486) return "website";
-  if (i < 23446) return "email";
-  if (i < 25222) return "social";
-  return "other";
+  if (i < 2) return "app";
+  return "website";
 }
 
 function statusOf(i) {
@@ -116,16 +111,12 @@ function indexesFor(tab) {
 }
 
 function growth() {
-  const values = [
-    420, 468, 510, 490, 545, 580, 612, 640, 670, 720, 755, 810, 860, 910,
-    980, 1080, 990, 940, 880, 920, 860, 810, 760, 720, 780, 840, 910,
-  ];
+  const values = [1, 1, 0, 1, 1, 2, 3];
   return values.map((participants, i) => {
-    const d = i + 1;
-    const show = [1, 5, 10, 16, 20, 27].includes(d);
+    const d = i + 21;
     return {
       d: `2026-05-${String(d).padStart(2, "0")}`,
-      label: show ? (d === 1 ? "May 01" : String(d).padStart(2, "0")) : "",
+      label: String(d),
       dateLabel: `${d} May 2026`,
       participants,
     };
@@ -136,48 +127,40 @@ function widgets() {
   return {
     stats: {
       total: TOTAL,
-      totalDelta: 21.6,
+      totalDelta: 0,
       active: ACTIVE,
-      activeDelta: 18.3,
-      entries: 68924,
-      entriesDelta: 23.7,
+      activeDelta: 0,
+      entries: 8,
+      entriesDelta: 0,
       winners: WINNERS,
-      winnersDelta: 15.9,
-      points: 1284560,
-      pointsDelta: 26.2,
+      winnersDelta: 0,
+      points: 7320,
+      pointsDelta: 0,
       avgDiscount: 32.6,
-      avgDiscountDelta: -1.8,
+      avgDiscountDelta: 0,
     },
     channels: [
-      { key: "app", name: "Mobile App", count: 12842, pct: 49.9, color: "#6D28D9" },
-      { key: "website", name: "Website", count: 7644, pct: 29.7, color: "#2563eb" },
-      { key: "email", name: "Email", count: 2960, pct: 11.5, color: "#ea580c" },
-      { key: "social", name: "Social Media", count: 1776, pct: 6.9, color: "#16a34a" },
-      { key: "other", name: "Other", count: 514, pct: 2.0, color: "#94a3b8" },
+      { key: "app", name: "Mobile App", count: 2, pct: 66.7, color: "#6D28D9" },
+      { key: "website", name: "Website", count: 1, pct: 33.3, color: "#2563eb" },
     ],
     topDrops: DROPS,
     statusCards: [
-      { key: "active", label: "Active", value: ACTIVE, pct: 49.9, tone: "green" },
-      { key: "inactive", label: "Inactive", value: 10523, pct: 40.9, tone: "orange" },
-      { key: "new", label: "New This Month", value: NEW_N, pct: 11.2, tone: "blue" },
-      { key: "banned", label: "Banned", value: BANNED, pct: 0.1, tone: "red" },
+      { key: "active", label: "Active", value: ACTIVE, pct: 66.7, tone: "green" },
+      { key: "inactive", label: "Inactive", value: 1, pct: 33.3, tone: "orange" },
+      { key: "new", label: "New This Month", value: NEW_N, pct: 33.3, tone: "blue" },
+      { key: "banned", label: "Banned", value: BANNED, pct: 0, tone: "red" },
     ],
     growth: growth(),
     tipIndex: 15,
     topParticipants: [
-      { n: 1, name: "James Ochieng", entries: 42, spent: 58600, avatar: avatar("James Ochieng") },
-      { n: 2, name: "David Mwangi", entries: 28, spent: 24560, avatar: avatar("David Mwangi") },
-      { n: 3, name: "Brian Otieno", entries: 21, spent: 42800, avatar: avatar("Brian Otieno") },
-      { n: 4, name: "Faith Wanjiku", entries: 18, spent: 18600, avatar: avatar("Faith Wanjiku") },
-      { n: 5, name: "Alice Chebet", entries: 14, spent: 31200, avatar: avatar("Alice Chebet") },
+      { n: 1, name: "David Mwangi", entries: 28, spent: 24560, avatar: avatar("David Mwangi") },
+      { n: 2, name: "Brian Otieno", entries: 21, spent: 42800, avatar: avatar("Brian Otieno") },
+      { n: 3, name: "Faith Wanjiku", entries: 18, spent: 18600, avatar: avatar("Faith Wanjiku") },
     ],
     recent: [
-      { name: "Eunice Moraa", at: "27 May 2026, 10:15 AM", avatar: avatar("Eunice Moraa") },
-      { name: "John Kamau", at: "27 May 2026, 09:42 AM", avatar: avatar("John Kamau") },
-      { name: "Lucy Njeri", at: "27 May 2026, 08:18 AM", avatar: avatar("Lucy Njeri") },
-      { name: "Victor Cheruiyot", at: "26 May 2026, 06:55 PM", avatar: avatar("Victor Cheruiyot") },
-      { name: "Sharon Auma", at: "26 May 2026, 04:12 PM", avatar: avatar("Sharon Auma") },
-      { name: "Collins Mutiso", at: "26 May 2026, 11:40 AM", avatar: avatar("Collins Mutiso") },
+      { name: "David Mwangi", at: "27 May 2026, 10:15 AM", avatar: avatar("David Mwangi") },
+      { name: "Faith Wanjiku", at: "27 May 2026, 09:42 AM", avatar: avatar("Faith Wanjiku") },
+      { name: "Brian Otieno", at: "27 May 2026, 08:18 AM", avatar: avatar("Brian Otieno") },
     ],
     drops: DROPS.map((d) => ({ id: d.id, name: d.name })),
   };
@@ -195,14 +178,13 @@ function listFlashDropParticipants(query = {}) {
 
   if (q) {
     const named = [];
-    for (let i = 0; i < Math.min(800, TOTAL); i += 1) {
+    for (let i = 0; i < TOTAL; i += 1) {
       const row = rowAt(i);
       if (!`${row.name} ${row.email} ${row.phone}`.toLowerCase().includes(q)) continue;
       if (status && row.status !== status) continue;
       if (channel && row.channel !== channel) continue;
       if (drop && row.dropId !== drop) continue;
       named.push(row);
-      if (named.length >= 80) break;
     }
     const slice = named.slice(skip, skip + limit).map((row, i) => ({ ...row, n: skip + i + 1 }));
     return { participants: slice, total: named.length, page, limit, ...widgets() };

@@ -606,9 +606,12 @@ export default function FlashDrops() {
                           <td><span className={`st-pill ${st.cls}`}>{st.label}</span></td>
                           <td>{r.startLabel || "—"}</td>
                           <td>
-                            {r.status === "live" && r.endsAt
-                              ? <span className="fd-ends">Ends in {endsIn(r.endsAt, now)}</span>
-                              : (r.endLabel || "—")}
+                            <div className="fd-end-cell">
+                              <span>{r.endLabel || "—"}</span>
+                              {r.status === "live" && r.endsAt && (
+                                <span className="fd-ends">Ends in {endsIn(r.endsAt, now)}</span>
+                              )}
+                            </div>
                           </td>
                           <td>{fmtNum(r.stock)}</td>
                           <td>

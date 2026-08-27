@@ -1,12 +1,12 @@
 const img = (id, sig) =>
   `https://images.unsplash.com/${id}?auto=format&fit=crop&w=80&q=80&sig=${sig}`;
 
-const TOTAL = 86;
-const COMPLETED = 62;
-const EXPIRED = 18;
-const CANCELLED = 6;
-const SOLD = 28642;
-const REVENUE = 48756300;
+const TOTAL = 3;
+const COMPLETED = 2;
+const EXPIRED = 1;
+const CANCELLED = 0;
+const SOLD = 398;
+const REVENUE = 776400;
 
 const PHOTOS = {
   router: "photo-1606904825846-647eb07f5be2",
@@ -158,44 +158,39 @@ function widgets() {
     stats: {
       total: TOTAL,
       completed: COMPLETED,
-      completedPct: 72.1,
+      completedPct: 66.7,
       cancelled: CANCELLED,
-      cancelledPct: 7.0,
+      cancelledPct: 0,
       expired: EXPIRED,
-      expiredPct: 20.9,
+      expiredPct: 33.3,
       sold: SOLD,
       revenue: REVENUE,
       avgDiscount: 34.2,
     },
     overview: [
-      { key: "completed", name: "Completed", count: COMPLETED, pct: 72.1, color: "#16a34a" },
-      { key: "expired", name: "Expired", count: EXPIRED, pct: 20.9, color: "#ea580c" },
-      { key: "cancelled", name: "Cancelled", count: CANCELLED, pct: 7.0, color: "#dc2626" },
+      { key: "completed", name: "Completed", count: COMPLETED, pct: 66.7, color: "#16a34a" },
+      { key: "expired", name: "Expired", count: EXPIRED, pct: 33.3, color: "#ea580c" },
+      { key: "cancelled", name: "Cancelled", count: CANCELLED, pct: 0, color: "#dc2626" },
     ],
     months: [
-      { d: "2026-01", label: "Jan", dateLabel: "January 2026", revenue: 6820000 },
-      { d: "2026-02", label: "Feb", dateLabel: "February 2026", revenue: 8140000 },
-      { d: "2026-03", label: "Mar", dateLabel: "March 2026", revenue: 9560000 },
-      { d: "2026-04", label: "Apr", dateLabel: "April 2026", revenue: 11280000 },
-      { d: "2026-05", label: "May", dateLabel: "May 2026", revenue: 12956300 },
+      { d: "2026-03", label: "Mar", dateLabel: "March 2026", revenue: 156000 },
+      { d: "2026-04", label: "Apr", dateLabel: "April 2026", revenue: 234000 },
+      { d: "2026-05", label: "May", dateLabel: "May 2026", revenue: 386400 },
     ],
     tipIndex: 4,
     categories: [
-      { key: "net", name: "Networking", revenue: 18750000, money: "KSh 18.75M", pct: 38.5, color: "#6D28D9" },
-      { key: "cctv", name: "CCTV", revenue: 15420000, money: "KSh 15.42M", pct: 31.6, color: "#2563eb" },
-      { key: "vouchers", name: "Vouchers", revenue: 7850000, money: "KSh 7.85M", pct: 16.1, color: "#ea580c" },
-      { key: "wifi", name: "Wi-Fi", revenue: 3240000, money: "KSh 3.24M", pct: 6.6, color: "#16a34a" },
-      { key: "acc", name: "Accessories", revenue: 2180000, money: "KSh 2.18M", pct: 4.5, color: "#0d9488" },
-      { key: "other", name: "Others", revenue: 1306300, money: "KSh 1.31M", pct: 2.7, color: "#94a3b8" },
+      { key: "net", name: "Networking", revenue: 234000, money: "KSh 234K", pct: 30.1, color: "#6D28D9" },
+      { key: "cctv", name: "CCTV", revenue: 542400, money: "KSh 542K", pct: 69.9, color: "#2563eb" },
+      { key: "vouchers", name: "Vouchers", revenue: 0, money: "KSh 0", pct: 0, color: "#ea580c" },
     ],
     performance: [
-      { metric: "Total Revenue", completed: 42184200, expired: 5892400, cancelled: 679700, overall: REVENUE, money: true },
-      { metric: "Items Sold", completed: 24186, expired: 3842, cancelled: 614, overall: SOLD },
-      { metric: "Avg. Discount", completed: 35.8, expired: 31.4, cancelled: 22.6, overall: 34.2, pct: true },
-      { metric: "Avg. Conversion Rate", completed: 48.2, expired: 22.1, cancelled: 8.4, overall: 41.6, pct: true },
-      { metric: "Participants", completed: 21448, expired: 3726, cancelled: 562, overall: 25736 },
+      { metric: "Total Revenue", completed: 620400, expired: 156000, cancelled: 0, overall: REVENUE, money: true },
+      { metric: "Items Sold", completed: 350, expired: 48, cancelled: 0, overall: SOLD },
+      { metric: "Avg. Discount", completed: 37.5, expired: 32.0, cancelled: 0, overall: 34.2, pct: true },
+      { metric: "Avg. Conversion Rate", completed: 48.2, expired: 22.1, cancelled: 0, overall: 41.6, pct: true },
+      { metric: "Participants", completed: 2, expired: 1, cancelled: 0, overall: 3 },
     ],
-    recent: CORE.filter((r) => r.status === "completed").slice(0, 4).map((r, i) => ({
+    recent: CORE.filter((r) => r.status === "completed").slice(0, 3).map((r, i) => ({
       name: r.name,
       at: fmtWhen(r.endsAt),
       revenue: r.revenue,

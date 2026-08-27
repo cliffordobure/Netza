@@ -1,34 +1,21 @@
 const CORE = [
-  { name: "Networking", description: "Routers, switches and network infrastructure.", products: 72, activeDrops: 3, completed: 18, avgDiscount: 32.6, status: "active", ico: "box", tone: "purple" },
-  { name: "CCTV", description: "Cameras, NVRs and surveillance kits.", products: 58, activeDrops: 2, completed: 15, avgDiscount: 31.4, status: "active", ico: "eye", tone: "blue" },
-  { name: "Wi-Fi", description: "Access points, mesh kits and wireless gear.", products: 28, activeDrops: 1, completed: 12, avgDiscount: 27.8, status: "active", ico: "bolt", tone: "orange" },
-  { name: "Access Control", description: "Readers, locks and attendance terminals.", products: 19, activeDrops: 1, completed: 8, avgDiscount: 28.2, status: "active", ico: "gear", tone: "indigo" },
-  { name: "Cables & Accessories", description: "Copper, fibre and installation accessories.", products: 32, activeDrops: 1, completed: 10, avgDiscount: 26.1, status: "active", ico: "tag", tone: "green" },
-  { name: "Servers", description: "NAS, racks and compute hardware.", products: 9, activeDrops: 0, completed: 5, avgDiscount: 24.5, status: "active", ico: "box", tone: "blue" },
-  { name: "Power Equipment", description: "UPS, PDUs and backup power.", products: 16, activeDrops: 0, completed: 6, avgDiscount: 23.7, status: "active", ico: "bolt", tone: "gold" },
-  { name: "Tools", description: "Crimpers, testers and install tools.", products: 11, activeDrops: 0, completed: 4, avgDiscount: 20.9, status: "active", ico: "gear", tone: "orange" },
-  { name: "Monitors & Displays", description: "Screens for control rooms and desks.", products: 7, activeDrops: 0, completed: 3, avgDiscount: 22.3, status: "inactive", ico: "eye", tone: "purple" },
-  { name: "Storage", description: "Surveillance HDDs and SSDs.", products: 4, activeDrops: 0, completed: 2, avgDiscount: 19.8, status: "inactive", ico: "bag", tone: "blue" },
-  { name: "Miscellaneous", description: "General and uncategorised drop items.", products: 0, activeDrops: 0, completed: 0, avgDiscount: 0, status: "inactive", ico: "tag", tone: "orange" },
-  { name: "Archived Category", description: "Retired category kept for history.", products: 0, activeDrops: 0, completed: 0, avgDiscount: 0, status: "inactive", ico: "folder", tone: "purple" },
+  { name: "Networking", description: "Routers, switches and network infrastructure.", products: 3, activeDrops: 1, completed: 1, avgDiscount: 32.6, status: "active", ico: "box", tone: "purple" },
+  { name: "CCTV", description: "Cameras, NVRs and surveillance kits.", products: 2, activeDrops: 1, completed: 1, avgDiscount: 31.4, status: "active", ico: "eye", tone: "blue" },
+  { name: "Wi-Fi", description: "Access points, mesh kits and wireless gear.", products: 1, activeDrops: 1, completed: 0, avgDiscount: 27.8, status: "active", ico: "bolt", tone: "orange" },
 ];
 
 const RULES = {
   Networking: { maxDiscount: 60, minStock: 5, eligible: true, backorders: false, requirePoints: false, maxDrops: 5 },
   CCTV: { maxDiscount: 50, minStock: 4, eligible: true, backorders: false, requirePoints: false, maxDrops: 4 },
   "Wi-Fi": { maxDiscount: 45, minStock: 6, eligible: true, backorders: true, requirePoints: false, maxDrops: 4 },
-  "Access Control": { maxDiscount: 40, minStock: 3, eligible: true, backorders: false, requirePoints: false, maxDrops: 3 },
-  "Cables & Accessories": { maxDiscount: 35, minStock: 8, eligible: true, backorders: true, requirePoints: false, maxDrops: 6 },
 };
 
 const DEFAULT_RULES = { maxDiscount: 40, minStock: 5, eligible: true, backorders: false, requirePoints: false, maxDrops: 3 };
 
 const PERFORMANCE = [
-  { name: "Networking", drops: 18, sold: 1256, revenue: 2854600, avgDiscount: 32.6, conversion: 14.8 },
-  { name: "CCTV", drops: 15, sold: 892, revenue: 1924000, avgDiscount: 31.4, conversion: 12.1 },
-  { name: "Wi-Fi", drops: 12, sold: 410, revenue: 888000, avgDiscount: 27.8, conversion: 10.4 },
-  { name: "Access Control", drops: 8, sold: 265, revenue: 516000, avgDiscount: 28.2, conversion: 9.2 },
-  { name: "Cables & Accessories", drops: 10, sold: 388, revenue: 720000, avgDiscount: 26.1, conversion: 8.6 },
+  { name: "Networking", drops: 1, sold: 2, revenue: 234000, avgDiscount: 32.6, conversion: 14.8 },
+  { name: "CCTV", drops: 1, sold: 1, revenue: 386400, avgDiscount: 31.4, conversion: 12.1 },
+  { name: "Wi-Fi", drops: 1, sold: 0, revenue: 0, avgDiscount: 27.8, conversion: 10.4 },
 ];
 
 let rows = null;
@@ -51,38 +38,28 @@ function statsOf(all) {
   const active = all.filter((r) => r.status === "active").length;
   const products = all.reduce((s, r) => s + (r.products || 0), 0);
   const activeDrops = all.reduce((s, r) => s + (r.activeDrops || 0), 0);
-  const seed = all.length === 12;
+  const seed = all.length === 3;
   return {
     total: all.length,
-    active: seed ? 10 : active,
-    activePct: seed ? 83.3 : (all.length ? Math.round((active / all.length) * 1000) / 10 : 0),
+    active: seed ? 3 : active,
+    activePct: seed ? 100 : (all.length ? Math.round((active / all.length) * 1000) / 10 : 0),
     products,
     activeDrops,
     popular: "Networking",
-    popularPct: 42,
+    popularPct: 50,
   };
 }
 
 function distribution(all) {
-  const named = ["Networking", "CCTV", "Wi-Fi", "Access Control", "Cables & Accessories"];
-  const colors = ["#6D28D9", "#2563eb", "#ea580c", "#4f46e5", "#16a34a", "#94a3b8"];
+  const named = ["Networking", "CCTV", "Wi-Fi"];
+  const colors = ["#6D28D9", "#2563eb", "#ea580c"];
   const total = all.reduce((s, r) => s + (r.products || 0), 0) || 1;
   const parts = named.map((name, i) => {
     const row = all.find((r) => r.name === name);
     const value = row?.products || 0;
     return { key: name, name, value, pct: Math.round((value / total) * 1000) / 10, color: colors[i] };
   });
-  const others = all.filter((r) => !named.includes(r.name)).reduce((s, r) => s + (r.products || 0), 0);
-  parts.push({ key: "Others", name: "Others", value: others, pct: Math.round((others / total) * 1000) / 10, color: colors[5] });
-  const listed = [
-    { name: "Networking", pct: 28.1, value: 72 },
-    { name: "CCTV", pct: 22.7, value: 58 },
-    { name: "Wi-Fi", pct: 10.9, value: 28 },
-    { name: "Access Control", pct: 7.4, value: 19 },
-    { name: "Cables & Accessories", pct: 12.5, value: 32 },
-    { name: "Others", pct: 18.4, value: 47 },
-  ];
-  return listed.map((item, i) => ({ ...parts[i], ...item, color: colors[i] }));
+  return parts;
 }
 
 function listDropCategories(query = {}) {

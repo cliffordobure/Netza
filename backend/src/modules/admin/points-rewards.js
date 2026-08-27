@@ -4,16 +4,9 @@ const TIERS = ["All Tiers", "Gold & Above", "Platinum", "Silver & Above"];
 const STATUSES = ["active", "upcoming", "inactive"];
 
 const REWARD_SEED = [
-  { name: "KSh 500 Discount Voucher", category: "Discount", pointsCost: 5000, rewardType: "Voucher", availableFor: "All Tiers", limit: "1 per member", redeemed: 2450, status: "active", statusLabel: "Active", icon: "tag", color: "green" },
-  { name: "Free Delivery Pass", category: "Delivery", pointsCost: 1500, rewardType: "Benefit", availableFor: "All Tiers", limit: "2 per month", redeemed: 1890, status: "active", statusLabel: "Active", icon: "truck", color: "blue" },
-  { name: "NETZA Branded Cap", category: "Merchandise", pointsCost: 3500, rewardType: "Physical", availableFor: "Gold & Above", limit: "1 per member", redeemed: 642, status: "active", statusLabel: "Active", icon: "bag", color: "purple" },
-  { name: "Priority Support Access", category: "Service", pointsCost: 8000, rewardType: "Benefit", availableFor: "Platinum", limit: "Unlimited", redeemed: 318, status: "active", statusLabel: "Active", icon: "shield", color: "pink" },
-  { name: "KSh 1,000 Discount Voucher", category: "Discount", pointsCost: 9000, rewardType: "Voucher", availableFor: "Gold & Above", limit: "1 per month", redeemed: 1120, status: "active", statusLabel: "Active", icon: "tag", color: "green" },
-  { name: "Flash Drop Early Access", category: "Other", pointsCost: 2500, rewardType: "Benefit", availableFor: "All Tiers", limit: "1 per drop", redeemed: 980, status: "upcoming", statusLabel: "Upcoming", icon: "bolt", color: "orange" },
-  { name: "NETZA Tote Bag", category: "Merchandise", pointsCost: 4200, rewardType: "Physical", availableFor: "Silver & Above", limit: "1 per member", redeemed: 410, status: "active", statusLabel: "Active", icon: "bag", color: "purple" },
-  { name: "Extended Warranty (30 days)", category: "Service", pointsCost: 6000, rewardType: "Benefit", availableFor: "Gold & Above", limit: "1 per order", redeemed: 275, status: "inactive", statusLabel: "Inactive", icon: "shield", color: "pink" },
-  { name: "KSh 250 Discount Voucher", category: "Discount", pointsCost: 2500, rewardType: "Voucher", availableFor: "All Tiers", limit: "3 per month", redeemed: 3210, status: "active", statusLabel: "Active", icon: "tag", color: "green" },
-  { name: "Same-Day Delivery Credit", category: "Delivery", pointsCost: 2800, rewardType: "Benefit", availableFor: "Platinum", limit: "1 per week", redeemed: 540, status: "upcoming", statusLabel: "Upcoming", icon: "truck", color: "blue" },
+  { name: "KSh 500 Discount Voucher", category: "Discount", pointsCost: 5000, rewardType: "Voucher", availableFor: "All Tiers", limit: "1 per member", redeemed: 2, status: "active", statusLabel: "Active", icon: "tag", color: "green" },
+  { name: "Free Delivery Pass", category: "Delivery", pointsCost: 1500, rewardType: "Benefit", availableFor: "All Tiers", limit: "2 per month", redeemed: 1, status: "active", statusLabel: "Active", icon: "truck", color: "blue" },
+  { name: "NETZA Branded Cap", category: "Merchandise", pointsCost: 3500, rewardType: "Physical", availableFor: "Gold & Above", limit: "1 per member", redeemed: 1, status: "upcoming", statusLabel: "Upcoming", icon: "bag", color: "purple" },
 ];
 
 function buildRows() {
@@ -55,20 +48,14 @@ function getPointsRewards(query = {}) {
   const limit = Math.max(1, Math.min(50, Number(query.limit) || 10));
   const all = buildRows();
   const filtered = filterRows(all, query);
-  const useDemoTotal = !query.q && !query.category && !query.status && !query.tier && !query.type;
-  const total = useDemoTotal ? 48 : filtered.length;
+  const total = filtered.length;
   const skip = (page - 1) * limit;
-  const rewards =
-    page === 1 && useDemoTotal && limit >= 10
-      ? all.slice(0, Math.min(limit, all.length))
-      : filtered.slice(skip, skip + limit);
+  const rewards = filtered.slice(skip, skip + limit);
 
   const categoryDonut = [
-    { key: "discount", name: "Discount", value: 18, color: "#22c55e", pct: 37.5 },
-    { key: "merchandise", name: "Merchandise", value: 12, color: "#8b5cf6", pct: 25.0 },
-    { key: "delivery", name: "Delivery", value: 6, color: "#3b82f6", pct: 12.5 },
-    { key: "service", name: "Service", value: 6, color: "#ec4899", pct: 12.5 },
-    { key: "other", name: "Other Benefits", value: 6, color: "#f59e0b", pct: 12.5 },
+    { key: "discount", name: "Discount", value: 1, color: "#22c55e", pct: 33.3 },
+    { key: "merchandise", name: "Merchandise", value: 1, color: "#8b5cf6", pct: 33.3 },
+    { key: "delivery", name: "Delivery", value: 1, color: "#3b82f6", pct: 33.4 },
   ];
 
   return {
@@ -76,32 +63,30 @@ function getPointsRewards(query = {}) {
     page,
     limit,
     stats: {
-      totalRewards: 48,
+      totalRewards: 3,
       totalHint: "Active rewards",
-      active: 36,
-      activeHint: "75% of total",
-      upcoming: 6,
+      active: 2,
+      activeHint: "67% of total",
+      upcoming: 1,
       upcomingHint: "Scheduled",
-      inactive: 6,
+      inactive: 0,
       inactiveHint: "Not visible",
-      totalRedeemed: 12845,
+      totalRedeemed: 4,
       redeemedHint: "This month",
-      pointsSpent: 8654230,
+      pointsSpent: 15000,
       spentHint: "This month",
     },
     rewards,
     categoryDonut,
     topRedeemed: [
-      { name: "KSh 500 Discount Voucher", redeemed: 2450, icon: "tag", color: "green" },
-      { name: "Free Delivery Pass", redeemed: 1890, icon: "truck", color: "blue" },
-      { name: "KSh 1,000 Discount Voucher", redeemed: 1120, icon: "tag", color: "green" },
-      { name: "Flash Drop Early Access", redeemed: 980, icon: "bolt", color: "orange" },
-      { name: "NETZA Branded Cap", redeemed: 642, icon: "bag", color: "purple" },
+      { name: "KSh 500 Discount Voucher", redeemed: 2, icon: "tag", color: "green" },
+      { name: "Free Delivery Pass", redeemed: 1, icon: "truck", color: "blue" },
+      { name: "NETZA Branded Cap", redeemed: 1, icon: "bag", color: "purple" },
     ],
     statusBreakdown: [
-      { key: "active", name: "Active Rewards", value: 36, pct: 75, color: "#22c55e" },
-      { key: "upcoming", name: "Upcoming Rewards", value: 6, pct: 12.5, color: "#3b82f6" },
-      { key: "inactive", name: "Inactive Rewards", value: 6, pct: 12.5, color: "#94a3b8" },
+      { key: "active", name: "Active Rewards", value: 2, pct: 66.7, color: "#22c55e" },
+      { key: "upcoming", name: "Upcoming Rewards", value: 1, pct: 33.3, color: "#3b82f6" },
+      { key: "inactive", name: "Inactive Rewards", value: 0, pct: 0, color: "#94a3b8" },
     ],
     filters: {
       categories: CATEGORIES,

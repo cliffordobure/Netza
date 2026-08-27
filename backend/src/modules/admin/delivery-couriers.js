@@ -42,7 +42,7 @@ const SEED = [
     zone: "Nairobi Central",
     status: "online",
     rating: 4.8,
-    completed: 156,
+    completed: 12,
     verification: "verified",
   },
   {
@@ -55,7 +55,7 @@ const SEED = [
     zone: "Westlands",
     status: "on_delivery",
     rating: 4.9,
-    completed: 203,
+    completed: 15,
     verification: "verified",
   },
   {
@@ -66,100 +66,9 @@ const SEED = [
     vehicle: "motorbike",
     plate: "KMF 778B",
     zone: "Kilimani",
-    status: "online",
+    status: "offline",
     rating: 4.6,
-    completed: 142,
-    verification: "verified",
-  },
-  {
-    name: "Faith Chebet",
-    code: "C0031",
-    phone: "+254 701 888 999",
-    email: "faith.chebet@netza.co.ke",
-    vehicle: "car",
-    plate: "KCA 902C",
-    zone: "Karen",
-    status: "offline",
-    rating: 4.3,
-    completed: 98,
-    verification: "pending",
-  },
-  {
-    name: "Brian Otieno",
-    code: "C0037",
-    phone: "+254 715 222 333",
-    email: "brian.otieno@netza.co.ke",
-    vehicle: "motorbike",
-    plate: "KMG 334D",
-    zone: "Eastlands",
-    status: "on_delivery",
-    rating: 4.7,
-    completed: 187,
-    verification: "verified",
-  },
-  {
-    name: "Anne Mutua",
-    code: "C0042",
-    phone: "+254 720 555 666",
-    email: "anne.mutua@netza.co.ke",
-    vehicle: "van",
-    plate: "KCB 551E",
-    zone: "Thika Road",
-    status: "online",
-    rating: 4.5,
-    completed: 121,
-    verification: "verified",
-  },
-  {
-    name: "Samuel Kariuki",
-    code: "C0049",
-    phone: "+254 711 777 888",
-    email: "samuel.kariuki@netza.co.ke",
-    vehicle: "motorbike",
-    plate: "KMH 667F",
-    zone: "Ngong Road",
-    status: "offline",
-    rating: 4.1,
-    completed: 76,
-    verification: "rejected",
-  },
-  {
-    name: "Linda Wanjiku",
-    code: "C0055",
-    phone: "+254 708 333 444",
-    email: "linda.wanjiku@netza.co.ke",
-    vehicle: "bicycle",
-    plate: "KMD 889G",
-    zone: "Mombasa Road",
-    status: "online",
-    rating: 4.8,
-    completed: 164,
-    verification: "verified",
-  },
-  {
-    name: "David Kipchoge",
-    code: "C0061",
-    phone: "+254 724 999 000",
-    email: "david.kipchoge@netza.co.ke",
-    vehicle: "motorbike",
-    plate: "KMJ 112H",
-    zone: "Nairobi Central",
-    status: "on_delivery",
-    rating: 4.9,
-    completed: 221,
-    verification: "verified",
-  },
-  {
-    name: "Mercy Akinyi",
-    code: "C0068",
-    phone: "+254 716 123 456",
-    email: "mercy.akinyi@netza.co.ke",
-    vehicle: "car",
-    plate: "KCC 445J",
-    zone: "Westlands",
-    status: "online",
-    rating: 4.4,
-    completed: 109,
+    completed: 8,
     verification: "pending",
   },
 ];
@@ -216,47 +125,41 @@ function getDeliveryCouriers(query = {}) {
   const limit = Math.max(1, Math.min(50, Number(query.limit) || 10));
   const all = buildRows();
   const filtered = filterRows(all, query);
-  const useDemoTotal = !query.q && !query.status && !query.zone && !query.vehicle && !query.verification;
-  const total = useDemoTotal ? 86 : filtered.length;
+  const total = filtered.length;
   const skip = (page - 1) * limit;
-  const couriers =
-    page === 1 && useDemoTotal && limit >= 10
-      ? all.slice(0, Math.min(limit, all.length))
-      : filtered.slice(skip, skip + limit);
+  const couriers = filtered.slice(skip, skip + limit);
 
   const stats = {
-    total: 86,
-    totalDelta: 5.3,
+    total: 3,
+    totalDelta: 0,
     totalHint: "vs last month",
-    active: 72,
-    activePct: 83.7,
+    active: 2,
+    activePct: 66.7,
     activeHint: "of total",
-    onDelivery: 24,
-    onDeliveryPct: 27.9,
+    onDelivery: 1,
+    onDeliveryPct: 33.3,
     onDeliveryHint: "of total",
-    offline: 14,
-    offlinePct: 16.3,
+    offline: 1,
+    offlinePct: 33.3,
     offlineHint: "of total",
-    avgRating: 4.7,
-    avgRatingDelta: 0.2,
+    avgRating: 4.8,
+    avgRatingDelta: 0.1,
     avgRatingHint: "vs last month",
-    completed: 5432,
-    completedDelta: 9.8,
+    completed: 35,
+    completedDelta: 0,
     completedHint: "this month",
   };
 
   const statusDonut = [
-    { key: "online", name: "Online", value: 72, color: "#16a34a", pct: 83.7 },
-    { key: "on_delivery", name: "On Delivery", value: 24, color: "#ea580c", pct: 27.9 },
-    { key: "offline", name: "Offline", value: 14, color: "#dc2626", pct: 16.3 },
+    { key: "online", name: "Online", value: 1, color: "#16a34a", pct: 33.3 },
+    { key: "on_delivery", name: "On Delivery", value: 1, color: "#ea580c", pct: 33.3 },
+    { key: "offline", name: "Offline", value: 1, color: "#dc2626", pct: 33.4 },
   ];
 
   const topPerformers = [
-    { name: "David Kipchoge", code: "C0061", avatar: avatar("David Kipchoge", 301), completed: 221, rating: 4.9 },
-    { name: "Grace Achieng", code: "C0018", avatar: avatar("Grace Achieng", 302), completed: 203, rating: 4.9 },
-    { name: "Brian Otieno", code: "C0037", avatar: avatar("Brian Otieno", 303), completed: 187, rating: 4.7 },
-    { name: "Linda Wanjiku", code: "C0055", avatar: avatar("Linda Wanjiku", 304), completed: 164, rating: 4.8 },
-    { name: "Peter Okello", code: "C0012", avatar: avatar("Peter Okello", 305), completed: 156, rating: 4.8 },
+    { name: "Grace Achieng", code: "C0018", avatar: avatar("Grace Achieng", 302), completed: 15, rating: 4.9 },
+    { name: "Peter Okello", code: "C0012", avatar: avatar("Peter Okello", 305), completed: 12, rating: 4.8 },
+    { name: "James Mwangi", code: "C0024", avatar: avatar("James Mwangi", 303), completed: 8, rating: 4.6 },
   ];
 
   return {
@@ -268,9 +171,9 @@ function getDeliveryCouriers(query = {}) {
     statusDonut,
     topPerformers,
     verification: [
-      { key: "verified", label: "Verified", value: 76, pct: 88.4, tone: "green" },
-      { key: "pending", label: "Pending Verification", value: 6, pct: 7.0, tone: "amber" },
-      { key: "rejected", label: "Rejected", value: 4, pct: 4.6, tone: "red" },
+      { key: "verified", label: "Verified", value: 2, pct: 66.7, tone: "green" },
+      { key: "pending", label: "Pending Verification", value: 1, pct: 33.3, tone: "amber" },
+      { key: "rejected", label: "Rejected", value: 0, pct: 0, tone: "red" },
     ],
     filters: {
       statuses: STATUSES.map((s) => ({ value: s.key, label: s.label })),

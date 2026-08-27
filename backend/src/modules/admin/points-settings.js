@@ -42,10 +42,10 @@ function getPointsSettings() {
       ],
     },
     summary: {
-      activeMembers: 18256,
-      pointsIssued: 2845600,
-      pointsRedeemed: 1256780,
-      availableBalance: 713500,
+      activeMembers: 3,
+      pointsIssued: 500,
+      pointsRedeemed: 200,
+      availableBalance: 300,
     },
     programInfo: {
       startedOn: "01 Jan 2025",
