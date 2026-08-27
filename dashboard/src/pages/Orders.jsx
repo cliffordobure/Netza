@@ -485,23 +485,31 @@ export default function Orders() {
                         </button>
                       </td>
                       <td>
-                        <strong>{customerName(o)}</strong>
-                        <div className="muted">{o.user?.email || o.user?.phone}</div>
+                        <div className="ord-cust">
+                          <strong>{customerName(o)}</strong>
+                          <div className="muted">{o.user?.email || o.user?.phone || "—"}</div>
+                        </div>
                       </td>
                       <td>
-                        <strong>{kes(o.totalKes)}</strong>
-                        <div className="muted">{count} {count === 1 ? "item" : "items"}</div>
+                        <div className="ord-cust">
+                          <strong>{kes(o.totalKes)}</strong>
+                          <div className="muted">{count} {count === 1 ? "item" : "items"}</div>
+                        </div>
                       </td>
                       <td>
-                        <span className={`st-pill ${paySt.cls}`}>{paySt.label}</span>
-                        <div className="muted">{methodLabel(o.paymentMethod)}</div>
+                        <div className="ord-cust">
+                          <span className={`st-pill ${paySt.cls}`}>{paySt.label}</span>
+                          <div className="muted">{methodLabel(o.paymentMethod)}</div>
+                        </div>
                       </td>
                       <td>
                         <span className={`st-pill ${st.cls}`}>{st.label}</span>
                       </td>
                       <td>
-                        <div>{fmtDate(o.createdAt)}</div>
-                        <div className="muted">{fmtTime(o.createdAt)}</div>
+                        <div className="ord-cust">
+                          <div>{fmtDate(o.createdAt)}</div>
+                          <div className="muted">{fmtTime(o.createdAt)}</div>
+                        </div>
                       </td>
                       <td>
                         <div className="prod-row-acts">

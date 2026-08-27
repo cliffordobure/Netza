@@ -19,6 +19,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final search = TextEditingController();
   final page = PageController();
   List trending = [];
+  List moreProducts = [];
   Map? flash;
   List flashProducts = [];
   int slide = 0;
@@ -54,15 +55,28 @@ class _HomeScreenState extends State<HomeScreen> {
     final session = context.read<Session>();
     try {
       final results = await Future.wait([
-        session.dio.get('/products', queryParameters: {'trending': 'true', 'limit': 8}),
+        session.dio.get('/products', queryParameters: {'trending': 'true', 'limit': 12}),
         session.dio.get('/flash-drops/active'),
+        session.dio.get('/products', queryParameters: {'limit': 12}),
       ]);
       if (session.isLoggedIn) {
         await session.refreshWallet();
         await session.refreshCart();
       }
+      final trend = (results[0].data['products'] as List?) ?? [];
+      final all = (results[2].data['products'] as List?) ?? [];
+      final trendIds = {
+        for (final p in trend)
+          if (p is Map && p['id'] != null) p['id'].toString(),
+      };
+      final extras = all.where((p) {
+        if (p is! Map) return false;
+        final id = p['id']?.toString();
+        return id != null && !trendIds.contains(id);
+      }).toList();
       setState(() {
-        trending = results[0].data['products'] as List;
+        trending = trend.isNotEmpty ? trend : all;
+        moreProducts = trend.isNotEmpty ? extras.take(8).toList() : all.skip(6).take(8).toList();
         flash = results[1].data['flashDrop'];
         flashProducts = results[1].data['products'] as List? ?? [];
         error = null;
@@ -124,24 +138,27 @@ class _HomeScreenState extends State<HomeScreen> {
                 itemCount: homeQuickCats.length + 1,
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 5,
-                  mainAxisSpacing: 10,
+                  mainAxisSpacing: 8,
                   crossAxisSpacing: 4,
-                  childAspectRatio: 0.78,
+                  childAspectRatio: 0.68,
                 ),
                 itemBuilder: (_, i) {
                   if (i == homeQuickCats.length) {
                     return InkWell(
                       onTap: () => context.go('/shop'),
                       child: Column(
+                        mainAxisAlignment: MainAxisAlignment.start,
                         children: [
                           Container(
-                            width: 54,
-                            height: 54,
+                            width: 50,
+                            height: 50,
                             decoration: const BoxDecoration(color: Color(0xFFEAF3FB), shape: BoxShape.circle),
-                            child: const Icon(Icons.apps, color: navy, size: 26),
+                            child: const Icon(Icons.apps, color: navy, size: 24),
                           ),
-                          const SizedBox(height: 6),
-                          Text('SEE ALL', textAlign: TextAlign.center, style: T.homeCat),
+                          const SizedBox(height: 4),
+                          Flexible(
+                            child: Text('SEE ALL', textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: T.homeCat),
+                          ),
                         ],
                       ),
                     );
@@ -150,21 +167,24 @@ class _HomeScreenState extends State<HomeScreen> {
                   return InkWell(
                     onTap: () => context.push(c.route),
                     child: Column(
+                      mainAxisAlignment: MainAxisAlignment.start,
                       children: [
                         Container(
-                          width: 54,
-                          height: 54,
+                          width: 50,
+                          height: 50,
                           decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
                           clipBehavior: Clip.antiAlias,
                           child: NetzaImage(c.imageUrl, fallback: c.icon),
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          c.name,
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: T.homeCat,
+                        const SizedBox(height: 4),
+                        Flexible(
+                          child: Text(
+                            _homeCatLabel(c.name),
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: T.homeCat,
+                          ),
                         ),
                       ],
                     ),
@@ -199,19 +219,91 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ),
-              SizedBox(
-                height: 210,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: trending.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 12),
+              if (trending.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  child: Text('No products yet. Pull to refresh.', style: inter(size: 13, color: muted)),
+                )
+              else
+                SizedBox(
+                  height: 220,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: trending.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 12),
+                    itemBuilder: (_, i) {
+                      final p = Map<String, dynamic>.from(trending[i] as Map);
+                      final img = _firstImage(p);
+                      return InkWell(
+                        onTap: () => context.push('/product/${p['id']}'),
+                        child: Container(
+                          width: 148,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFFEEF1F5)),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Stack(
+                                  children: [
+                                    Positioned.fill(child: NetzaImage(img)),
+                                    const Positioned(
+                                      top: 8,
+                                      right: 8,
+                                      child: Icon(Icons.favorite_border, color: muted, size: 20),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(p['name'] ?? '', maxLines: 2, overflow: TextOverflow.ellipsis, style: T.productTitle),
+                                    const SizedBox(height: 4),
+                                    Text(money(p['priceKes']), style: T.price),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              if (moreProducts.isNotEmpty) ...[
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(child: Text('More picks', style: T.section.copyWith(fontSize: 17))),
+                    TextButton(
+                      onPressed: () => context.push('/catalog'),
+                      child: Text('Browse', style: T.seeAll),
+                    ),
+                  ],
+                ),
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: moreProducts.length,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    childAspectRatio: 0.72,
+                  ),
                   itemBuilder: (_, i) {
-                    final p = Map<String, dynamic>.from(trending[i] as Map);
+                    final p = Map<String, dynamic>.from(moreProducts[i] as Map);
                     final img = _firstImage(p);
                     return InkWell(
                       onTap: () => context.push('/product/${p['id']}'),
                       child: Container(
-                        width: 148,
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
@@ -223,8 +315,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           children: [
                             Expanded(
                               child: Stack(
+                                fit: StackFit.expand,
                                 children: [
-                                  Positioned.fill(child: NetzaImage(img)),
+                                  NetzaImage(img),
                                   const Positioned(
                                     top: 8,
                                     right: 8,
@@ -250,7 +343,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     );
                   },
                 ),
-              ),
+              ],
             ],
           ),
         ),
@@ -544,6 +637,24 @@ class _ChallengeCard extends StatelessWidget {
 
 String? _firstImage(dynamic product) {
   final images = product is Map ? product['images'] : null;
-  if (images is List && images.isNotEmpty) return images.first.toString();
+  if (images is List && images.isNotEmpty) {
+    final first = images.first;
+    if (first is Map && first['url'] != null) return first['url'].toString();
+    return first.toString();
+  }
+  if (product is Map && product['image'] != null) return product['image'].toString();
   return null;
+}
+
+String _homeCatLabel(String name) {
+  switch (name) {
+    case 'Access Control':
+      return 'Access';
+    case 'Access Points':
+      return 'APs';
+    case 'Power & UPS':
+      return 'Power';
+    default:
+      return name;
+  }
 }

@@ -162,6 +162,8 @@ export default function ProductForm() {
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [busy, setBusy] = useState(false);
+  const [categories, setCategories] = useState([]);
+  const [brands, setBrands] = useState([]);
   const editorRef = useRef(null);
   const fileRef = useRef(null);
   const galleryRef = useRef(null);
@@ -169,6 +171,16 @@ export default function ProductForm() {
   function set(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
   }
+
+  useEffect(() => {
+    Promise.all([
+      api("/admin/categories?limit=100").catch(() => api("/categories").catch(() => ({ categories: [] }))),
+      api("/admin/brands?limit=100").catch(() => api("/brands").catch(() => ({ brands: [] }))),
+    ]).then(([cats, brs]) => {
+      setCategories(cats.categories || cats || []);
+      setBrands(brs.brands || brs || []);
+    });
+  }, []);
 
   useEffect(() => {
     if (isNew) return;
@@ -206,7 +218,7 @@ export default function ProductForm() {
       sku: form.sku,
       barcode: form.barcode,
       shortDescription: form.shortDescription,
-      description: form.description,
+      description: form.description || form.shortDescription || form.name,
       tags: form.tags,
       isActive: form.isActive,
       isTrending: form.isFeatured,
@@ -226,6 +238,10 @@ export default function ProductForm() {
       countryOfOrigin: form.countryOfOrigin,
       unit: form.unit,
       productType: form.productType,
+      brandId: form.brandId || undefined,
+      categoryId: form.categoryId || undefined,
+      brandName: form.brandName || undefined,
+      categoryPath: form.categoryPath || undefined,
     };
   }
 
@@ -389,18 +405,42 @@ export default function ProductForm() {
               <div className="pfe-subhead">Classification</div>
               <label className="pfe-field">
                 <span>Category</span>
-                <select value={form.categoryPath} onChange={(e) => set("categoryPath", e.target.value)}>
+                <select
+                  value={form.categoryId || ""}
+                  onChange={(e) => {
+                    const cat = categories.find((c) => c.id === e.target.value);
+                    setForm((f) => ({
+                      ...f,
+                      categoryId: e.target.value,
+                      categoryPath: cat?.name || "",
+                    }));
+                  }}
+                >
                   <option value="">Select category</option>
-                  <option value="Phones & Tablets > Smartphones">Phones & Tablets &gt; Smartphones</option>
-                  <option value="Computers > Laptops">Computers &gt; Laptops</option>
-                  <option value="Electronics > Audio">Electronics &gt; Audio</option>
-                  <option value="Supermarket > Household">Supermarket &gt; Household</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
                 </select>
               </label>
               <div className="pf-2">
                 <label className="pfe-field">
                   <span>Brand</span>
-                  <input value={form.brandName} onChange={(e) => set("brandName", e.target.value)} />
+                  <select
+                    value={form.brandId || ""}
+                    onChange={(e) => {
+                      const brand = brands.find((b) => b.id === e.target.value);
+                      setForm((f) => ({
+                        ...f,
+                        brandId: e.target.value,
+                        brandName: brand?.name || "",
+                      }));
+                    }}
+                  >
+                    <option value="">Select brand</option>
+                    {brands.map((b) => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
                 </label>
                 <label className="pfe-field">
                   <span>Unit</span>

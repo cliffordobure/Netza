@@ -31,8 +31,7 @@ const { getFlashDropSettings, saveFlashDropSettings, resetFlashDropSettings } = 
 const { listFlashDropLogs } = require("./flash-drop-logs");
 const { getFlashDropReports } = require("./flash-drop-reports");
 const { getFlashDropSystemSettings, saveFlashDropSystemSettings } = require("./flash-drop-system-settings");
-const { getProductsCatalog } = require("./products-catalog");
-const { getProductEditDetail, saveProductEditDetail } = require("./product-edit-detail");
+const { getProductsCatalog, enrichProductDetail } = require("./products-catalog");
 const { getInventoryAdjustments } = require("./inventory-adjustments");
 const { getOrdersCatalog } = require("./orders-catalog");
 const { getOrderDetail } = require("./order-detail");
@@ -575,8 +574,10 @@ const productSchema = z.object({
   barcode: z.string().optional(),
   description: z.string().min(10),
   shortDescription: z.string().optional(),
-  brandId: z.string(),
-  categoryId: z.string(),
+  brandId: z.string().optional(),
+  categoryId: z.string().optional(),
+  brandName: z.string().optional(),
+  categoryPath: z.string().optional(),
   subCategory: z.string().optional(),
   tags: z.array(z.string()).optional(),
   priceKes: z.number().int().min(0),
@@ -594,44 +595,63 @@ const productSchema = z.object({
   specs: z.array(z.object({ name: z.string(), value: z.string() })).optional(),
   notes: z.string().optional(),
   images: z.array(imageRef).optional(),
+  color: z.string().optional(),
+  modelNumber: z.string().optional(),
+  countryOfOrigin: z.string().optional(),
+  unit: z.string().optional(),
+  productType: z.string().optional(),
+  allowReviews: z.boolean().optional(),
 });
+
+async function resolveBrandId(body) {
+  if (body.brandId && isOid(body.brandId)) return body.brandId;
+  if (body.brandName) {
+    const found = await Brand.findOne({ name: new RegExp(`^${escapeRegex(body.brandName)}$`, "i") });
+    if (found) return found._id;
+    const created = await Brand.create({
+      name: body.brandName,
+      slug: slugify(body.brandName) + "-" + Date.now().toString(36),
+      isActive: true,
+    });
+    return created._id;
+  }
+  const first = await Brand.findOne({ isActive: true }).sort({ name: 1 });
+  if (!first) throw httpError(400, "Create a brand first, then add products.");
+  return first._id;
+}
+
+async function resolveCategoryId(body) {
+  if (body.categoryId && isOid(body.categoryId)) return body.categoryId;
+  const path = String(body.categoryPath || "").trim();
+  const leaf = path.includes(">") ? path.split(">").pop().trim() : path;
+  if (leaf) {
+    const found = await Category.findOne({ name: new RegExp(`^${escapeRegex(leaf)}$`, "i") });
+    if (found) return found._id;
+  }
+  const first = await Category.findOne({ isActive: true, $or: [{ parent: null }, { parent: { $exists: false } }] }).sort({ sortOrder: 1 });
+  if (!first) throw httpError(400, "Create a category first, then add products.");
+  return first._id;
+}
 
 router.get(
   "/products/:id",
   asyncHandler(async (req, res) => {
-    const demo = getProductEditDetail(req.params.id);
-    if (demo) {
-      return res.json({
-        product: {
-          ...demo,
-          brand: { id: demo.brandId, name: demo.brandName },
-          category: { id: demo.categoryId, name: demo.categoryPath.split(" > ")[0] },
-          images: (demo.images || []).map((url, i) => ({ url, sort: i })),
-        },
-      });
-    }
+    if (!isOid(req.params.id)) throw httpError(404, "Product not found");
     const product = await Product.findById(req.params.id).populate("brand category");
     if (!product) throw httpError(404, "Product not found");
-    const json = product.toJSON();
-    json.brandId = json.brand?.id;
-    json.categoryId = json.category?.id;
-    res.json({ product: json });
+    const salesRows = await Order.aggregate([
+      { $unwind: "$items" },
+      { $match: { "items.product": product._id } },
+      { $group: { _id: null, qty: { $sum: "$items.quantity" } } },
+    ]);
+    res.json({ product: enrichProductDetail(product, salesRows[0]?.qty || 0) });
   })
 );
 
 router.post(
   "/products/:id/duplicate",
   asyncHandler(async (req, res) => {
-    const demo = getProductEditDetail(req.params.id);
-    if (demo) {
-      const copy = {
-        ...demo,
-        id: `${demo.id}-copy`,
-        name: `${demo.name} (copy)`,
-        sku: `${demo.sku}-COPY`,
-      };
-      return res.status(201).json({ product: copy });
-    }
+    if (!isOid(req.params.id)) throw httpError(404, "Product not found");
     const src = await Product.findById(req.params.id);
     if (!src) throw httpError(404, "Product not found");
     const stamp = Date.now().toString(36);
@@ -663,7 +683,7 @@ router.post(
       images: src.images,
     });
     await product.populate("brand category");
-    res.status(201).json({ product });
+    res.status(201).json({ product: enrichProductDetail(product, 0) });
   })
 );
 
@@ -671,6 +691,8 @@ router.post(
   "/products",
   asyncHandler(async (req, res) => {
     const body = productSchema.parse(req.body);
+    const brandId = await resolveBrandId(body);
+    const categoryId = await resolveCategoryId(body);
     const product = await Product.create({
       name: body.name,
       slug: slugify(body.name) + "-" + Date.now().toString(36),
@@ -678,8 +700,8 @@ router.post(
       barcode: body.barcode || "",
       description: body.description,
       shortDescription: body.shortDescription || "",
-      brand: body.brandId,
-      category: body.categoryId,
+      brand: brandId,
+      category: categoryId,
       subCategory: body.subCategory || "",
       tags: body.tags || [],
       priceKes: body.priceKes,
@@ -699,26 +721,25 @@ router.post(
       images: (body.images || []).map((url, i) => ({ url, sortOrder: i })),
     });
     await product.populate("brand category");
-    res.status(201).json({ product });
+    res.status(201).json({ product: enrichProductDetail(product, 0) });
   })
 );
 
 router.patch(
   "/products/:id",
   asyncHandler(async (req, res) => {
-    const demo = getProductEditDetail(req.params.id);
-    if (demo) {
-      return res.json({ product: saveProductEditDetail(req.params.id, req.body || {}) });
-    }
+    if (!isOid(req.params.id)) throw httpError(404, "Product not found");
     const body = productSchema.partial().parse(req.body);
     const product = await Product.findById(req.params.id);
     if (!product) throw httpError(404, "Product not found");
     if (body.name) product.slug = slugify(body.name);
-    if (body.brandId) product.brand = body.brandId;
-    if (body.categoryId) product.category = body.categoryId;
+    if (body.brandId || body.brandName) product.brand = await resolveBrandId(body);
+    if (body.categoryId || body.categoryPath) product.category = await resolveCategoryId(body);
     const assign = { ...body };
     delete assign.brandId;
     delete assign.categoryId;
+    delete assign.brandName;
+    delete assign.categoryPath;
     delete assign.images;
     Object.assign(product, assign);
     if (body.images) {
@@ -726,7 +747,12 @@ router.patch(
     }
     await product.save();
     await product.populate("brand category");
-    res.json({ product });
+    const salesRows = await Order.aggregate([
+      { $unwind: "$items" },
+      { $match: { "items.product": product._id } },
+      { $group: { _id: null, qty: { $sum: "$items.quantity" } } },
+    ]);
+    res.json({ product: enrichProductDetail(product, salesRows[0]?.qty || 0) });
   })
 );
 

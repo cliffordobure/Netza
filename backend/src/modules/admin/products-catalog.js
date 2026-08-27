@@ -1,243 +1,270 @@
-const img = (id, sig) =>
-  `https://images.unsplash.com/${id}?auto=format&fit=crop&w=80&q=80&sig=${sig}`;
+const { Product, Category, Brand, Order } = require("../../models");
+const { paginate } = require("../../lib/utils");
 
-const DEMO_PRODUCTS = [
-  {
-    id: "pc1",
-    name: "Samsung Galaxy A54 5G",
-    sub: "Smartphones · Electronics",
-    sku: "SAM-A54-5G",
-    category: "Electronics",
-    priceKes: 42999,
-    stock: 128,
-    isActive: true,
-    stockStatus: "in",
-    createdAt: "2026-03-12T08:00:00.000Z",
-    createdLabel: "12 Mar 2026",
-    image: img("photo-1610945265064-0e34e5519bbf", 1),
-    sales: 1245,
-  },
-  {
-    id: "pc2",
-    name: "HP Pavilion 15 Laptop",
-    sub: "Laptops · Electronics",
-    sku: "HP-PAV-15",
-    category: "Electronics",
-    priceKes: 89999,
-    stock: 42,
-    isActive: true,
-    stockStatus: "in",
-    createdAt: "2026-02-28T08:00:00.000Z",
-    createdLabel: "28 Feb 2026",
-    image: img("photo-1496181133206-80ce9b88a853", 2),
-    sales: 892,
-  },
-  {
-    id: "pc3",
-    name: "Sony WH-CH520 Headphones",
-    sub: "Audio · Electronics",
-    sku: "SNY-CH520",
-    category: "Electronics",
-    priceKes: 6499,
-    stock: 8,
-    isActive: true,
-    stockStatus: "low",
-    createdAt: "2026-04-05T08:00:00.000Z",
-    createdLabel: "05 Apr 2026",
-    image: img("photo-1505740420928-5e560c06d30e", 3),
-    sales: 756,
-  },
-  {
-    id: "pc4",
-    name: "Nike Air Max 270",
-    sub: "Footwear · Fashion",
-    sku: "NK-AM270",
-    category: "Fashion",
-    priceKes: 15999,
-    stock: 64,
-    isActive: true,
-    stockStatus: "in",
-    createdAt: "2026-01-18T08:00:00.000Z",
-    createdLabel: "18 Jan 2026",
-    image: img("photo-1542291026-7eec264c27ff", 4),
-    sales: 634,
-  },
-  {
-    id: "pc5",
-    name: "Ariel Washing Powder 2kg",
-    sub: "Household · Supermarket",
-    sku: "ARL-WP-2KG",
-    category: "Supermarket",
-    priceKes: 899,
-    stock: 0,
-    isActive: false,
-    stockStatus: "out",
-    createdAt: "2025-11-02T08:00:00.000Z",
-    createdLabel: "02 Nov 2025",
-    image: img("photo-1585421514284-efb74c2d69c6", 5),
-    sales: 512,
-  },
-  {
-    id: "pc6",
-    name: "Top Fry Cooking Oil 2L",
-    sub: "Cooking · Supermarket",
-    sku: "TF-OIL-2L",
-    category: "Supermarket",
-    priceKes: 549,
-    stock: 210,
-    isActive: true,
-    stockStatus: "in",
-    createdAt: "2026-05-01T08:00:00.000Z",
-    createdLabel: "01 May 2026",
-    image: img("photo-1474979266404-7eaacbcd87c5", 6),
-    sales: 489,
-  },
-  {
-    id: "pc7",
-    name: "Brookside Milk 1L",
-    sub: "Dairy · Supermarket",
-    sku: "BS-MILK-1L",
-    category: "Supermarket",
-    priceKes: 145,
-    stock: 6,
-    isActive: true,
-    stockStatus: "low",
-    createdAt: "2026-04-22T08:00:00.000Z",
-    createdLabel: "22 Apr 2026",
-    image: img("photo-1563636619-e9143da7973b", 7),
-    sales: 421,
-  },
-];
-
-const CATEGORIES = [
-  "All Categories",
-  "Electronics",
-  "Supermarket",
-  "Fashion",
-  "Home & Living",
-  "Beauty",
-  "Sports",
-];
-
-const BRANDS = [
-  "All Brands",
-  "Samsung",
-  "HP",
-  "Sony",
-  "Nike",
-  "Unilever",
-  "Brookside",
-];
-
-function filterProducts(rows, query = {}) {
-  let list = [...rows];
-  const q = (query.q || "").trim().toLowerCase();
-  if (q) {
-    list = list.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.sku.toLowerCase().includes(q) ||
-        p.category.toLowerCase().includes(q)
-    );
-  }
-  if (query.category && query.category !== "all") {
-    list = list.filter((p) => p.category.toLowerCase() === query.category.toLowerCase());
-  }
-  if (query.status === "active") list = list.filter((p) => p.isActive);
-  if (query.status === "inactive") list = list.filter((p) => !p.isActive);
-  if (query.stock === "in") list = list.filter((p) => p.stockStatus === "in");
-  if (query.stock === "low") list = list.filter((p) => p.stockStatus === "low");
-  if (query.stock === "out") list = list.filter((p) => p.stockStatus === "out");
-  return list;
+function escapeRegex(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function getProductsCatalog(query = {}) {
-  const page = Math.max(1, Number(query.page) || 1);
-  const limit = Math.max(1, Math.min(50, Number(query.limit) || 10));
-  const filtered = filterProducts(DEMO_PRODUCTS, query);
-  const useDemoTotal = !query.q && !query.category && !query.brand && !query.status && !query.stock;
-  const total = useDemoTotal ? 8934 : filtered.length;
-  const skip = (page - 1) * limit;
-  const products =
-    page === 1 && useDemoTotal && limit >= 7
-      ? DEMO_PRODUCTS.slice(0, Math.min(limit, DEMO_PRODUCTS.length))
-      : filtered.slice(skip, skip + limit);
+function stockStatusOf(p) {
+  const stock = Number(p.stock) || 0;
+  const lowAt = Number(p.lowStockAt) || 10;
+  if (stock <= 0) return "out";
+  if (stock <= lowAt) return "low";
+  return "in";
+}
+
+function fmtDate(value) {
+  if (!value) return "—";
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
+function fmtDateTime(value) {
+  if (!value) return "—";
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function mapCatalogRow(p, salesMap = {}) {
+  const json = typeof p.toJSON === "function" ? p.toJSON() : p;
+  const images = (json.images || [])
+    .slice()
+    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  const stockStatus = stockStatusOf(json);
+  const categoryName = json.category?.name || "Uncategorized";
+  const brandName = json.brand?.name || "";
+  return {
+    id: json.id,
+    name: json.name,
+    sub: [brandName, categoryName].filter(Boolean).join(" · "),
+    sku: json.sku,
+    category: categoryName,
+    categoryId: json.category?.id || "",
+    brand: brandName,
+    brandId: json.brand?.id || "",
+    priceKes: json.priceKes,
+    stock: json.stock,
+    isActive: json.isActive !== false,
+    stockStatus,
+    createdAt: json.createdAt,
+    createdLabel: fmtDate(json.createdAt),
+    image: images[0]?.url || null,
+    sales: salesMap[json.id] || 0,
+  };
+}
+
+async function getProductsCatalog(query = {}) {
+  const { page, limit, skip } = paginate(query);
+  const q = (query.q || "").trim();
+  const filter = {};
+
+  if (q) {
+    const rx = new RegExp(escapeRegex(q), "i");
+    filter.$or = [{ name: rx }, { sku: rx }, { description: rx }, { shortDescription: rx }];
+  }
+
+  if (query.category && query.category !== "all") {
+    const cat = await Category.findOne({
+      $or: [
+        { slug: query.category },
+        { name: new RegExp(`^${escapeRegex(query.category)}$`, "i") },
+      ],
+    });
+    if (!cat) {
+      return emptyCatalog(page, limit);
+    }
+    filter.category = cat._id;
+  }
+
+  if (query.brand && query.brand !== "all") {
+    const brand = await Brand.findOne({
+      $or: [
+        { slug: query.brand },
+        { name: new RegExp(`^${escapeRegex(query.brand)}$`, "i") },
+      ],
+    });
+    if (!brand) {
+      return emptyCatalog(page, limit);
+    }
+    filter.brand = brand._id;
+  }
+
+  if (query.status === "active" || query.status === "published") filter.isActive = true;
+  if (query.status === "inactive" || query.status === "draft") filter.isActive = false;
+  if (query.stock === "out") filter.stock = 0;
+  if (query.stock === "low") filter.stock = { $gt: 0, $lte: 10 };
+  if (query.stock === "in") filter.stock = { $gt: 10 };
+
+  const [total, products, active, inactive, outOfStock, lowStock, categoriesCount, brandsCount, salesRows, allForValue] =
+    await Promise.all([
+      Product.countDocuments(filter),
+      Product.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).populate("brand category"),
+      Product.countDocuments({ isActive: true }),
+      Product.countDocuments({ isActive: false }),
+      Product.countDocuments({ stock: 0 }),
+      Product.countDocuments({ stock: { $gt: 0, $lte: 10 } }),
+      Category.countDocuments({ isActive: true }),
+      Brand.countDocuments({ isActive: true }),
+      Order.aggregate([
+        { $unwind: "$items" },
+        { $group: { _id: "$items.product", qty: { $sum: "$items.quantity" } } },
+      ]),
+      Product.find({}).select("priceKes stock category"),
+    ]);
+
+  const catalogTotal = active + inactive || total;
+  const salesMap = Object.fromEntries(salesRows.map((r) => [String(r._id), r.qty]));
+  const stockValue = allForValue.reduce((s, p) => s + (Number(p.priceKes) || 0) * (Number(p.stock) || 0), 0);
+  const totalStockQty = allForValue.reduce((s, p) => s + (Number(p.stock) || 0), 0);
+  const avgPrice = catalogTotal ? Math.round(allForValue.reduce((s, p) => s + (Number(p.priceKes) || 0), 0) / Math.max(1, allForValue.length)) : 0;
+
+  const categoryCounts = {};
+  for (const p of allForValue) {
+    const key = String(p.category || "other");
+    categoryCounts[key] = (categoryCounts[key] || 0) + 1;
+  }
+  const categoryDocs = await Category.find({ _id: { $in: Object.keys(categoryCounts) } }).select("name");
+  const catNameMap = Object.fromEntries(categoryDocs.map((c) => [c.id, c.name]));
+  const colors = ["#4F46E5", "#10B981", "#F59E0B", "#EC4899", "#8B5CF6", "#94A3B8"];
+  const categoryDonut = Object.entries(categoryCounts)
+    .map(([id, value], i) => ({
+      key: id,
+      name: catNameMap[id] || "Other",
+      value,
+      pct: catalogTotal ? Math.round((value / catalogTotal) * 1000) / 10 : 0,
+      color: colors[i % colors.length],
+    }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 6);
+
+  const mapped = products.map((p) => mapCatalogRow(p, salesMap));
+  const topSelling = [...mapped].sort((a, b) => b.sales - a.sales).slice(0, 5);
+  if (topSelling.length < 5) {
+    const more = await Product.find({})
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .populate("brand category");
+    for (const p of more) {
+      const row = mapCatalogRow(p, salesMap);
+      if (!topSelling.find((t) => t.id === row.id)) topSelling.push(row);
+      if (topSelling.length >= 5) break;
+    }
+  }
+
+  const [categories, brands] = await Promise.all([
+    Category.find({ isActive: true, $or: [{ parent: null }, { parent: { $exists: false } }] }).sort({ sortOrder: 1, name: 1 }),
+    Brand.find({ isActive: true }).sort({ name: 1 }),
+  ]);
+
+  const inStock = Math.max(0, catalogTotal - outOfStock - lowStock);
 
   return {
     total,
     page,
     limit,
     stats: {
-      total: 8934,
-      active: 7842,
-      activePct: 87.8,
-      outOfStock: 342,
-      outPct: 3.8,
-      lowStock: 750,
-      lowPct: 8.4,
-      categories: 156,
-      brands: 89,
-      stockValue: 48756300,
+      total: catalogTotal,
+      active,
+      activePct: catalogTotal ? Math.round((active / catalogTotal) * 1000) / 10 : 0,
+      outOfStock,
+      outPct: catalogTotal ? Math.round((outOfStock / catalogTotal) * 1000) / 10 : 0,
+      lowStock,
+      lowPct: catalogTotal ? Math.round((lowStock / catalogTotal) * 1000) / 10 : 0,
+      categories: categoriesCount,
+      brands: brandsCount,
+      stockValue,
     },
-    products,
+    products: mapped,
     meta: {
-      categories: CATEGORIES.slice(1).map((name, i) => ({ id: String(i + 1), name })),
-      brands: BRANDS.slice(1).map((name, i) => ({ id: String(i + 1), name })),
+      categories: categories.map((c) => ({ id: c.id, name: c.name, slug: c.slug })),
+      brands: brands.map((b) => ({ id: b.id, name: b.name, slug: b.slug })),
     },
-    categoryDonut: [
-      { key: "elec", name: "Electronics", pct: 25.4, value: 2269, color: "#4F46E5" },
-      { key: "super", name: "Supermarket", pct: 22.1, value: 1974, color: "#10B981" },
-      { key: "fashion", name: "Fashion", pct: 16.8, value: 1501, color: "#F59E0B" },
-      { key: "home", name: "Home & Living", pct: 12.3, value: 1099, color: "#EC4899" },
-      { key: "beauty", name: "Beauty", pct: 9.8, value: 876, color: "#8B5CF6" },
-      { key: "other", name: "Others", pct: 13.6, value: 1215, color: "#94A3B8" },
-    ],
-    topSelling: [
-      { name: "Samsung Galaxy A54 5G", sold: 1245, image: DEMO_PRODUCTS[0].image },
-      { name: "HP Pavilion 15 Laptop", sold: 892, image: DEMO_PRODUCTS[1].image },
-      { name: "Sony WH-CH520 Headphones", sold: 756, image: DEMO_PRODUCTS[2].image },
-      { name: "Nike Air Max 270", sold: 634, image: DEMO_PRODUCTS[3].image },
-      { name: "Top Fry Cooking Oil 2L", sold: 489, image: DEMO_PRODUCTS[5].image },
-    ],
+    categoryDonut,
+    topSelling: topSelling.map((p) => ({ name: p.name, sold: p.sales, image: p.image })),
     inventorySummary: [
-      { label: "Total Stock Quantity", value: "157,980" },
-      { label: "Avg. Product Price", value: "KSh 5,461" },
-      { label: "Products with Variants", value: "1,248" },
-      { label: "Digital Products", value: "86" },
-      { label: "Physical Products", value: "8,848" },
+      { label: "Total Stock Quantity", value: String(totalStockQty) },
+      { label: "Avg. Product Price", value: `KSh ${avgPrice.toLocaleString("en-KE")}` },
+      { label: "Active Products", value: String(active) },
+      { label: "Inactive Products", value: String(inactive) },
+      { label: "Physical Products", value: String(catalogTotal) },
     ],
     stockOverview: [
-      { key: "in", name: "In Stock", pct: 87.8, value: 7842, color: "#10B981" },
-      { key: "low", name: "Low Stock", pct: 8.4, value: 750, color: "#F59E0B" },
-      { key: "out", name: "Out of Stock", pct: 3.8, value: 342, color: "#EF4444" },
+      { key: "in", name: "In Stock", pct: catalogTotal ? Math.round((inStock / catalogTotal) * 1000) / 10 : 0, value: inStock, color: "#10B981" },
+      { key: "low", name: "Low Stock", pct: catalogTotal ? Math.round((lowStock / catalogTotal) * 1000) / 10 : 0, value: lowStock, color: "#F59E0B" },
+      { key: "out", name: "Out of Stock", pct: catalogTotal ? Math.round((outOfStock / catalogTotal) * 1000) / 10 : 0, value: outOfStock, color: "#EF4444" },
     ],
-    recentActivities: [
-      {
-        id: "ra1",
-        text: "Nike Air Max 270 price updated by Admin User",
-        atLabel: "2 hours ago",
-        tone: "purple",
-      },
-      {
-        id: "ra2",
-        text: "Samsung Galaxy A54 5G stock adjusted (+24 units)",
-        atLabel: "5 hours ago",
-        tone: "green",
-      },
-      {
-        id: "ra3",
-        text: "Ariel Washing Powder marked as inactive",
-        atLabel: "Yesterday",
-        tone: "orange",
-      },
-      {
-        id: "ra4",
-        text: "Brookside Milk 1L added to Supermarket category",
-        atLabel: "2 days ago",
-        tone: "blue",
-      },
-    ],
+    recentActivities: mapped.slice(0, 4).map((p, i) => ({
+      id: `ra-${p.id}`,
+      text: `${p.name} · ${p.stockStatus === "out" ? "out of stock" : p.stockStatus === "low" ? "low stock" : "in stock"} (${p.stock} units)`,
+      atLabel: p.createdLabel,
+      tone: ["purple", "green", "orange", "blue"][i % 4],
+    })),
   };
 }
 
-module.exports = { getProductsCatalog, DEMO_PRODUCTS };
+function emptyCatalog(page, limit) {
+  return {
+    total: 0,
+    page,
+    limit,
+    stats: { total: 0, active: 0, activePct: 0, outOfStock: 0, outPct: 0, lowStock: 0, lowPct: 0, categories: 0, brands: 0, stockValue: 0 },
+    products: [],
+    meta: { categories: [], brands: [] },
+    categoryDonut: [],
+    topSelling: [],
+    inventorySummary: [],
+    stockOverview: [],
+    recentActivities: [],
+  };
+}
+
+function enrichProductDetail(product, sales = 0) {
+  const json = typeof product.toJSON === "function" ? product.toJSON() : product;
+  const images = (json.images || [])
+    .slice()
+    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+    .map((i) => i.url)
+    .filter(Boolean);
+  const stockStatus = stockStatusOf(json);
+  return {
+    ...json,
+    brandId: json.brand?.id || json.brandId || "",
+    brandName: json.brand?.name || "",
+    categoryId: json.category?.id || json.categoryId || "",
+    categoryPath: [json.category?.name, json.subCategory].filter(Boolean).join(" > "),
+    images,
+    primaryImage: images[0] || "",
+    galleryCount: images.length,
+    galleryMax: 10,
+    stockStatus,
+    stockStatusLabel: stockStatus === "out" ? "Out of Stock" : stockStatus === "low" ? "Low Stock" : "In Stock",
+    available: Math.max(0, (json.stock || 0) - (json.reserved || 0)),
+    soldAllTime: sales,
+    sales,
+    createdLabel: fmtDateTime(json.createdAt),
+    updatedLabel: fmtDateTime(json.updatedAt),
+    views: json.views || 0,
+    orders: sales,
+    reviews: json.ratingCount || 0,
+    rating: json.ratingAvg || 0,
+    warrantyPeriod: json.warranty || "12 months",
+    adminNotes: json.notes || "",
+    isFeatured: Boolean(json.isTrending),
+    auditTrail: [],
+  };
+}
+
+module.exports = {
+  getProductsCatalog,
+  enrichProductDetail,
+  stockStatusOf,
+  mapCatalogRow,
+};
