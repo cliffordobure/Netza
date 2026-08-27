@@ -9,7 +9,7 @@ module.exports = {
     accessExpires: process.env.JWT_ACCESS_EXPIRES || "15m",
     refreshExpires: process.env.JWT_REFRESH_EXPIRES || "30d",
   },
-  corsOrigins: (process.env.CORS_ORIGINS || "http://localhost:5173")
+  corsOrigins: (process.env.CORS_ORIGINS || "http://localhost:5173,https://netza.vercel.app")
     .split(",")
     .map((s) => s.trim()),
   appName: process.env.APP_NAME || "NETZA Kenya",
