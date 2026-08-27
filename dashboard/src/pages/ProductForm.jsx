@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { api, kes } from "../api";
+import { api, kes, uploadImage } from "../api";
 import { Icon } from "../icons";
 
 const TABS = [
@@ -261,12 +261,14 @@ export default function ProductForm() {
     }
   }
 
-  function onImagePick(e, gallery = false) {
+  async function onImagePick(e, gallery = false) {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const url = String(reader.result || "");
+    setBusy(true);
+    setError("");
+    try {
+      const { url } = await uploadImage(file, "products");
       if (gallery) {
         setForm((f) => ({
           ...f,
@@ -275,16 +277,17 @@ export default function ProductForm() {
           primaryImage: f.primaryImage || url,
         }));
       } else {
-        set("primaryImage", url);
         setForm((f) => ({
           ...f,
           primaryImage: url,
           images: f.images.includes(url) ? f.images : [url, ...f.images],
         }));
       }
-    };
-    reader.readAsDataURL(file);
-    e.target.value = "";
+    } catch (err) {
+      setError(err.message || "Image upload failed.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   const gallery = form.images.length ? form.images : form.primaryImage ? [form.primaryImage] : [];

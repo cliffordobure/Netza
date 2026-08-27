@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../api";
+import { api, uploadImage } from "../api";
 import { Icon } from "../icons";
 
 const BANNER_FALLBACK =
@@ -97,13 +97,20 @@ export default function FlashDropSettings() {
     }
   }
 
-  function onBannerPick(e) {
+  async function onBannerPick(e) {
     const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => set("bannerUrl", String(reader.result || ""));
-    reader.readAsDataURL(file);
     e.target.value = "";
+    if (!file) return;
+    setBusy(true);
+    setError("");
+    try {
+      const { url } = await uploadImage(file, "flash-drops");
+      set("bannerUrl", url);
+    } catch (err) {
+      setError(err.message || "Image upload failed.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (!settings) {

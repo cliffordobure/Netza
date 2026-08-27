@@ -60,10 +60,46 @@ const {
 } = require("./flash-drop-categories");
 const { publicUser } = require("../../lib/jwt");
 const { creditPoints } = require("../../services/points.service");
+const { uploadBuffer, FOLDERS } = require("../../lib/cloudinary");
 const bcrypt = require("bcryptjs");
+const multer = require("multer");
 
 const router = Router();
 router.use(auth(), requireStaff);
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter(_req, file, cb) {
+    if (/^image\/(jpeg|png|webp|gif)$/i.test(file.mimetype)) return cb(null, true);
+    cb(httpError(400, "Only JPEG, PNG, WEBP, or GIF images are allowed"));
+  },
+});
+
+function uploadImageMw(req, res, next) {
+  upload.single("file")(req, res, (err) => {
+    if (!err) return next();
+    if (err.code === "LIMIT_FILE_SIZE") return next(httpError(400, "Image must be 5MB or smaller"));
+    return next(err.status ? err : httpError(400, err.message || "Upload failed"));
+  });
+}
+
+router.post(
+  "/uploads",
+  uploadImageMw,
+  asyncHandler(async (req, res) => {
+    if (!req.file) throw httpError(400, "No image file provided");
+    const folder = String(req.body?.folder || req.query?.folder || "misc").toLowerCase();
+    if (!FOLDERS.has(folder)) {
+      throw httpError(400, `Invalid upload folder. Use one of: ${[...FOLDERS].join(", ")}`);
+    }
+    const result = await uploadBuffer(req.file.buffer, {
+      folder,
+      mimeType: req.file.mimetype,
+    });
+    res.status(201).json(result);
+  })
+);
 
 function escapeRegex(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

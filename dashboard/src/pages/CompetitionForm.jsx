@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { api } from "../api";
+import { api, uploadImage } from "../api";
 import { Icon } from "../icons";
 import { useAuth } from "../auth";
 
@@ -238,7 +238,7 @@ export default function CompetitionForm() {
         const next = fromDoc(c, actor);
         setForm(next);
         setEditorBoot({ key: id, html: textToHtml(next.description) });
-        setCustomBanner(Boolean(next.imageUrl && String(next.imageUrl).startsWith("data:")));
+        setCustomBanner(Boolean(next.imageUrl && (/^https?:\/\//i.test(next.imageUrl) || String(next.imageUrl).startsWith("data:"))));
       })
       .catch((err) => setError(err.message || "Could not load competition."));
   }, [id, isNew, actor]);
@@ -367,14 +367,19 @@ export default function CompetitionForm() {
     set("prizes", form.prizes.filter((_, idx) => idx !== i));
   }
 
-  function onImageFile(file) {
+  async function onImageFile(file) {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      set("imageUrl", String(reader.result || ""));
+    setBusy(true);
+    setError("");
+    try {
+      const { url } = await uploadImage(file, "competitions");
+      set("imageUrl", url);
       setCustomBanner(true);
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      setError(err.message || "Image upload failed.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   const typeLabel = TYPES.find((t) => t.id === form.type)?.label || "Quiz";

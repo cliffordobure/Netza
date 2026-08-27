@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../api";
+import { api, uploadImage } from "../api";
 import { Icon } from "../icons";
 
 function slugify(text) {
@@ -197,19 +197,26 @@ export default function Brands() {
     }
   }
 
-  function addImageFile(file) {
+  async function addImageFile(file) {
     if (!file) return;
-    if (!/^image\/(jpeg|png|webp)$/i.test(file.type)) {
-      setError("Use PNG, JPG or WEBP.");
+    if (!/^image\/(jpeg|png|webp|gif)$/i.test(file.type)) {
+      setError("Use PNG, JPG, WEBP or GIF.");
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      setError("Logo must be 2MB or smaller.");
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Logo must be 5MB or smaller.");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => set("logoUrl", reader.result);
-    reader.readAsDataURL(file);
+    setError("");
+    setBusy(true);
+    try {
+      const { url } = await uploadImage(file, "brands");
+      set("logoUrl", url);
+    } catch (err) {
+      setError(err.message || "Image upload failed.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   const pageButtons = [];
@@ -447,13 +454,14 @@ export default function Brands() {
               }}
             >
               {form.logoUrl ? <img src={form.logoUrl} alt="" /> : <Icon name="cloud" size={28} />}
-              <p>Click to upload</p>
-              <small>PNG, JPG, WEBP (Max 2MB)</small>
+              <p>{busy ? "Uploading…" : "Click to upload"}</p>
+              <small>PNG, JPG, WEBP (Max 5MB · Cloudinary)</small>
               <input
                 ref={fileRef}
                 type="file"
-                accept="image/jpeg,image/png,image/webp"
+                accept="image/jpeg,image/png,image/webp,image/gif"
                 hidden
+                disabled={busy}
                 onChange={(e) => {
                   addImageFile(e.target.files?.[0]);
                   e.target.value = "";

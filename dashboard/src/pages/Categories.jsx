@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../api";
+import { api, uploadImage } from "../api";
 import { Icon } from "../icons";
 
 function slugify(text) {
@@ -187,15 +187,22 @@ export default function Categories() {
     }
   }
 
-  function addImageFile(file) {
+  async function addImageFile(file) {
     if (!file) return;
-    if (!/^image\/(jpeg|png|webp)$/i.test(file.type)) {
-      setError("Use JPG, PNG or WEBP.");
+    if (!/^image\/(jpeg|png|webp|gif)$/i.test(file.type)) {
+      setError("Use JPG, PNG, WEBP or GIF.");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => set("imageUrl", reader.result);
-    reader.readAsDataURL(file);
+    setError("");
+    setBusy(true);
+    try {
+      const { url } = await uploadImage(file, "categories");
+      set("imageUrl", url);
+    } catch (err) {
+      setError(err.message || "Image upload failed.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   const pageButtons = [];
@@ -436,13 +443,14 @@ export default function Categories() {
               }}
             >
               {form.imageUrl ? <img src={form.imageUrl} alt="" /> : <Icon name="cloud" size={28} />}
-              <p>Upload Image</p>
-              <small>Recommended: 400×400px, JPG, PNG</small>
+              <p>{busy ? "Uploading…" : "Upload Image"}</p>
+              <small>Recommended: 400×400px, JPG, PNG (Cloudinary)</small>
               <input
                 ref={fileRef}
                 type="file"
-                accept="image/jpeg,image/png,image/webp"
+                accept="image/jpeg,image/png,image/webp,image/gif"
                 hidden
+                disabled={busy}
                 onChange={(e) => {
                   addImageFile(e.target.files?.[0]);
                   e.target.value = "";

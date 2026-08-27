@@ -60,5 +60,44 @@ export async function api(path, options = {}) {
   return data;
 }
 
+/** Upload an image file to Cloudinary via the admin API. Returns `{ url, publicId, ... }`. */
+export async function uploadImage(file, folder = "misc") {
+  if (!file) throw new Error("No image file provided");
+
+  function buildBody() {
+    const body = new FormData();
+    body.append("file", file);
+    body.append("folder", folder);
+    return body;
+  }
+
+  const headers = {};
+  const { access } = getTokens();
+  if (access) headers.Authorization = `Bearer ${access}`;
+
+  let res = await fetch(`${API}/admin/uploads`, { method: "POST", headers, body: buildBody(), cache: "no-store" });
+  if (res.status === 401 && access) {
+    const next = await refreshAccess();
+    if (next) {
+      headers.Authorization = `Bearer ${next}`;
+      res = await fetch(`${API}/admin/uploads`, { method: "POST", headers, body: buildBody(), cache: "no-store" });
+    }
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    if (res.status === 401) {
+      clearTokens();
+      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+        window.location.assign("/login");
+      }
+    }
+    const err = new Error(data.message || "Image upload failed");
+    err.status = res.status;
+    err.data = data;
+    throw err;
+  }
+  return data;
+}
+
 export const kes = (n) =>
   new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES", maximumFractionDigits: 0 }).format(n || 0);
