@@ -1,0 +1,159 @@
+const { z } = require("zod");
+const bcrypt = require("bcryptjs");
+const { User, RefreshToken, Cart } = require("../../models");
+const { signAccess, signRefresh, hashToken, verifyRefresh, publicUser } = require("../../lib/jwt");
+const { randomCode, nairobiDateString } = require("../../lib/utils");
+const { creditPoints, getRule } = require("../../services/points.service");
+const { asyncHandler, httpError } = require("../../middleware/error");
+
+const registerSchema = z.object({
+  firstName: z.string().min(2),
+  lastName: z.string().min(2),
+  phone: z.string().min(10),
+  email: z.string().email().optional().or(z.literal("")),
+  password: z.string().min(6),
+  referralCode: z.string().optional(),
+});
+
+const loginSchema = z.object({
+  identifier: z.string().min(3),
+  password: z.string().min(6),
+});
+
+async function issueTokens(user) {
+  const accessToken = signAccess(user);
+  const refreshToken = signRefresh(user);
+  const decoded = verifyRefresh(refreshToken);
+  await RefreshToken.create({
+    tokenHash: hashToken(refreshToken),
+    user: user._id,
+    expiresAt: new Date(decoded.exp * 1000),
+  });
+  return { user: publicUser(user), accessToken, refreshToken };
+}
+
+async function maybeDailyLogin(user) {
+  const today = nairobiDateString();
+  if (user.lastLoginDate === today) {
+    return { awarded: false, streak: user.loginStreak, points: 0 };
+  }
+  const yesterday = nairobiDateString(new Date(Date.now() - 24 * 60 * 60 * 1000));
+  const streak = user.lastLoginDate === yesterday ? user.loginStreak + 1 : 1;
+  user.lastLoginDate = today;
+  user.loginStreak = streak;
+  await user.save();
+  const daily = await getRule("DAILY_LOGIN");
+  let points = 0;
+  if (daily) {
+    await creditPoints(user._id, "DAILY_LOGIN", daily.points, "Daily login", today);
+    points += daily.points;
+  }
+  if (streak > 0 && streak % 7 === 0) {
+    const bonus = await getRule("STREAK_7");
+    if (bonus) {
+      await creditPoints(user._id, "STREAK_BONUS", bonus.points, "7-day streak bonus", today);
+      points += bonus.points;
+    }
+  }
+  return { awarded: true, streak, points };
+}
+
+exports.register = asyncHandler(async (req, res) => {
+  const body = registerSchema.parse(req.body);
+  const phone = body.phone.replace(/\s+/g, "");
+  const existing = await User.findOne({
+    $or: [{ phone }, ...(body.email ? [{ email: body.email }] : [])],
+  });
+  if (existing) throw httpError(409, "Phone or email already registered");
+
+  let referredBy = null;
+  if (body.referralCode) {
+    const referrer = await User.findOne({ referralCode: body.referralCode.toUpperCase() });
+    if (referrer) referredBy = referrer._id;
+  }
+
+  const user = await User.create({
+    firstName: body.firstName,
+    lastName: body.lastName,
+    phone,
+    email: body.email || undefined,
+    passwordHash: await bcrypt.hash(body.password, 10),
+    referralCode: randomCode("NETZA"),
+    referredBy,
+  });
+  await Cart.create({ user: user._id, items: [] });
+
+  const welcome = await getRule("WELCOME");
+  if (welcome) {
+    await creditPoints(user._id, "WELCOME", welcome.points, "Welcome to NETZA Kenya");
+  }
+  if (referredBy) {
+    const refRule = await getRule("REFERRAL");
+    if (refRule) {
+      await creditPoints(referredBy, "REFERRAL", refRule.points, "Referral reward", user.id);
+    }
+  }
+
+  res.status(201).json(await issueTokens(user));
+});
+
+exports.login = asyncHandler(async (req, res) => {
+  const body = loginSchema.parse(req.body);
+  const identifier = body.identifier.trim();
+  const user = await User.findOne({
+    $or: [{ phone: identifier }, { email: identifier.toLowerCase() }],
+  });
+  if (!user || !user.isActive) throw httpError(401, "Invalid credentials");
+  const ok = await bcrypt.compare(body.password, user.passwordHash);
+  if (!ok) throw httpError(401, "Invalid credentials");
+  const daily = await maybeDailyLogin(user);
+  res.json({ ...(await issueTokens(user)), dailyLogin: daily });
+});
+
+exports.refresh = asyncHandler(async (req, res) => {
+  const token = req.body.refreshToken;
+  if (!token) throw httpError(400, "refreshToken is required");
+  let payload;
+  try {
+    payload = verifyRefresh(token);
+  } catch {
+    throw httpError(401, "Invalid refresh token");
+  }
+  const record = await RefreshToken.findOne({ tokenHash: hashToken(token) });
+  if (!record) throw httpError(401, "Refresh token revoked");
+  await record.deleteOne();
+  const user = await User.findById(payload.sub);
+  if (!user || !user.isActive) throw httpError(401, "Invalid session");
+  res.json(await issueTokens(user));
+});
+
+exports.logout = asyncHandler(async (req, res) => {
+  const token = req.body.refreshToken;
+  if (token) await RefreshToken.deleteMany({ tokenHash: hashToken(token) });
+  res.json({ ok: true });
+});
+
+exports.me = asyncHandler(async (req, res) => {
+  res.json({ user: publicUser(req.user), pointsBalance: req.user.pointsBalance || 0 });
+});
+
+exports.completeProfile = asyncHandler(async (req, res) => {
+  const schema = z.object({
+    email: z.string().email().optional(),
+    firstName: z.string().min(2).optional(),
+    lastName: z.string().min(2).optional(),
+  });
+  const body = schema.parse(req.body);
+  const wasComplete = req.user.profileCompleted;
+  Object.assign(req.user, body, { profileCompleted: true });
+  await req.user.save();
+  if (!wasComplete) {
+    const rule = await getRule("COMPLETE_PROFILE");
+    if (rule) await creditPoints(req.user._id, "COMPLETE_PROFILE", rule.points, "Profile completed");
+  }
+  res.json({ user: publicUser(req.user) });
+});
+
+exports.dailyLogin = asyncHandler(async (req, res) => {
+  res.json(await maybeDailyLogin(req.user));
+});

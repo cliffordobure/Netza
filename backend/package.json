@@ -1,0 +1,28 @@
+{
+  "name": "netza-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NETZA Kenya e-commerce API",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "db:seed": "node src/seed.js",
+    "setup": "npm install && node src/seed.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.0.1",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^9.9.4",
+    "morgan": "^1.10.1",
+    "zod": "^4.0.17"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^11.2.0"
+  }
+}
