@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { api, kes } from "../api";
 import { Icon } from "../icons";
 import OrdersCatalog from "./OrdersCatalog";
+import { useAutoRefresh } from "../useAutoRefresh";
 
 function fmtNum(n) {
   return new Intl.NumberFormat("en-KE").format(n || 0);
@@ -176,20 +177,26 @@ export default function Orders() {
     return p.toString();
   }
 
-  function load(overrides = {}) {
+  function load(overrides = {}, options = {}) {
     api(`/admin/orders?${queryString(overrides)}`)
       .then((d) => {
         setData(d);
-        setSelected([]);
+        if (!options.silent) setSelected([]);
         setError("");
         setOpen((cur) => {
           if (routeId) return d.orders.find((o) => o.id === routeId) || cur;
-          if (cur) return d.orders.find((o) => o.id === cur.id) || d.orders[0] || null;
-          return d.orders[0] || null;
+          if (cur) return d.orders.find((o) => o.id === cur.id) || (options.silent ? cur : d.orders[0] || null);
+          return options.silent ? cur : d.orders[0] || null;
         });
       })
-      .catch((e) => setError(e.message));
+      .catch((e) => {
+        if (!options.silent) setError(e.message);
+      });
   }
+
+  useAutoRefresh(() => {
+    if (!isAllOrders) load({}, { silent: true });
+  });
 
   useEffect(() => {
     const nextStatus = navStatus === "returns" ? "" : navStatus;

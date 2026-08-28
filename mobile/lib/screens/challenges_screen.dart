@@ -18,12 +18,49 @@ class ChallengesScreen extends StatefulWidget {
 class _ChallengesScreenState extends State<ChallengesScreen> {
   String tab = 'All';
   final notified = <String>{};
+  List<Competition> competitions = [];
+  List<LeaderPreview> leaderPreview = [];
+  CompetitionStats stats = const CompetitionStats();
+  bool loading = true;
+  String? error;
 
   List<Competition> get active => competitions.where((c) => c.status == CompStatus.active).toList();
   List<Competition> get upcoming => competitions.where((c) => c.status == CompStatus.upcoming).toList();
   List<Competition> get ended => competitions.where((c) => c.status == CompStatus.ended).toList();
 
-  int get competitionPts => active.fold<int>(0, (s, c) => s + c.yourPts);
+  @override
+  void initState() {
+    super.initState();
+    load();
+  }
+
+  Future<void> load() async {
+    setState(() {
+      loading = true;
+      error = null;
+    });
+    try {
+      final res = await context.read<Session>().dio.get('/competitions');
+      final data = Map<String, dynamic>.from(res.data as Map);
+      final list = (data['competitions'] as List? ?? [])
+          .map((c) => Competition.fromJson(Map<String, dynamic>.from(c as Map)))
+          .toList();
+      final leaders = (data['leaderboard'] as List? ?? [])
+          .map((p) => LeaderPreview.fromJson(Map<String, dynamic>.from(p as Map)))
+          .toList();
+      setState(() {
+        competitions = list;
+        leaderPreview = leaders;
+        stats = CompetitionStats.fromJson(Map<String, dynamic>.from(data['stats'] as Map? ?? {}));
+        loading = false;
+      });
+    } catch (e) {
+      setState(() {
+        error = apiMessage(e);
+        loading = false;
+      });
+    }
+  }
 
   void howItWorks() {
     showModalBottomSheet(
@@ -63,9 +100,15 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
           children: [
             Text('Monthly Leaderboard', style: inter(size: 18, weight: FontWeight.w800, color: navy)),
             const SizedBox(height: 6),
-            Text('You’re #28 · Top 5% this month', style: T.memberMeta),
+            Text(
+              stats.yourRank > 0 ? 'You’re #${stats.yourRank} this month' : 'Earn points to join the leaderboard',
+              style: T.memberMeta,
+            ),
             const SizedBox(height: 14),
-            ...leaderPreview.map((p) => Padding(
+            if (leaderPreview.isEmpty)
+              Text('No leaderboard data yet.', style: T.memberMeta.copyWith(fontSize: 13))
+            else
+              ...leaderPreview.map((p) => Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Row(
                     children: [
@@ -81,7 +124,10 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
               children: [
                 Text('You', style: inter(size: 14, weight: FontWeight.w800, color: navy)),
                 const Spacer(),
-                Text('#28 · ${_pts(competitionPts)} Pts', style: inter(size: 13, weight: FontWeight.w700, color: muted)),
+                Text(
+                  stats.yourRank > 0 ? '#${stats.yourRank} · ${_pts(stats.yourMonthlyPts)} Pts' : '${_pts(stats.yourMonthlyPts)} Pts',
+                  style: inter(size: 13, weight: FontWeight.w700, color: muted),
+                ),
               ],
             ),
           ],
@@ -100,6 +146,13 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
     final showUpcoming = tab == 'All' || tab == 'Upcoming';
     final showEnded = tab == 'Ended';
 
+    if (loading) {
+      return const Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(child: CircularProgressIndicator(color: orange)),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.white,
       bottomNavigationBar: const NetzaBottomNav(currentIndex: 3),
@@ -110,16 +163,25 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
               padding: EdgeInsets.fromLTRB(4, 4, 12, 0),
               child: _ChallengesHeader(),
             ),
+            if (error != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Text(error!, style: inter(size: 12, color: Colors.red)),
+              ),
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                children: [
+              child: RefreshIndicator(
+                color: orange,
+                onRefresh: load,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                  children: [
                   _HeroCard(
-                    pts: 1250,
+                    pts: stats.yourMonthlyPts,
+                    rank: stats.yourRank,
                     onLeaderboard: showLeaderboard,
                   ),
                   const SizedBox(height: 12),
-                  const _StatsRow(),
+                  _StatsRow(stats: stats),
                   const SizedBox(height: 16),
                   Row(
                     children: [
@@ -178,15 +240,21 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                       onTap: () => setState(() => tab = 'Active'),
                     ),
                     const SizedBox(height: 10),
-                    SizedBox(
-                      height: 278,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: active.length,
-                        separatorBuilder: (_, _) => const SizedBox(width: 10),
-                        itemBuilder: (_, i) => _ActiveCard(comp: active[i], onView: () => showChallenge(active[i])),
+                    if (active.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Text('No active competitions right now.', style: inter(size: 13, color: muted)),
+                      )
+                    else
+                      SizedBox(
+                        height: 278,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: active.length,
+                          separatorBuilder: (_, _) => const SizedBox(width: 10),
+                          itemBuilder: (_, i) => _ActiveCard(comp: active[i], onView: () => showChallenge(active[i])),
+                        ),
                       ),
-                    ),
                   ],
                   if (showUpcoming) ...[
                     const SizedBox(height: 18),
@@ -197,7 +265,13 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                       onTap: () => setState(() => tab = 'Upcoming'),
                     ),
                     const SizedBox(height: 10),
-                    ...upcoming.map(
+                    if (upcoming.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text('No upcoming competitions scheduled.', style: inter(size: 13, color: muted)),
+                      )
+                    else
+                      ...upcoming.map(
                       (c) => _UpcomingTile(
                         comp: c,
                         notified: notified.contains(c.id),
@@ -212,10 +286,13 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                     const SizedBox(height: 8),
                     Text('Ended Competitions', style: inter(size: 16, weight: FontWeight.w800, color: navy)),
                     const SizedBox(height: 10),
-                    ...ended.map((c) => _UpcomingTile(comp: c, notified: true, onNotify: () => showChallenge(c), ended: true)),
+                    if (ended.isEmpty)
+                      Text('No ended competitions yet.', style: inter(size: 13, color: muted))
+                    else
+                      ...ended.map((c) => _UpcomingTile(comp: c, notified: true, onNotify: () => showChallenge(c), ended: true)),
                   ],
                   const SizedBox(height: 16),
-                  _LeaderPreviewCard(onView: showLeaderboard),
+                  _LeaderPreviewCard(onView: showLeaderboard, leaders: leaderPreview),
                   const SizedBox(height: 18),
                   Text('How to Earn Competition Points', style: inter(size: 15, weight: FontWeight.w800, color: navy)),
                   const SizedBox(height: 12),
@@ -237,6 +314,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
                   const _ExploreBanner(),
                 ],
               ),
+            ),
             ),
           ],
         ),
@@ -299,8 +377,9 @@ class _ChallengesHeader extends StatelessWidget {
 }
 
 class _HeroCard extends StatelessWidget {
-  const _HeroCard({required this.pts, required this.onLeaderboard});
+  const _HeroCard({required this.pts, required this.rank, required this.onLeaderboard});
   final int pts;
+  final int rank;
   final VoidCallback onLeaderboard;
 
   @override
@@ -351,8 +430,12 @@ class _HeroCard extends StatelessWidget {
                 children: [
                   const Icon(Icons.workspace_premium, color: gold, size: 20),
                   Text('This Month Rank', style: inter(size: 9, color: Colors.white70)),
-                  Text('#28', style: inter(size: 22, weight: FontWeight.w800, color: Colors.white, height: 1.1)),
-                  Text("Keep going! You're in the top 5%", textAlign: TextAlign.center, style: inter(size: 9, color: Colors.white70, height: 1.2)),
+                  Text(rank > 0 ? '#$rank' : '—', style: inter(size: 22, weight: FontWeight.w800, color: Colors.white, height: 1.1)),
+                  Text(
+                    rank > 0 ? "Keep going! You're on the board" : 'Join a challenge to rank',
+                    textAlign: TextAlign.center,
+                    style: inter(size: 9, color: Colors.white70, height: 1.2),
+                  ),
                   const SizedBox(height: 6),
                   SizedBox(
                     width: double.infinity,
@@ -379,19 +462,20 @@ class _HeroCard extends StatelessWidget {
 }
 
 class _StatsRow extends StatelessWidget {
-  const _StatsRow();
+  const _StatsRow({required this.stats});
+  final CompetitionStats stats;
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
+    return Row(
       children: [
-        Expanded(child: _Stat(Icons.track_changes, 'Active Challenges', '2 Participating')),
-        SizedBox(width: 8),
-        Expanded(child: _Stat(Icons.groups_outlined, 'My Ranking', 'Top 5% This Month')),
-        SizedBox(width: 8),
-        Expanded(child: _Stat(Icons.star_outline, 'Points Earned', '+450 This Month')),
-        SizedBox(width: 8),
-        Expanded(child: _Stat(Icons.schedule, 'Competitions Won', '3 All Time')),
+        Expanded(child: _Stat(Icons.track_changes, 'Active Challenges', '${stats.active} Live')),
+        const SizedBox(width: 8),
+        Expanded(child: _Stat(Icons.groups_outlined, 'My Ranking', stats.yourRank > 0 ? '#${stats.yourRank}' : '—')),
+        const SizedBox(width: 8),
+        Expanded(child: _Stat(Icons.star_outline, 'Points Earned', '+${stats.competitionPts} Active')),
+        const SizedBox(width: 8),
+        Expanded(child: _Stat(Icons.schedule, 'Upcoming', '${stats.upcoming} Scheduled')),
       ],
     );
   }
@@ -592,8 +676,9 @@ class _UpcomingTile extends StatelessWidget {
 }
 
 class _LeaderPreviewCard extends StatelessWidget {
-  const _LeaderPreviewCard({required this.onView});
+  const _LeaderPreviewCard({required this.onView, required this.leaders});
   final VoidCallback onView;
+  final List<LeaderPreview> leaders;
 
   @override
   Widget build(BuildContext context) {
@@ -635,10 +720,13 @@ class _LeaderPreviewCard extends StatelessWidget {
                 child: Text('View Leaderboard >', style: T.playNow.copyWith(fontSize: 11)),
               ),
               const Spacer(),
-              for (final p in leaderPreview) ...[
-                _PlaceAvatar(p, small: true),
-                const SizedBox(width: 6),
-              ],
+              if (leaders.isEmpty)
+                Text('No leaders yet', style: inter(size: 11, color: Colors.white70))
+              else
+                for (final p in leaders.take(3)) ...[
+                  _PlaceAvatar(p, small: true),
+                  const SizedBox(width: 6),
+                ],
             ],
           ),
         ],

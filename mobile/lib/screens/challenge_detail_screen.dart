@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -21,29 +22,61 @@ class ChallengeDetailScreen extends StatefulWidget {
 class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
   String tab = 'Challenge';
   int qIndex = 0;
-  int? selected = 1;
-  int answered = 3;
-  int pts = 450;
+  int? selected;
+  int answered = 0;
+  int pts = 0;
+  int yourRank = 0;
   bool submitted = false;
   bool correct = false;
-  Duration remaining = const Duration(days: 2, hours: 14, minutes: 36, seconds: 21);
+  Duration remaining = Duration.zero;
   Timer? ticker;
+  Competition? comp;
+  bool loading = true;
+  String? error;
 
-  Competition get comp => competitionById(widget.id) ?? competitions.first;
-
-  List<QuizQuestion> get questions => networkingProQuestions;
-
-  bool get isQuiz => comp.id == 'networking-pro';
+  List<QuizQuestion> get questions => comp?.questions ?? [];
+  bool get isQuiz => comp?.isQuiz ?? false;
 
   @override
   void initState() {
     super.initState();
+    load();
     ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
+      if (!mounted || comp?.endsAt == null) return;
+      final end = DateTime.tryParse(comp!.endsAt!);
+      if (end == null) return;
       setState(() {
-        if (remaining.inSeconds > 0) remaining -= const Duration(seconds: 1);
+        remaining = end.difference(DateTime.now());
+        if (remaining.isNegative) remaining = Duration.zero;
       });
     });
+  }
+
+  Future<void> load() async {
+    setState(() {
+      loading = true;
+      error = null;
+    });
+    try {
+      final res = await context.read<Session>().dio.get('/competitions/${widget.id}');
+      final data = Map<String, dynamic>.from(res.data as Map);
+      final c = Competition.fromJson(Map<String, dynamic>.from(data['competition'] as Map));
+      final end = c.endsAt != null ? DateTime.tryParse(c.endsAt!) : null;
+      setState(() {
+        comp = c;
+        pts = c.yourPts;
+        yourRank = (data['yourRank'] as num?)?.toInt() ?? c.yourRank;
+        if (yourRank == 0) yourRank = c.yourRank;
+        remaining = end != null ? end.difference(DateTime.now()) : Duration.zero;
+        if (remaining.isNegative) remaining = Duration.zero;
+        loading = false;
+      });
+    } catch (e) {
+      setState(() {
+        error = apiMessage(e);
+        loading = false;
+      });
+    }
   }
 
   @override
@@ -54,27 +87,50 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
 
   String _pad(int n) => n.toString().padLeft(2, '0');
 
-  void submit() {
+  Future<void> submit() async {
+    final c = comp;
+    if (c == null) return;
     if (!isQuiz) {
-      context.push(comp.route);
+      if (c.route.isNotEmpty) {
+        if (c.route.startsWith('/catalog') || c.route.startsWith('/flash')) {
+          context.push(c.route);
+        } else {
+          context.go(c.route);
+        }
+      }
       return;
     }
     if (selected == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pick an answer first')));
       return;
     }
-    final ok = selected == questions[qIndex].correct;
-    setState(() {
-      submitted = true;
-      correct = ok;
-      if (ok) {
-        pts += 50;
-        answered = (answered + 1).clamp(0, 10);
+    try {
+      final res = await context.read<Session>().dio.post('/competitions/${c.id}/answer', data: {
+        'questionIndex': qIndex,
+        'selectedIndex': selected,
+      });
+      final data = Map<String, dynamic>.from(res.data as Map);
+      final ok = data['correct'] == true;
+      final awarded = (data['pointsAwarded'] as num?)?.toInt() ?? 0;
+      setState(() {
+        submitted = true;
+        correct = ok;
+        if (ok) {
+          pts += awarded;
+          answered += 1;
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(data['message']?.toString() ?? (ok ? 'Correct! +$awarded points' : 'Not quite. Try the next question.')),
+      ));
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sign in to submit answers')));
+        context.push('/login');
+        return;
       }
-    });
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(ok ? 'Correct! +50 competition points' : 'Not quite. Try the next question.'),
-    ));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(apiMessage(e))));
+    }
   }
 
   void nextQuestion() {
@@ -92,18 +148,46 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
 
   void invite() {
     final code = context.read<Session>().user?['referralCode']?.toString() ?? 'NETZA';
-    Clipboard.setData(ClipboardData(text: 'Join me on NETZA Kenya — Networking Pro challenge! Use code $code'));
+    final name = comp?.name ?? 'NETZA challenge';
+    Clipboard.setData(ClipboardData(text: 'Join me on NETZA Kenya — $name! Use code $code'));
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Invite copied. Share it with a friend.')));
   }
 
   void share() {
-    Clipboard.setData(const ClipboardData(text: 'I’m playing Networking Pro on NETZA Kenya. Compete, earn points, win big!'));
+    final name = comp?.name ?? 'NETZA Kenya';
+    Clipboard.setData(ClipboardData(text: 'Join $name on NETZA Kenya. Compete, earn points, win big!'));
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Challenge link copied')));
   }
 
   @override
   Widget build(BuildContext context) {
-    final left = 10 - answered;
+    if (loading) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFF7F8FA),
+        body: Center(child: CircularProgressIndicator(color: orange)),
+      );
+    }
+    if (error != null || comp == null) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF7F8FA),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(error ?? 'Competition not found', textAlign: TextAlign.center, style: inter(size: 14, color: muted)),
+                const SizedBox(height: 12),
+                FilledButton(onPressed: load, child: const Text('Retry')),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final c = comp!;
+    final left = questions.isEmpty ? 0 : questions.length - qIndex - (submitted && correct ? 0 : 1);
     final wide = MediaQuery.sizeOf(context).width >= 720;
 
     return Scaffold(
@@ -121,20 +205,21 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
                 children: [
                   _Hero(
-                    image: comp.image,
-                    title: comp.name.toUpperCase(),
-                    subtitle: isQuiz
-                        ? 'Answer 10 networking questions correctly and climb the leaderboard!'
-                        : comp.description,
+                    image: c.image,
+                    title: c.name.toUpperCase(),
+                    subtitle: isQuiz ? c.description : c.description,
+                    prize: c.prize.isNotEmpty ? c.prize : '${c.goalPts} Competition Points',
                     remaining: remaining,
                     pad: _pad,
                   ),
                   const SizedBox(height: 10),
                   _Stats(
-                    rank: isQuiz ? 8 : comp.yourRank,
-                    pts: isQuiz ? pts : comp.yourPts,
-                    left: isQuiz ? left : 0,
+                    rank: yourRank > 0 ? yourRank : c.yourRank,
+                    pts: isQuiz ? pts : c.yourPts,
+                    left: isQuiz ? left.clamp(0, questions.length) : 0,
                     quiz: isQuiz,
+                    totalQuestions: questions.length,
+                    goalPts: c.goalPts,
                   ),
                   const SizedBox(height: 14),
                   _Tabs(tab: tab, onSelect: (t) => setState(() => tab = t)),
@@ -144,48 +229,50 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
                         ? Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Expanded(flex: 6, child: _quizColumn()),
+                              Expanded(flex: 6, child: _quizColumn(c)),
                               const SizedBox(width: 12),
-                              Expanded(flex: 4, child: _sideColumn()),
+                              Expanded(flex: 4, child: _sideColumn(c, pts, yourRank)),
                             ],
                           )
                         : Column(
                             children: [
-                              _quizColumn(),
+                              _quizColumn(c),
                               const SizedBox(height: 12),
-                              _sideColumn(),
+                              _sideColumn(c, pts, yourRank),
                             ],
                           )
                   else if (tab == 'Leaderboard')
-                    _LeaderTab(pts: isQuiz ? pts : comp.yourPts, rank: isQuiz ? 8 : comp.yourRank)
+                    _LeaderTab(comp: c, pts: isQuiz ? pts : c.yourPts, rank: yourRank > 0 ? yourRank : c.yourRank)
                   else if (tab == 'Rules')
-                    const _RulesTab()
+                    _RulesTab(comp: c)
                   else
-                    const _WinnersTab(),
+                    _WinnersTab(comp: c),
                   const SizedBox(height: 16),
                   const _HowTo(),
-                  const SizedBox(height: 10),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEAF8EE),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFF86EFAC)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.star, color: Color(0xFF16A34A), size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'You earn 50 points for each correct answer.',
-                            style: inter(size: 12, weight: FontWeight.w700, color: const Color(0xFF166534)),
+                  if (isQuiz) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEAF8EE),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF86EFAC)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.star, color: Color(0xFF16A34A), size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'You earn ${c.pointsCorrect} points for each correct answer.',
+                              style: inter(size: 12, weight: FontWeight.w700, color: const Color(0xFF166534)),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
+                  ],
                   const SizedBox(height: 14),
                   _Invite(onInvite: invite),
                 ],
@@ -197,25 +284,26 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
     );
   }
 
-  Widget _quizColumn() {
-    if (!isQuiz) {
+  Widget _quizColumn(Competition c) {
+    if (!isQuiz || questions.isEmpty) {
       return _Card(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(comp.name, style: inter(size: 16, weight: FontWeight.w800, color: navy)),
+            Text(c.name, style: inter(size: 16, weight: FontWeight.w800, color: navy)),
             const SizedBox(height: 6),
-            Text(comp.description, style: T.memberMeta.copyWith(fontSize: 13, height: 1.35)),
+            Text(c.description, style: T.memberMeta.copyWith(fontSize: 13, height: 1.35)),
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               height: 46,
               child: FilledButton(
                 onPressed: () {
-                  if (comp.route.startsWith('/catalog') || comp.route.startsWith('/flash')) {
-                    context.push(comp.route);
+                  if (c.route.isEmpty) return;
+                  if (c.route.startsWith('/catalog') || c.route.startsWith('/flash')) {
+                    context.push(c.route);
                   } else {
-                    context.go(comp.route);
+                    context.go(c.route);
                   }
                 },
                 style: FilledButton.styleFrom(backgroundColor: purple),
@@ -227,17 +315,18 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
       );
     }
     final q = questions[qIndex];
+    final total = questions.length;
     return _Card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Expanded(child: Text('Question ${qIndex + 1} of 10', style: inter(size: 13, weight: FontWeight.w800, color: navy))),
+              Expanded(child: Text('Question ${qIndex + 1} of $total', style: inter(size: 13, weight: FontWeight.w800, color: navy))),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(color: const Color(0xFFE8F1FF), borderRadius: BorderRadius.circular(20)),
-                child: Text('50 Points', style: inter(size: 11, weight: FontWeight.w800, color: const Color(0xFF1A73C7))),
+                child: Text('${c.pointsCorrect} Points', style: inter(size: 11, weight: FontWeight.w800, color: const Color(0xFF1A73C7))),
               ),
             ],
           ),
@@ -245,7 +334,7 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
           ClipRRect(
             borderRadius: BorderRadius.circular(99),
             child: LinearProgressIndicator(
-              value: (qIndex + 1) / 10,
+              value: total == 0 ? 0 : (qIndex + 1) / total,
               minHeight: 7,
               color: purple,
               backgroundColor: const Color(0xFFE9EDF2),
@@ -254,9 +343,10 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
           const SizedBox(height: 14),
           Text(q.text, style: inter(size: 16, weight: FontWeight.w800, color: navy, height: 1.3)),
           const SizedBox(height: 12),
-          ...List.generate(4, (i) {
+          ...List.generate(q.options.length, (i) {
             final on = selected == i;
-            final letters = ['A', 'B', 'C', 'D'];
+            final letters = ['A', 'B', 'C', 'D', 'E', 'F'];
+            final letter = i < letters.length ? letters[i] : '${i + 1}';
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: InkWell(
@@ -332,7 +422,8 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
     );
   }
 
-  Widget _sideColumn() {
+  Widget _sideColumn(Competition c, int pts, int rank) {
+    final board = c.leaderboard;
     return Column(
       children: [
         _Card(
@@ -350,20 +441,25 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
                 ],
               ),
               const SizedBox(height: 10),
-              ...challengeBoard.take(5).map((p) => _BoardRow(p)),
-              const SizedBox(height: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                decoration: BoxDecoration(color: const Color(0xFFF5F0FF), borderRadius: BorderRadius.circular(10)),
-                child: Row(
-                  children: [
-                    Text('#8', style: inter(size: 12, weight: FontWeight.w800, color: purple)),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text('You', style: inter(size: 13, weight: FontWeight.w800, color: navy))),
-                    Text('$pts Pts', style: inter(size: 12, weight: FontWeight.w800, color: purple)),
-                  ],
+              if (board.isEmpty)
+                Text('No leaderboard data yet.', style: T.memberMeta.copyWith(fontSize: 12))
+              else
+                ...board.take(5).map((p) => _BoardRow(p)),
+              if (rank > 0) ...[
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  decoration: BoxDecoration(color: const Color(0xFFF5F0FF), borderRadius: BorderRadius.circular(10)),
+                  child: Row(
+                    children: [
+                      Text('#$rank', style: inter(size: 12, weight: FontWeight.w800, color: purple)),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text('You', style: inter(size: 13, weight: FontWeight.w800, color: navy))),
+                      Text('$pts Pts', style: inter(size: 12, weight: FontWeight.w800, color: purple)),
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ),
@@ -374,16 +470,27 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
             children: [
               Text('Challenge Details', style: inter(size: 14, weight: FontWeight.w800, color: navy)),
               const SizedBox(height: 10),
-              const _Meta(Icons.event_outlined, 'Start Date', '20 May 2026'),
-              const _Meta(Icons.event, 'End Date', '27 May 2026'),
-              const _Meta(Icons.groups_outlined, 'Participants', '1,254'),
-              const _Meta(Icons.quiz_outlined, 'Type', 'Quiz Challenge'),
-              const _Meta(Icons.hub_outlined, 'Category', 'Networking'),
+              if (c.startsAt != null) _Meta(Icons.event_outlined, 'Start Date', _fmtDate(c.startsAt!)),
+              if (c.endsAt != null) _Meta(Icons.event, 'End Date', _fmtDate(c.endsAt!)),
+              _Meta(Icons.quiz_outlined, 'Type', c.type),
+              _Meta(Icons.hub_outlined, 'Category', c.badge.isNotEmpty ? c.badge : 'General'),
+              if (c.prize.isNotEmpty) _Meta(Icons.card_giftcard, 'Prize', c.prize),
             ],
           ),
         ),
       ],
     );
+  }
+
+  String _fmtDate(String raw) {
+    final d = DateTime.tryParse(raw);
+    if (d == null) return raw;
+    return '${d.day.toString().padLeft(2, '0')} ${_month(d.month)} ${d.year}';
+  }
+
+  String _month(int m) {
+    const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return names[(m - 1).clamp(0, 11)];
   }
 }
 
@@ -428,10 +535,18 @@ class _Header extends StatelessWidget {
 }
 
 class _Hero extends StatelessWidget {
-  const _Hero({required this.image, required this.title, required this.subtitle, required this.remaining, required this.pad});
+  const _Hero({
+    required this.image,
+    required this.title,
+    required this.subtitle,
+    required this.prize,
+    required this.remaining,
+    required this.pad,
+  });
   final String image;
   final String title;
   final String subtitle;
+  final String prize;
   final Duration remaining;
   final String Function(int) pad;
 
@@ -487,7 +602,7 @@ class _Hero extends StatelessWidget {
                     const Icon(Icons.emoji_events, color: gold, size: 18),
                     const SizedBox(width: 6),
                     Text('Prize Pool: ', style: inter(size: 12, color: Colors.white70)),
-                    Text('5,000 Competition Points', style: inter(size: 12, weight: FontWeight.w800, color: orange)),
+                    Flexible(child: Text(prize, style: inter(size: 12, weight: FontWeight.w800, color: orange), maxLines: 2, overflow: TextOverflow.ellipsis)),
                   ],
                 ),
               ],
@@ -525,11 +640,20 @@ class _Tick extends StatelessWidget {
 }
 
 class _Stats extends StatelessWidget {
-  const _Stats({required this.rank, required this.pts, required this.left, required this.quiz});
+  const _Stats({
+    required this.rank,
+    required this.pts,
+    required this.left,
+    required this.quiz,
+    required this.totalQuestions,
+    required this.goalPts,
+  });
   final int rank;
   final int pts;
   final int left;
   final bool quiz;
+  final int totalQuestions;
+  final int goalPts;
 
   @override
   Widget build(BuildContext context) {
@@ -542,13 +666,13 @@ class _Stats extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Expanded(child: _Stat(Icons.person_outline, purple, 'Your Position', '#$rank', 'Top 10 Win Prizes')),
+          Expanded(child: _Stat(Icons.person_outline, purple, 'Your Position', rank > 0 ? '#$rank' : '—', 'Climb the board')),
           _div(),
           Expanded(child: _Stat(Icons.star, orange, 'Your Points', '$pts Pts', 'This Challenge')),
           _div(),
-          Expanded(child: _Stat(Icons.track_changes, purple, 'Questions Left', quiz ? '$left / 10' : '—', quiz ? 'Keep Going!' : 'Open play')),
+          Expanded(child: _Stat(Icons.track_changes, purple, 'Questions Left', quiz ? '$left / $totalQuestions' : '—', quiz ? 'Keep Going!' : 'Open play')),
           _div(),
-          Expanded(child: _Stat(Icons.card_giftcard, const Color(0xFFDB2777), 'Potential Prize', '5,000 Pts', 'If you rank Top 1')),
+          Expanded(child: _Stat(Icons.card_giftcard, const Color(0xFFDB2777), 'Potential Prize', '$goalPts Pts', 'Top ranks win')),
         ],
       ),
     );
@@ -615,29 +739,35 @@ class _Tabs extends StatelessWidget {
 }
 
 class _LeaderTab extends StatelessWidget {
-  const _LeaderTab({required this.pts, required this.rank});
+  const _LeaderTab({required this.comp, required this.pts, required this.rank});
+  final Competition comp;
   final int pts;
   final int rank;
 
   @override
   Widget build(BuildContext context) {
+    final board = comp.leaderboard;
     return _Card(
       child: Column(
         children: [
-          ...challengeBoard.map((p) => _BoardRow(p)),
-          Container(
-            margin: const EdgeInsets.only(top: 6),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-            decoration: BoxDecoration(color: const Color(0xFFF5F0FF), borderRadius: BorderRadius.circular(10)),
-            child: Row(
-              children: [
-                Text('#$rank', style: inter(size: 12, weight: FontWeight.w800, color: purple)),
-                const SizedBox(width: 8),
-                Expanded(child: Text('You', style: inter(size: 13, weight: FontWeight.w800, color: navy))),
-                Text('$pts Pts', style: inter(size: 12, weight: FontWeight.w800, color: purple)),
-              ],
+          if (board.isEmpty)
+            Text('No leaderboard entries yet.', style: T.memberMeta.copyWith(fontSize: 13))
+          else
+            ...board.map((p) => _BoardRow(p)),
+          if (rank > 0)
+            Container(
+              margin: const EdgeInsets.only(top: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+              decoration: BoxDecoration(color: const Color(0xFFF5F0FF), borderRadius: BorderRadius.circular(10)),
+              child: Row(
+                children: [
+                  Text('#$rank', style: inter(size: 12, weight: FontWeight.w800, color: purple)),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('You', style: inter(size: 13, weight: FontWeight.w800, color: navy))),
+                  Text('$pts Pts', style: inter(size: 12, weight: FontWeight.w800, color: purple)),
+                ],
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -645,17 +775,19 @@ class _LeaderTab extends StatelessWidget {
 }
 
 class _RulesTab extends StatelessWidget {
-  const _RulesTab();
+  const _RulesTab({required this.comp});
+  final Competition comp;
 
   @override
   Widget build(BuildContext context) {
-    const rules = [
-      'Answer 10 multiple-choice networking questions.',
-      'You earn 50 competition points for each correct answer.',
-      'You may change your answer before you tap Submit.',
-      'Top 10 on the leaderboard win prizes when the challenge ends.',
-      'Rank #1 receives the 5,000 point prize pool.',
-    ];
+    final rules = comp.rules.isNotEmpty
+        ? comp.rules
+        : [
+            'Participate before the competition ends.',
+            'Earn points by completing the challenge actions.',
+            'Leaderboard ranks are based on points earned.',
+            'Winners are announced when the competition ends.',
+          ];
     return _Card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -681,15 +813,18 @@ class _RulesTab extends StatelessWidget {
 }
 
 class _WinnersTab extends StatelessWidget {
-  const _WinnersTab();
+  const _WinnersTab({required this.comp});
+  final Competition comp;
 
   @override
   Widget build(BuildContext context) {
+    final msg = comp.status == CompStatus.ended
+        ? 'This competition has ended. Check the leaderboard for final rankings.'
+        : comp.endsAt != null
+            ? 'Winners will be announced when the challenge ends.'
+            : 'Winners are announced when the challenge ends.';
     return _Card(
-      child: Text(
-        'Winners are announced when the challenge ends on 27 May 2026. Keep answering to stay in the top 10.',
-        style: T.memberMeta.copyWith(fontSize: 13, height: 1.4),
-      ),
+      child: Text(msg, style: T.memberMeta.copyWith(fontSize: 13, height: 1.4)),
     );
   }
 }

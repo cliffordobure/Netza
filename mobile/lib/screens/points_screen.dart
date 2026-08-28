@@ -309,7 +309,7 @@ class _PointsScreenState extends State<PointsScreen> {
                         _QuickTile(
                           icon: Icons.emoji_events_outlined,
                           title: 'My Challenges',
-                          subtitle: '${stats['challengesActive'] ?? 2} Active',
+                          subtitle: '${stats['challengesActive'] ?? 0} Active',
                           onTap: () => context.push('/challenges'),
                         ),
                         _QuickTile(

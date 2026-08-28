@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, kes } from "../api";
 import { Icon } from "../icons";
+import { useAutoRefresh } from "../useAutoRefresh";
 
 function fmtNum(n) {
   return new Intl.NumberFormat("en-KE").format(n || 0);
@@ -137,20 +138,36 @@ export default function OrdersCatalog() {
     return p.toString();
   }
 
-  function load(overrides = {}) {
+  function load(overrides = {}, options = {}) {
     api(`/admin/orders-catalog?${queryString(overrides)}`)
       .then((d) => {
-        setData(d);
-        setSelected([]);
+        if (options.silent) {
+          setData((prev) => {
+            const prevTotal = prev?.stats?.total ?? 0;
+            const nextTotal = d?.stats?.total ?? 0;
+            if (prev && nextTotal > prevTotal) {
+              const n = nextTotal - prevTotal;
+              setToast(n === 1 ? "New order received" : `${n} new orders received`);
+            }
+            return d;
+          });
+        } else {
+          setData(d);
+          setSelected([]);
+        }
         setError("");
       })
-      .catch((e) => setError(e.message || "Could not load orders."));
+      .catch((e) => {
+        if (!options.silent) setError(e.message || "Could not load orders.");
+      });
   }
 
   useEffect(() => {
     load({ page, limit });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, limit, statusF, payF, deliveryF]);
+
+  useAutoRefresh(() => load({}, { silent: true }));
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -575,7 +592,7 @@ export default function OrdersCatalog() {
       <footer className="card pf-card ordc-foot">
         <p>
           <Icon name="info" size={14} />
-          Orders are updated in real-time. Click on any order to view full details and manage the order.
+          Orders refresh automatically every few seconds. New orders appear without reloading the page.
         </p>
       </footer>
     </div>

@@ -3,6 +3,26 @@ import '../core/theme.dart';
 
 enum CompStatus { active, upcoming, ended }
 
+CompStatus compStatusFromApi(String? raw) {
+  switch (raw) {
+    case 'upcoming':
+      return CompStatus.upcoming;
+    case 'ended':
+      return CompStatus.ended;
+    default:
+      return CompStatus.active;
+  }
+}
+
+Color badgeColorFor(String badge) {
+  final b = badge.toLowerCase();
+  if (b.contains('flash')) return purple;
+  if (b.contains('review')) return const Color(0xFFE53935);
+  if (b.contains('refer')) return teal;
+  if (b.contains('top') || b.contains('shop')) return orange;
+  return purple;
+}
+
 class Competition {
   const Competition({
     required this.id,
@@ -19,7 +39,49 @@ class Competition {
     this.dates = '',
     this.prize = '',
     this.route = '/catalog',
+    this.type = 'challenge',
+    this.startsAt,
+    this.endsAt,
+    this.pointsCorrect = 50,
+    this.maxAttempts = 10,
+    this.questions = const [],
+    this.leaderboard = const [],
+    this.rules = const [],
   });
+
+  factory Competition.fromJson(Map<String, dynamic> json) {
+    final badge = json['badge']?.toString() ?? '';
+    return Competition(
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? json['title']?.toString() ?? 'Competition',
+      description: json['description']?.toString() ?? '',
+      image: json['image']?.toString() ?? json['imageUrl']?.toString() ?? '',
+      status: compStatusFromApi(json['status']?.toString()),
+      endsLabel: json['endsLabel']?.toString() ?? '',
+      badge: badge,
+      badgeColor: badgeColorFor(badge),
+      yourPts: (json['yourPts'] as num?)?.toInt() ?? 0,
+      goalPts: (json['goalPts'] as num?)?.toInt() ?? (json['pointsToWin'] as num?)?.toInt() ?? 1000,
+      yourRank: (json['yourRank'] as num?)?.toInt() ?? 0,
+      dates: json['dates']?.toString() ?? '',
+      prize: json['prize']?.toString() ?? '',
+      route: json['route']?.toString() ?? '/catalog',
+      type: json['type']?.toString() ?? 'challenge',
+      startsAt: json['startsAt']?.toString(),
+      endsAt: json['endsAt']?.toString(),
+      pointsCorrect: (json['pointsCorrect'] as num?)?.toInt() ?? 50,
+      maxAttempts: (json['maxAttempts'] as num?)?.toInt() ?? 10,
+      questions: (json['questions'] as List? ?? [])
+          .map((q) => QuizQuestion.fromJson(Map<String, dynamic>.from(q as Map)))
+          .toList(),
+      leaderboard: (json['leaderboard'] as List? ?? [])
+          .map((p) => LeaderPreview.fromJson(Map<String, dynamic>.from(p as Map)))
+          .toList(),
+      rules: (json['rules'] as List? ?? []).map((r) => r.toString()).toList(),
+    );
+  }
+
+  bool get isQuiz => type.toLowerCase().contains('quiz') && questions.isNotEmpty;
 
   final String id;
   final String name;
@@ -35,96 +97,49 @@ class Competition {
   final String dates;
   final String prize;
   final String route;
+  final String type;
+  final String? startsAt;
+  final String? endsAt;
+  final int pointsCorrect;
+  final int maxAttempts;
+  final List<QuizQuestion> questions;
+  final List<LeaderPreview> leaderboard;
+  final List<String> rules;
 }
 
 class LeaderPreview {
   const LeaderPreview(this.name, this.pts, this.image, this.place);
+
+  factory LeaderPreview.fromJson(Map<String, dynamic> json) {
+    return LeaderPreview(
+      json['name']?.toString() ?? 'Customer',
+      (json['pts'] as num?)?.toInt() ?? (json['points'] as num?)?.toInt() ?? 0,
+      json['image']?.toString() ?? json['imageUrl']?.toString() ?? '',
+      (json['place'] as num?)?.toInt() ?? (json['rank'] as num?)?.toInt() ?? 0,
+    );
+  }
+
   final String name;
   final int pts;
   final String image;
   final int place;
 }
 
-const competitions = [
-  Competition(
-    id: 'flash-drop-shopper',
-    name: 'Flash Drop Shopper',
-    description: 'Score points on every Flash Drop purchase this week.',
-    image: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=700&q=80',
-    status: CompStatus.active,
-    endsLabel: 'Ends in 5d 12h',
-    badge: 'FLASH DROP BONUS',
-    badgeColor: purple,
-    yourPts: 320,
-    goalPts: 1000,
-    yourRank: 14,
-    route: '/flash',
-  ),
-  Competition(
-    id: 'networking-pro',
-    name: 'Networking Pro',
-    description: 'Answer 10 networking questions correctly and climb the leaderboard!',
-    image: 'https://images.unsplash.com/photo-1606904825846-647eb07f5be2?auto=format&fit=crop&w=700&q=80',
-    status: CompStatus.active,
-    endsLabel: 'Ends in 10d 8h',
-    badge: 'TOP SPENDER',
-    badgeColor: orange,
-    yourPts: 450,
-    goalPts: 2000,
-    yourRank: 9,
-    route: '/catalog?category=networking',
-  ),
-  Competition(
-    id: 'review-master',
-    name: 'Review Master',
-    description: 'Write verified reviews and climb the champion board.',
-    image: 'https://images.unsplash.com/photo-1557597774-9d273bd59043?auto=format&fit=crop&w=700&q=80',
-    status: CompStatus.active,
-    endsLabel: 'Ends in 15d 6h',
-    badge: 'REVIEW CHAMPION',
-        badgeColor: Color(0xFFE53935),
-    yourPts: 180,
-    goalPts: 500,
-    yourRank: 22,
-    route: '/orders',
-  ),
-  Competition(
-    id: 'mega-shopper',
-    name: 'Monthly Mega Shopper',
-    description: 'The biggest spend challenge of the month.',
-    image: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=700&q=80',
-    status: CompStatus.upcoming,
-    dates: '01 Jun 2026 - 30 Jun 2026',
-    prize: '1st Prize 10,000 Pts + KSh 2,000 Voucher',
-  ),
-  Competition(
-    id: 'refer-win',
-    name: 'Refer & Win Challenge',
-    description: 'Invite friends and earn when they place a first order.',
-    image: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=700&q=80',
-    status: CompStatus.upcoming,
-    dates: '05 Jun 2026 - 20 Jun 2026',
-    prize: '1st Prize 5,000 Pts + Special Badge',
-  ),
-  Competition(
-    id: 'april-cup',
-    name: 'April Installer Cup',
-    description: 'You finished in the top 20 of last month’s installer sprint.',
-    image: 'https://images.unsplash.com/photo-1558002038-1055907df827?auto=format&fit=crop&w=700&q=80',
-    status: CompStatus.ended,
-    dates: '01 Apr 2026 - 30 Apr 2026',
-    prize: 'Finished #12 · 800 Pts awarded',
-    yourPts: 800,
-    goalPts: 800,
-    yourRank: 12,
-  ),
-];
+class QuizQuestion {
+  const QuizQuestion(this.text, this.options, this.correct);
 
-const leaderPreview = [
-  LeaderPreview('Brian M.', 2450, 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80', 1),
-  LeaderPreview('Sharon A.', 2180, 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80', 2),
-  LeaderPreview('Kevin O.', 1960, 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80', 3),
-];
+  factory QuizQuestion.fromJson(Map<String, dynamic> json) {
+    return QuizQuestion(
+      json['text']?.toString() ?? '',
+      (json['options'] as List? ?? []).map((o) => o.toString()).toList(),
+      (json['correct'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  final String text;
+  final List<String> options;
+  final int correct;
+}
 
 const earnWays = [
   (Icons.shopping_cart_outlined, 'Shop & Spend'),
@@ -134,39 +149,32 @@ const earnWays = [
   (Icons.bolt, 'Flash Drop'),
 ];
 
-class QuizQuestion {
-  const QuizQuestion(this.text, this.options, this.correct);
-  final String text;
-  final List<String> options;
-  final int correct;
-}
+class CompetitionStats {
+  const CompetitionStats({
+    this.active = 0,
+    this.upcoming = 0,
+    this.ended = 0,
+    this.yourMonthlyPts = 0,
+    this.yourRank = 0,
+    this.competitionPts = 0,
+  });
 
-const networkingProQuestions = [
-  QuizQuestion('Which device is normally used to connect different networks?', ['Switch', 'Router', 'Patch Panel', 'Access Point'], 1),
-  QuizQuestion('What does PoE stand for in networking?', ['Power over Ethernet', 'Port of Entry', 'Packet over Ethernet', 'Power on Ethernet'], 0),
-  QuizQuestion('Which cable is standard for Gigabit LAN runs?', ['Cat3', 'Cat5', 'Cat6', 'Coaxial RG59'], 2),
-  QuizQuestion('What does DHCP provide to clients?', ['Automatic IP addresses', 'Fibre conversion', 'PoE budget', 'VLAN tagging only'], 0),
-  QuizQuestion('A typical CCTV IP camera is powered most cleanly with?', ['PoE switch or injector', 'HDMI only', 'USB-C PD', 'SATA power'], 0),
-  QuizQuestion('Which device usually provides Wi-Fi coverage in an office?', ['Access Point', 'Patch panel', 'Media converter', 'UPS'], 0),
-  QuizQuestion('What does VLAN help you do?', ['Segment a network', 'Increase PoE watts', 'Replace DNS', 'Terminate fibre'], 0),
-  QuizQuestion('An NVR is used mainly to?', ['Record IP camera video', 'Route internet traffic', 'Terminate Cat6', 'Supply 48V only'], 0),
-  QuizQuestion('SFP ports on a switch are typically for?', ['Fibre uplinks', 'USB cameras', 'HDMI output', 'SIM cards'], 0),
-  QuizQuestion('A firewall is placed to?', ['Filter traffic between networks', 'Power access points', 'Crimp RJ45 ends', 'Store NVR footage'], 0),
-];
-
-const challengeBoard = [
-  LeaderPreview('Brian M.', 2450, 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80', 1),
-  LeaderPreview('Sharon A.', 2180, 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80', 2),
-  LeaderPreview('Kevin O.', 1960, 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80', 3),
-  LeaderPreview('Faith W.', 890, 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80', 4),
-  LeaderPreview('Daniel K.', 720, 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=200&q=80', 5),
-  LeaderPreview('Mercy N.', 610, 'https://images.unsplash.com/photo-1531123897727-8f813ffd8d70?auto=format&fit=crop&w=200&q=80', 6),
-  LeaderPreview('Peter L.', 540, 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80', 7),
-];
-
-Competition? competitionById(String id) {
-  for (final c in competitions) {
-    if (c.id == id) return c;
+  factory CompetitionStats.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const CompetitionStats();
+    return CompetitionStats(
+      active: (json['active'] as num?)?.toInt() ?? 0,
+      upcoming: (json['upcoming'] as num?)?.toInt() ?? 0,
+      ended: (json['ended'] as num?)?.toInt() ?? 0,
+      yourMonthlyPts: (json['yourMonthlyPts'] as num?)?.toInt() ?? 0,
+      yourRank: (json['yourRank'] as num?)?.toInt() ?? 0,
+      competitionPts: (json['competitionPts'] as num?)?.toInt() ?? 0,
+    );
   }
-  return null;
+
+  final int active;
+  final int upcoming;
+  final int ended;
+  final int yourMonthlyPts;
+  final int yourRank;
+  final int competitionPts;
 }

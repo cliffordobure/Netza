@@ -1,6 +1,6 @@
 const { Router } = require("express");
 const { z } = require("zod");
-    const { User, PointsTransaction, PointsRule, Review } = require("../../models");
+    const { User, PointsTransaction, PointsRule, Review, Competition } = require("../../models");
 const { auth } = require("../../middleware/auth");
 const { asyncHandler, httpError } = require("../../middleware/error");
 const { creditPoints } = require("../../services/points.service");
@@ -44,6 +44,11 @@ router.get(
     }
 
     const reviewCount = await Review.countDocuments({ user: req.user._id });
+    const challengesActive = await Competition.countDocuments({
+      isActive: { $ne: false },
+      publishState: { $ne: "draft" },
+      status: "active",
+    });
     const balance = req.user.pointsBalance || 0;
     res.json({
       balance,
@@ -58,7 +63,7 @@ router.get(
         referralLifetime,
         flashDropThisMonth,
         vouchers,
-        challengesActive: 2,
+        challengesActive,
         reviewCount,
       },
     });
