@@ -5,6 +5,7 @@ const morgan = require("morgan");
 const rateLimit = require("express-rate-limit");
 const config = require("./config");
 const { notFound, errorHandler } = require("./middleware/error");
+const { ensureUploadRoot, UPLOAD_ROOT } = require("./lib/localUpload");
 const authRoutes = require("./modules/auth/auth.routes");
 const catalogRoutes = require("./modules/catalog/catalog.routes");
 const cartRoutes = require("./modules/cart/cart.routes");
@@ -12,13 +13,14 @@ const orderRoutes = require("./modules/orders/orders.routes");
 const { router: paymentRoutes } = require("./modules/payments/payments.routes");
 const pointsRoutes = require("./modules/points/points.routes");
 const flashRoutes = require("./modules/flashDrops/flashDrops.routes");
-const addressRoutes = require("./modules/addresses/addresses.routes"); 
+const addressRoutes = require("./modules/addresses/addresses.routes");
 const reviewRoutes = require("./modules/reviews/reviews.routes");
 const quoteRoutes = require("./modules/quotes/quotes.routes");
 const bannerRoutes = require("./modules/banners/banners.routes");
 const adminRoutes = require("./modules/admin/admin.routes");
 
 function createApp() {
+  ensureUploadRoot();
   const app = express();
   app.set("trust proxy", 1);
   app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
@@ -34,7 +36,7 @@ function createApp() {
       credentials: true,
     })
   );
-  app.use(express.json({ limit: "2mb" }));
+  app.use(express.json({ limit: "8mb" }));
   app.use(morgan(config.env === "production" ? "combined" : "dev"));
   app.use(
     rateLimit({
@@ -48,6 +50,8 @@ function createApp() {
   app.get("/health", (_req, res) => {
     res.json({ ok: true, service: "netza-api", time: new Date().toISOString() });
   });
+
+  app.use("/uploads", express.static(UPLOAD_ROOT));
 
   app.use("/api/v1/auth", authRoutes);
   app.use("/api/v1", catalogRoutes);

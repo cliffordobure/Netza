@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import '../core/config.dart';
 import '../core/theme.dart';
 import '../core/type.dart';
 import '../state/session.dart';
@@ -370,14 +372,27 @@ class NetzaImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (url == null || url!.isEmpty) {
+    final raw = url?.trim() ?? '';
+    if (raw.isEmpty) {
       return Icon(fallback, color: navy);
     }
+    if (raw.startsWith('data:')) {
+      try {
+        final comma = raw.indexOf(',');
+        final b64 = comma >= 0 ? raw.substring(comma + 1) : raw;
+        final bytes = base64Decode(b64);
+        return Image.memory(bytes, fit: fit, errorBuilder: (_, _, _) => Icon(fallback, color: navy));
+      } catch (_) {
+        return Icon(fallback, color: navy);
+      }
+    }
+    final resolved = resolveMediaUrl(raw);
     return CachedNetworkImage(
-      imageUrl: url!,
+      imageUrl: resolved,
       fit: fit,
       placeholder: (_, _) => const ColoredBox(color: Color(0xFFF2F4F7)),
       errorWidget: (_, _, _) => Icon(fallback, color: navy),
     );
   }
 }
+

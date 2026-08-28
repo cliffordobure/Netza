@@ -66,5 +66,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>NETZA needs photo access to add your company logo and product images to quotes.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>NETZA needs camera access to capture product photos for quotes.</string>
 </dict>
 </plist>

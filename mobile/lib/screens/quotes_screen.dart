@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,11 +6,103 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../core/format.dart';
 import '../core/theme.dart';
 import '../core/type.dart';
 import '../state/session.dart';
 import '../widgets/storefront_chrome.dart';
+
+void _goBack(BuildContext context, {String fallback = '/quotes'}) {
+  if (context.canPop()) {
+    context.pop();
+  } else {
+    context.go(fallback);
+  }
+}
+
+PreferredSizeWidget _quoteAppBar(
+  BuildContext context, {
+  required String title,
+  String fallback = '/quotes',
+  List<Widget>? actions,
+}) {
+  return AppBar(
+    title: Text(title, style: inter(size: 18, weight: FontWeight.w800, color: navy)),
+    backgroundColor: Colors.white,
+    foregroundColor: navy,
+    elevation: 0,
+    leading: IconButton(
+      icon: const Icon(Icons.arrow_back),
+      onPressed: () => _goBack(context, fallback: fallback),
+    ),
+    actions: actions,
+  );
+}
+
+Future<String?> _uploadImage(BuildContext context, Session session, {bool camera = false}) async {
+  try {
+    final file = await ImagePicker().pickImage(
+      source: camera ? ImageSource.camera : ImageSource.gallery,
+      imageQuality: 75,
+      maxWidth: 1200,
+    );
+    if (file == null) return null;
+
+    final bytes = await file.readAsBytes();
+    final name = file.name.isNotEmpty ? file.name : 'photo.jpg';
+    try {
+      final form = FormData.fromMap({
+        'file': MultipartFile.fromBytes(bytes, filename: name),
+      });
+      final res = await session.dio.post(
+        '/quotes/upload',
+        data: form,
+        options: Options(contentType: 'multipart/form-data'),
+      );
+      final url = res.data['url']?.toString();
+      if (url != null && url.isNotEmpty) return url;
+    } catch (_) {
+      // Fall through to embedded data URL so quotes still work offline / without Cloudinary.
+    }
+    final mime = name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+    return 'data:$mime;base64,${base64Encode(bytes)}';
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(apiMessage(e))));
+    }
+    return null;
+  }
+}
+
+Future<void> _pickImageSource(BuildContext context, Future<void> Function(bool camera) onPick) async {
+  await showModalBottomSheet<void>(
+    context: context,
+    builder: (ctx) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.photo_library_outlined),
+            title: const Text('Gallery'),
+            onTap: () {
+              Navigator.pop(ctx);
+              onPick(false);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.photo_camera_outlined),
+            title: const Text('Camera'),
+            onTap: () {
+              Navigator.pop(ctx);
+              onPick(true);
+            },
+          ),
+        ],
+      ),
+    ),
+  );
+}
 
 /// Simple installer quotes: company + items → share/print → client adds site items to cart.
 class QuotesScreen extends StatefulWidget {
@@ -57,16 +150,15 @@ class _QuotesScreenState extends State<QuotesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FA),
-      appBar: AppBar(
-        title: Text('Quotes', style: inter(size: 18, weight: FontWeight.w800, color: navy)),
-        backgroundColor: Colors.white,
-        foregroundColor: navy,
-        elevation: 0,
+      appBar: _quoteAppBar(
+        context,
+        title: 'Quotes',
+        fallback: '/account',
         actions: [
           IconButton(
             onPressed: () async {
               await context.push('/quotes/new');
-              load();
+              if (mounted) load();
             },
             icon: const Icon(Icons.add),
           ),
@@ -97,7 +189,7 @@ class _QuotesScreenState extends State<QuotesScreen> {
                           FilledButton(
                             onPressed: () async {
                               await context.push('/quotes/new');
-                              load();
+                              if (mounted) load();
                             },
                             style: FilledButton.styleFrom(backgroundColor: orange),
                             child: const Text('New quote'),
@@ -117,7 +209,7 @@ class _QuotesScreenState extends State<QuotesScreen> {
                           borderRadius: BorderRadius.circular(14),
                           onTap: () async {
                             await context.push('/quotes/${q['id']}');
-                            load();
+                            if (mounted) load();
                           },
                           child: Padding(
                             padding: const EdgeInsets.all(14),
@@ -171,6 +263,7 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
   List<Map<String, dynamic>> items = [];
   bool loading = false;
   bool saving = false;
+  bool uploading = false;
   String? error;
 
   bool get isNew => widget.id == null || widget.id == 'new';
@@ -198,9 +291,11 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
       client.text = q['clientName']?.toString() ?? '';
       note.text = q['note']?.toString() ?? '';
       logoUrl = q['logoUrl']?.toString() ?? '';
-      items = ((q['items'] as List?) ?? [])
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList();
+      items = ((q['items'] as List?) ?? []).map((e) {
+        final m = Map<String, dynamic>.from(e as Map);
+        m['productId'] ??= m['productId'];
+        return m;
+      }).toList();
       setState(() {
         loading = false;
         error = null;
@@ -214,26 +309,20 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
   }
 
   Future<void> _pickLogo() async {
-    final file = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85, maxWidth: 1200);
-    if (file == null || !mounted) return;
     final session = context.read<Session>();
-    try {
-      final form = FormData.fromMap({
-        'file': await MultipartFile.fromFile(file.path, filename: file.name),
-      });
-      final res = await session.dio.post('/quotes/upload', data: form);
+    await _pickImageSource(context, (camera) async {
+      setState(() => uploading = true);
+      final url = await _uploadImage(context, session, camera: camera);
       if (!mounted) return;
-      setState(() => logoUrl = res.data['url']?.toString() ?? '');
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(apiMessage(e))));
-      }
-    }
+      setState(() {
+        uploading = false;
+        if (url != null) logoUrl = url;
+      });
+    });
   }
 
   Future<void> _addCatalog() async {
     final session = context.read<Session>();
-    String q = '';
     List products = [];
     await showModalBottomSheet<void>(
       context: context,
@@ -242,12 +331,8 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
         return StatefulBuilder(
           builder: (ctx, setLocal) {
             Future<void> search(String text) async {
-              q = text;
               try {
-                final res = await session.dio.get('/products', queryParameters: {
-                  'q': text,
-                  'limit': 20,
-                });
+                final res = await session.dio.get('/products', queryParameters: {'q': text, 'limit': 20});
                 setLocal(() => products = res.data['products'] as List? ?? []);
               } catch (_) {}
             }
@@ -283,11 +368,7 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
                                     : p['images'].first)
                                 : null;
                             return ListTile(
-                              leading: SizedBox(
-                                width: 44,
-                                height: 44,
-                                child: NetzaImage(img?.toString()),
-                              ),
+                              leading: SizedBox(width: 44, height: 44, child: NetzaImage(img?.toString())),
                               title: Text(p['name']?.toString() ?? '', maxLines: 1),
                               subtitle: Text(money(p['priceKes'])),
                               onTap: () {
@@ -307,11 +388,6 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
                           },
                         ),
                       ),
-                      if (q.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Text('Type to find NETZA products', style: inter(size: 13, color: muted)),
-                        ),
                     ],
                   ),
                 ),
@@ -323,11 +399,15 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
     );
   }
 
-  Future<void> _addCustom() async {
-    final name = TextEditingController();
-    final price = TextEditingController();
-    final qty = TextEditingController(text: '1');
-    String imageUrl = '';
+  Future<void> _editItem(int index) async {
+    final existing = Map<String, dynamic>.from(items[index]);
+    final isCatalog = existing['kind'] == 'catalog';
+    final name = TextEditingController(text: existing['name']?.toString() ?? '');
+    final price = TextEditingController(text: '${existing['unitPriceKes'] ?? 0}');
+    final qty = TextEditingController(text: '${existing['quantity'] ?? 1}');
+    var imageUrl = existing['imageUrl']?.toString() ?? '';
+    final session = context.read<Session>();
+
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -341,77 +421,93 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
                 top: 16,
                 bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text('Your product', style: inter(size: 16, weight: FontWeight.w800, color: navy)),
-                  const SizedBox(height: 12),
-                  TextField(controller: name, decoration: const InputDecoration(labelText: 'Name')),
-                  TextField(
-                    controller: price,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Price (KES)'),
-                  ),
-                  TextField(
-                    controller: qty,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Qty'),
-                  ),
-                  const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    onPressed: () async {
-                      final session = this.context.read<Session>();
-                      final file = await ImagePicker().pickImage(
-                        source: ImageSource.gallery,
-                        imageQuality: 80,
-                        maxWidth: 1000,
-                      );
-                      if (file == null || !ctx.mounted) return;
-                      try {
-                        final form = FormData.fromMap({
-                          'file': await MultipartFile.fromFile(file.path, filename: file.name),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(isCatalog ? 'Edit item' : 'Your product', style: inter(size: 16, weight: FontWeight.w800, color: navy)),
+                    const SizedBox(height: 12),
+                    if (!isCatalog)
+                      TextField(controller: name, decoration: const InputDecoration(labelText: 'Name')),
+                    if (isCatalog)
+                      Text(name.text, style: inter(size: 15, weight: FontWeight.w700, color: navy)),
+                    if (!isCatalog)
+                      TextField(
+                        controller: price,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Price (KES)'),
+                      )
+                    else
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8, bottom: 8),
+                        child: Text(money(existing['unitPriceKes']), style: inter(size: 14, color: muted)),
+                      ),
+                    TextField(
+                      controller: qty,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Qty'),
+                    ),
+                    if (!isCatalog) ...[
+                      const SizedBox(height: 8),
+                      if (imageUrl.isNotEmpty)
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: SizedBox(width: 72, height: 72, child: NetzaImage(imageUrl)),
+                          ),
+                        ),
+                      OutlinedButton.icon(
+                        onPressed: () async {
+                          await _pickImageSource(ctx, (camera) async {
+                            final url = await _uploadImage(ctx, session, camera: camera);
+                            if (url != null && ctx.mounted) setLocal(() => imageUrl = url);
+                          });
+                        },
+                        icon: const Icon(Icons.image_outlined),
+                        label: Text(imageUrl.isEmpty ? 'Add photo' : 'Change photo'),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    FilledButton(
+                      style: FilledButton.styleFrom(backgroundColor: orange),
+                      onPressed: () {
+                        final q = int.tryParse(qty.text.trim()) ?? 1;
+                        setState(() {
+                          items[index] = {
+                            ...existing,
+                            if (!isCatalog) 'name': name.text.trim().isEmpty ? existing['name'] : name.text.trim(),
+                            if (!isCatalog) 'unitPriceKes': num.tryParse(price.text.trim()) ?? existing['unitPriceKes'] ?? 0,
+                            if (!isCatalog) 'imageUrl': imageUrl,
+                            'quantity': q < 1 ? 1 : q,
+                          };
                         });
-                        final res = await session.dio.post('/quotes/upload', data: form);
-                        if (!ctx.mounted) return;
-                        setLocal(() => imageUrl = res.data['url']?.toString() ?? '');
-                      } catch (e) {
-                        if (ctx.mounted) {
-                          ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(apiMessage(e))));
-                        }
-                      }
-                    },
-                    icon: const Icon(Icons.image_outlined),
-                    label: Text(imageUrl.isEmpty ? 'Add photo' : 'Photo added'),
-                  ),
-                  const SizedBox(height: 12),
-                  FilledButton(
-                    style: FilledButton.styleFrom(backgroundColor: orange),
-                    onPressed: () {
-                      final n = name.text.trim();
-                      final p = num.tryParse(price.text.trim()) ?? 0;
-                      final q = int.tryParse(qty.text.trim()) ?? 1;
-                      if (n.isEmpty) return;
-                      setState(() {
-                        items.add({
-                          'kind': 'custom',
-                          'name': n,
-                          'imageUrl': imageUrl,
-                          'unitPriceKes': p,
-                          'quantity': q < 1 ? 1 : q,
-                        });
-                      });
-                      Navigator.pop(ctx);
-                    },
-                    child: const Text('Add'),
-                  ),
-                ],
+                        Navigator.pop(ctx);
+                      },
+                      child: const Text('Save item'),
+                    ),
+                  ],
+                ),
               ),
             );
           },
         );
       },
     );
+  }
+
+  Future<void> _addCustom() async {
+    setState(() {
+      items.add({
+        'kind': 'custom',
+        'name': 'New product',
+        'imageUrl': '',
+        'unitPriceKes': 0,
+        'quantity': 1,
+      });
+    });
+    await _editItem(items.length - 1);
   }
 
   Future<void> _save() async {
@@ -439,9 +535,13 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
       final res = isNew
           ? await session.dio.post('/quotes', data: payload)
           : await session.dio.patch('/quotes/${widget.id}', data: payload);
-      final id = res.data['quote']['id'];
-      if (!mounted) return;
-      context.go('/quotes/$id');
+      final id = res.data['quote']['id']?.toString();
+      if (!mounted || id == null) return;
+      if (isNew) {
+        context.pushReplacement('/quotes/$id');
+      } else {
+        _goBack(context);
+      }
     } catch (e) {
       setState(() {
         error = apiMessage(e);
@@ -454,12 +554,7 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FA),
-      appBar: AppBar(
-        title: Text(isNew ? 'New quote' : 'Edit quote', style: inter(size: 18, weight: FontWeight.w800, color: navy)),
-        backgroundColor: Colors.white,
-        foregroundColor: navy,
-        elevation: 0,
-      ),
+      appBar: _quoteAppBar(context, title: isNew ? 'New quote' : 'Edit quote'),
       body: loading
           ? const Center(child: CircularProgressIndicator(color: orange))
           : ListView(
@@ -479,31 +574,34 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
                       ),
                     if (logoUrl.isNotEmpty) const SizedBox(width: 12),
                     OutlinedButton.icon(
-                      onPressed: _pickLogo,
-                      icon: const Icon(Icons.business),
-                      label: Text(logoUrl.isEmpty ? 'Logo' : 'Change logo'),
+                      onPressed: uploading ? null : _pickLogo,
+                      icon: uploading
+                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.business),
+                      label: Text(logoUrl.isEmpty ? 'Add logo' : 'Change logo'),
                     ),
                   ],
                 ),
                 const SizedBox(height: 20),
                 Text('Items', style: inter(size: 16, weight: FontWeight.w800, color: navy)),
+                Text('Tap an item to edit', style: inter(size: 12, color: muted)),
                 const SizedBox(height: 8),
                 ...items.asMap().entries.map((e) {
                   final i = e.value;
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: SizedBox(
-                      width: 44,
-                      height: 44,
-                      child: NetzaImage(i['imageUrl']?.toString()),
-                    ),
-                    title: Text(i['name']?.toString() ?? '', maxLines: 1),
-                    subtitle: Text(
-                      '${i['kind'] == 'catalog' ? 'Site' : 'Yours'} · ${money(i['unitPriceKes'])} × ${i['quantity']}',
-                    ),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => setState(() => items.removeAt(e.key)),
+                  return Material(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    child: ListTile(
+                      onTap: () => _editItem(e.key),
+                      leading: SizedBox(width: 44, height: 44, child: NetzaImage(i['imageUrl']?.toString())),
+                      title: Text(i['name']?.toString() ?? '', maxLines: 1),
+                      subtitle: Text(
+                        '${i['kind'] == 'catalog' ? 'Site' : 'Yours'} · ${money(i['unitPriceKes'])} × ${i['quantity']}',
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => setState(() => items.removeAt(e.key)),
+                      ),
                     ),
                   );
                 }),
@@ -511,17 +609,11 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: OutlinedButton(
-                        onPressed: _addCatalog,
-                        child: const Text('From shop'),
-                      ),
+                      child: OutlinedButton(onPressed: _addCatalog, child: const Text('From shop')),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: OutlinedButton(
-                        onPressed: _addCustom,
-                        child: const Text('Your product'),
-                      ),
+                      child: OutlinedButton(onPressed: _addCustom, child: const Text('Your product')),
                     ),
                   ],
                 ),
@@ -566,8 +658,12 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
       final res = isShared
           ? await session.dio.get('/quotes/shared/${widget.token}')
           : await session.dio.get('/quotes/${widget.id}');
+      final q = Map<String, dynamic>.from(res.data['quote'] as Map);
       setState(() {
-        quote = Map<String, dynamic>.from(res.data['quote'] as Map);
+        quote = q;
+        if ((q['shareToken']?.toString() ?? '').isNotEmpty && shareUrl == null) {
+          // keep until share() fills absolute url
+        }
         error = null;
         loading = false;
       });
@@ -579,24 +675,64 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
     }
   }
 
+  Future<String?> _ensureShareUrl() async {
+    if (isShared || quote == null) return shareUrl;
+    final res = await context.read<Session>().dio.post('/quotes/${quote!['id']}/share');
+    final url = res.data['shareUrl']?.toString() ?? '';
+    setState(() {
+      quote = Map<String, dynamic>.from(res.data['quote'] as Map);
+      shareUrl = url;
+    });
+    return url;
+  }
+
   Future<void> share() async {
     if (isShared || quote == null) return;
     setState(() => busy = true);
     try {
-      final res = await context.read<Session>().dio.post('/quotes/${quote!['id']}/share');
-      final url = res.data['shareUrl']?.toString() ?? '';
-      setState(() {
-        quote = Map<String, dynamic>.from(res.data['quote'] as Map);
-        shareUrl = url;
-        busy = false;
-      });
+      final url = await _ensureShareUrl();
       if (!mounted) return;
+      setState(() => busy = false);
+      if (url == null || url.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not create share link')));
+        return;
+      }
+      final box = context.findRenderObject() as RenderBox?;
       await SharePlus.instance.share(
         ShareParams(
-          text: '${quote!['companyName'] ?? 'Quote'} — ${money(quote!['totalKes'])}\n$url',
-          subject: 'Quote from ${quote!['companyName'] ?? 'NETZA installer'}',
+          text: '${quote!['companyName'] ?? 'Quote'} — ${money(quote!['totalKes'])}\n\nOpen & print:\n$url',
+          subject: 'Quote from ${quote!['companyName'] ?? 'NETZA'}',
+          sharePositionOrigin: box != null ? box.localToGlobal(Offset.zero) & box.size : null,
         ),
       );
+    } catch (e) {
+      setState(() => busy = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(apiMessage(e))));
+      }
+    }
+  }
+
+  Future<void> openPrint() async {
+    setState(() => busy = true);
+    try {
+      final url = isShared ? null : await _ensureShareUrl();
+      final link = url ?? shareUrl;
+      if (!mounted) return;
+      setState(() => busy = false);
+      if (link == null || link.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Share link not ready')));
+        return;
+      }
+      final uri = Uri.parse(link);
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!mounted) return;
+      if (!ok) {
+        await Clipboard.setData(ClipboardData(text: link));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Link copied — open it in a browser to print')),
+        );
+      }
     } catch (e) {
       setState(() => busy = false);
       if (mounted) {
@@ -611,11 +747,21 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
       context.push('/login');
       return;
     }
-    final token = widget.token ?? quote?['shareToken']?.toString();
+    var token = widget.token ?? quote?['shareToken']?.toString();
     if (token == null || token.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Share the quote first so the client can open it')),
-      );
+      setState(() => busy = true);
+      try {
+        await _ensureShareUrl();
+        token = quote?['shareToken']?.toString();
+      } catch (_) {}
+      setState(() => busy = false);
+    }
+    if (token == null || token.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not prepare quote for cart')),
+        );
+      }
       return;
     }
     setState(() => busy = true);
@@ -642,15 +788,16 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
     final items = (q?['items'] as List?) ?? [];
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: Text('Quote', style: inter(size: 18, weight: FontWeight.w800, color: navy)),
-        backgroundColor: Colors.white,
-        foregroundColor: navy,
-        elevation: 0,
+      appBar: _quoteAppBar(
+        context,
+        title: 'Quote',
         actions: [
           if (!isShared && q != null)
             IconButton(
-              onPressed: () => context.push('/quotes/${q['id']}/edit'),
+              onPressed: () async {
+                await context.push('/quotes/${q['id']}/edit');
+                if (mounted) load();
+              },
               icon: const Icon(Icons.edit_outlined),
             ),
         ],
@@ -689,11 +836,7 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            SizedBox(
-                              width: 52,
-                              height: 52,
-                              child: NetzaImage(i['imageUrl']?.toString()),
-                            ),
+                            SizedBox(width: 52, height: 52, child: NetzaImage(i['imageUrl']?.toString())),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
@@ -727,7 +870,14 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
                         onPressed: busy ? null : share,
                         style: FilledButton.styleFrom(backgroundColor: orange, minimumSize: const Size.fromHeight(48)),
                         icon: const Icon(Icons.ios_share),
-                        label: const Text('Share / print link'),
+                        label: const Text('Share quote'),
+                      ),
+                      const SizedBox(height: 10),
+                      OutlinedButton.icon(
+                        onPressed: busy ? null : openPrint,
+                        style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                        icon: const Icon(Icons.print_outlined),
+                        label: const Text('Open / print'),
                       ),
                       if (shareUrl != null) ...[
                         const SizedBox(height: 8),

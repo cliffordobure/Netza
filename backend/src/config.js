@@ -13,6 +13,7 @@ module.exports = {
     .split(",")
     .map((s) => s.trim()),
   appName: process.env.APP_NAME || "NETZA Kenya",
+  publicBaseUrl: (process.env.PUBLIC_BASE_URL || "").replace(/\/+$/, ""),
   cloudinary: {
     cloudName: process.env.CLOUDINARY_CLOUD_NAME || "",
     apiKey: process.env.CLOUDINARY_API_KEY || "",

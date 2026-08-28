@@ -6,6 +6,7 @@ const { Quote, Product, Cart, isOid, idOf } = require("../../models");
 const { auth } = require("../../middleware/auth");
 const { asyncHandler, httpError } = require("../../middleware/error");
 const { uploadBuffer } = require("../../lib/cloudinary");
+const config = require("../../config");
 
 const router = Router();
 
@@ -275,7 +276,10 @@ router.post(
       folder: "misc",
       mimeType: req.file.mimetype,
     });
-    res.status(201).json({ url: result.url });
+    // Absolute URL so mobile can load local /uploads images
+    const base = config.publicBaseUrl || `${req.protocol}://${req.get("host")}`;
+    const url = result.url.startsWith("http") ? result.url : `${base}${result.url}`;
+    res.status(201).json({ url });
   })
 );
 
@@ -321,7 +325,7 @@ router.post(
     await quote.save();
     await quote.populate("items.product");
     const data = serializeQuote(quote);
-    const base = `${req.protocol}://${req.get("host")}`;
+    const base = config.publicBaseUrl || `${req.protocol}://${req.get("host")}`;
     res.json({
       quote: data,
       shareUrl: `${base}/api/v1/quotes/view/${quote.shareToken}`,

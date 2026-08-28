@@ -1,6 +1,7 @@
 const { v2: cloudinary } = require("cloudinary");
 const config = require("../config");
 const { httpError } = require("../middleware/error");
+const { saveLocalBuffer } = require("./localUpload");
 
 const FOLDERS = new Set([
   "products",
@@ -41,7 +42,7 @@ function resolveFolder(subfolder) {
   return `${base}/${key}`;
 }
 
-function uploadBuffer(buffer, { folder = "misc", publicId, mimeType } = {}) {
+function uploadToCloudinary(buffer, { folder = "misc", publicId, mimeType } = {}) {
   ensureConfigured();
   const targetFolder = resolveFolder(folder);
 
@@ -73,6 +74,18 @@ function uploadBuffer(buffer, { folder = "misc", publicId, mimeType } = {}) {
     );
     stream.end(buffer);
   });
+}
+
+/** Prefer Cloudinary; fall back to local /uploads so quotes keep working. */
+async function uploadBuffer(buffer, opts = {}) {
+  if (isConfigured()) {
+    try {
+      return await uploadToCloudinary(buffer, opts);
+    } catch (err) {
+      if (opts.allowLocalFallback === false) throw err;
+    }
+  }
+  return saveLocalBuffer(buffer, { mimeType: opts.mimeType });
 }
 
 module.exports = {
