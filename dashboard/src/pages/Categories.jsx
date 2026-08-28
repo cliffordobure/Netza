@@ -343,10 +343,12 @@ export default function Categories() {
                     <td>
                       <div className="cat-name">
                         <span className="cat-folder"><Icon name="folder" size={14} /></span>
-                        <strong>{c.name}</strong>
+                        <strong title={c.name}>{c.name}</strong>
                       </div>
                     </td>
-                    <td className="muted">{c.parentId ? parentNameById[c.parentId] || "—" : "—"}</td>
+                    <td className="muted" title={c.parentId ? parentNameById[c.parentId] || "" : ""}>
+                      {c.parentId ? parentNameById[c.parentId] || "—" : "—"}
+                    </td>
                     <td className="mono">{c.slug}</td>
                     <td>{fmtNum(c.productCount)}</td>
                     <td>{fmtNum(c.childCount)}</td>

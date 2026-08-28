@@ -6709,14 +6709,50 @@ body.sb-scroll-lock { overflow: hidden; }
 .cat-tools .btn { width: auto; margin: 0; display: inline-flex; align-items: center; gap: 6px; }
 .cat-filter-wrap { display: flex; align-items: center; gap: 6px; }
 .cat-table-wrap { overflow-x: auto; max-width: 100%; }
-.cat-table { width: 100%; table-layout: fixed; }
+.cat-table { width: 100%; table-layout: fixed; min-width: 760px; }
+.cat-table th,
+.cat-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.cat-table th:nth-child(1),
+.cat-table td:nth-child(1) { width: 28px; padding-left: 10px; }
+.cat-table th:nth-child(2),
+.cat-table td:nth-child(2) { width: 36px; }
+.cat-table th:nth-child(3),
+.cat-table td:nth-child(3) { width: 24%; min-width: 130px; }
+.cat-table th:nth-child(4),
+.cat-table td:nth-child(4) { width: 16%; min-width: 96px; }
+.cat-table th:nth-child(5),
+.cat-table td:nth-child(5) { width: 14%; min-width: 88px; }
+.cat-table th:nth-child(6),
+.cat-table td:nth-child(6) { width: 8%; text-align: center; }
+.cat-table th:nth-child(7),
+.cat-table td:nth-child(7) { width: 11%; text-align: center; }
+.cat-table th:nth-child(8),
+.cat-table td:nth-child(8) { width: 10%; }
+.cat-table th:nth-child(9),
+.cat-table td:nth-child(9) { width: 96px; padding-right: 12px; overflow: visible; white-space: nowrap; }
 .cat-table input[type="checkbox"] { width: 16px; height: 16px; padding: 0; accent-color: var(--purple); }
-.cat-grip { color: #94a3b8; cursor: grab; width: 28px; }
-.cat-name { display: flex; align-items: center; gap: 10px; }
+.cat-grip { color: #94a3b8; cursor: grab; width: 28px; overflow: visible; }
+.cat-name { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.cat-name strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
 .cat-folder {
-  width: 32px; height: 32px; border-radius: 8px;
-  background: #eee7fb; color: var(--purple);
-  display: grid; place-items: center; flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #eee7fb;
+  color: var(--purple);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
 }
 .cat-table tr.dragging { opacity: .55; }
 .cat-panel { display: grid; gap: 14px; position: sticky; top: 76px; }

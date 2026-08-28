@@ -22,6 +22,41 @@ function payCls(status) {
   return "pay-pending";
 }
 
+async function printOrder(order) {
+  let full = order;
+  if (!full.items?.length) {
+    const d = await api(`/admin/orders/${order.id}`);
+    full = d.order;
+  }
+  const rows = (full.items || [])
+    .map(
+      (i) =>
+        `<tr><td>${i.name}</td><td>${i.quantity}</td><td>${kes(i.priceKes ?? i.unitPriceKes)}</td><td>${kes(i.totalKes ?? i.lineTotalKes)}</td></tr>`
+    )
+    .join("");
+  const w = window.open("", "_blank", "width=720,height=900");
+  if (!w) return;
+  w.document.write(`<!doctype html><html><head><title>${full.orderNumber}</title>
+    <style>
+      body{font-family:Inter,Arial,sans-serif;padding:28px;color:#0B1F3A}
+      h1{font-size:20px;margin:0 0 4px}
+      table{width:100%;border-collapse:collapse;margin-top:16px}
+      th,td{border-bottom:1px solid #e5e7eb;padding:8px;text-align:left;font-size:13px}
+      .muted{color:#64748b}
+    </style></head><body>
+    <h1>NETZA Kenya</h1>
+    <div class="muted">Order ${full.orderNumber}</div>
+    <p>${full.customer?.name || order.customerName || ""}<br>${full.customer?.email || ""}<br>${full.customer?.phone || order.customerPhone || ""}</p>
+    <table><thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
+    <tbody>${rows}</tbody></table>
+    <p>Subtotal ${kes(full.summary?.subtotalKes ?? full.subtotalKes)} · Delivery ${kes(full.summary?.deliveryKes ?? full.deliveryKes)} · VAT ${kes(full.summary?.taxKes ?? full.vatKes)}<br>
+    <strong>Total ${kes(full.summary?.totalKes ?? full.totalKes ?? order.totalKes)}</strong></p>
+    </body></html>`);
+  w.document.close();
+  w.focus();
+  w.print();
+}
+
 function Donut({ parts, total }) {
   const slices = (parts || []).reduce((s, p) => s + (p.value || 0), 0) || total || 1;
   const r = 48;
@@ -79,6 +114,7 @@ export default function OrdersCatalog() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [selected, setSelected] = useState([]);
+  const [menu, setMenu] = useState(null);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
 
@@ -121,6 +157,21 @@ export default function OrdersCatalog() {
     const t = setTimeout(() => setToast(""), 2800);
     return () => clearTimeout(t);
   }, [toast]);
+
+  useEffect(() => {
+    function close() {
+      setMenu(null);
+    }
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, []);
+
+  async function patch(order, body) {
+    await api(`/admin/orders/${order.id}`, { method: "PATCH", body: JSON.stringify(body) });
+    setMenu(null);
+    setToast("Order updated");
+    load();
+  }
 
   function search(e) {
     e.preventDefault();
@@ -400,8 +451,50 @@ export default function OrdersCatalog() {
                     </td>
                     <td>
                       <div className="prod-row-acts">
-                        <button type="button" title="View" onClick={() => navigate(`/orders/${o.id}`)}><Icon name="eye" size={14} /></button>
-                        <button type="button" title="More"><Icon name="more" size={14} /></button>
+                        <button type="button" title="View" onClick={() => navigate(`/orders/${o.id}`)}>
+                          <Icon name="eye" size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          title="Print"
+                          onClick={() => printOrder(o).catch((e) => setError(e.message || "Could not print order"))}
+                        >
+                          <Icon name="print" size={14} />
+                        </button>
+                        <div className="ord-menu-wrap">
+                          <button
+                            type="button"
+                            title="More"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMenu(menu === o.id ? null : o.id);
+                            }}
+                          >
+                            <Icon name="more" size={14} />
+                          </button>
+                          {menu === o.id && (
+                            <div className="ord-menu" onClick={(e) => e.stopPropagation()}>
+                              <button type="button" onClick={() => { navigate(`/orders/${o.id}`); setMenu(null); }}>
+                                View full order
+                              </button>
+                              <button type="button" onClick={() => patch(o, { paymentStatus: "COMPLETED", status: "PROCESSING" })}>
+                                Mark as paid
+                              </button>
+                              <button type="button" onClick={() => patch(o, { status: "SHIPPED" })}>
+                                Mark shipped
+                              </button>
+                              <button type="button" onClick={() => patch(o, { status: "DELIVERED" })}>
+                                Mark delivered
+                              </button>
+                              <button type="button" onClick={() => patch(o, { returnStatus: "REQUESTED" })}>
+                                Request return
+                              </button>
+                              <button type="button" className="danger" onClick={() => patch(o, { status: "CANCELLED" })}>
+                                Cancel order
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </td>
                   </tr>
