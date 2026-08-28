@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { api } from "../api";
+import { api, mediaUrl } from "../api";
 import { Icon } from "../icons";
 
 const QUICK = [
@@ -369,7 +369,7 @@ export default function Products() {
             )}
 
             <div className="cat-table-wrap">
-              <table className="table cat-table prod-table-v3">
+              <table className="table prod-table-v3">
                 <thead>
                   <tr>
                     <th>#</th>
@@ -390,15 +390,16 @@ export default function Products() {
                     return (
                       <tr key={p.id}>
                         <td className="muted">{fromN + i}</td>
-                        <td>
+                        <td className="prod-name-cell">
                           <button className="prod-cell-btn" type="button" onClick={() => navigate(`/products/${p.id}`)}>
-                            {p.image ? <img src={p.image} alt="" /> : <div className="prod-ph" />}
-                            <span>
-                              <strong>{p.name}</strong>
+                            {p.image ? <img src={mediaUrl(p.image)} alt="" /> : <div className="prod-ph" />}
+                            <span className="prod-name-text">
+                              <strong title={p.name}>{p.name}</strong>
+                              {p.sku ? <em className="prod-sku-inline">{p.sku}</em> : null}
                             </span>
                           </button>
                         </td>
-                        <td className="mono">{p.sku}</td>
+                        <td className="mono prod-sku-cell" title={p.sku || undefined}>{p.sku || "—"}</td>
                         <td>{p.category}</td>
                         <td>{p.brand || "—"}</td>
                         <td>{fmtNum(p.priceKes)}</td>

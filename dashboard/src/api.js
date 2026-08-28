@@ -101,3 +101,11 @@ export async function uploadImage(file, folder = "misc") {
 
 export const kes = (n) =>
   new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES", maximumFractionDigits: 0 }).format(n || 0);
+
+export function mediaUrl(url) {
+  const raw = String(url || "").trim();
+  if (!raw) return "";
+  if (raw.startsWith("http://") || raw.startsWith("https://") || raw.startsWith("data:")) return raw;
+  const base = API.replace(/\/api\/v1\/?$/, "");
+  return raw.startsWith("/") ? `${base}${raw}` : `${base}/${raw}`;
+}

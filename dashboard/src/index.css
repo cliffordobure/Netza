@@ -697,34 +697,41 @@ body.sb-scroll-lock { overflow: hidden; }
 .prod-table-wrap { padding: 0; overflow-x: auto; overflow-y: visible; max-width: 100%; }
 .prod-table-v2,
 .prod-table-v3 {
-  width: max-content;
-  min-width: 100%;
-  table-layout: auto;
+  width: 100%;
+  min-width: 920px;
+  table-layout: fixed;
+  border-collapse: collapse;
 }
 .prod-table-v3 th,
 .prod-table-v3 td {
   padding: 10px 12px;
   vertical-align: middle;
-  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .prod-table-v3 th:nth-child(1),
-.prod-table-v3 td:nth-child(1) { width: 40px; padding-left: 14px; color: var(--muted); font-weight: 600; }
+.prod-table-v3 td:nth-child(1) { width: 44px; padding-left: 14px; color: var(--muted); font-weight: 600; white-space: nowrap; }
 .prod-table-v3 th:nth-child(2),
-.prod-table-v3 td:nth-child(2) { min-width: 200px; }
+.prod-table-v3 td:nth-child(2) { width: 28%; }
 .prod-table-v3 th:nth-child(3),
-.prod-table-v3 td:nth-child(3) { min-width: 100px; }
+.prod-table-v3 td:nth-child(3) { width: 12%; white-space: nowrap; }
 .prod-table-v3 th:nth-child(4),
-.prod-table-v3 td:nth-child(4) { min-width: 110px; }
+.prod-table-v3 td:nth-child(4) { width: 12%; white-space: nowrap; }
 .prod-table-v3 th:nth-child(5),
-.prod-table-v3 td:nth-child(5) { min-width: 100px; }
+.prod-table-v3 td:nth-child(5) { width: 11%; white-space: nowrap; }
 .prod-table-v3 th:nth-child(6),
-.prod-table-v3 td:nth-child(6) { min-width: 110px; }
+.prod-table-v3 td:nth-child(6) { width: 10%; white-space: nowrap; }
+.prod-table-v3 td:nth-child(6) { text-align: right; }
+.prod-table-v3 th:nth-child(6) { text-align: right; }
 .prod-table-v3 th:nth-child(7),
-.prod-table-v3 td:nth-child(7) { min-width: 72px; text-align: center; }
+.prod-table-v3 td:nth-child(7) { width: 7%; white-space: nowrap; text-align: center; }
 .prod-table-v3 th:nth-child(8),
-.prod-table-v3 td:nth-child(8) { min-width: 110px; }
+.prod-table-v3 td:nth-child(8) { width: 10%; white-space: nowrap; }
 .prod-table-v3 th:nth-child(9),
-.prod-table-v3 td:nth-child(9) { min-width: 110px; padding-right: 14px; overflow: visible; }
+.prod-table-v3 td:nth-child(9) { width: 96px; padding-right: 14px; overflow: visible; }
+.prod-name-cell { max-width: 0; }
+.prod-sku-cell { font-size: 12px; color: #475569; }
+.prod-sku-inline { display: none; }
 .prod-cell-btn {
   display: flex;
   align-items: center;
@@ -735,8 +742,15 @@ body.sb-scroll-lock { overflow: hidden; }
   text-align: left;
   padding: 0;
   color: inherit;
-  max-width: 100%;
+  width: 100%;
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+.prod-name-text {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
 }
 .prod-cell-btn img,
 .prod-cell-btn .prod-ph {
@@ -753,7 +767,7 @@ body.sb-scroll-lock { overflow: hidden; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 180px;
+  max-width: 100%;
 }
 .card.prod-table-wrap {
   overflow-x: auto;

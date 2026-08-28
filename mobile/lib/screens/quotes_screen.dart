@@ -67,6 +67,26 @@ Future<String?> _uploadImage(BuildContext context, Session session, {bool camera
     }
     final mime = name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
     return 'data:$mime;base64,${base64Encode(bytes)}';
+  } on PlatformException catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.code == 'channel-error' || (e.message?.contains('channel') ?? false)
+                ? 'Photo picker needs a full app restart. Stop the app, then run it again.'
+                : (e.message ?? 'Could not open gallery'),
+          ),
+        ),
+      );
+    }
+    return null;
+  } on MissingPluginException {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Photo picker not ready — fully restart the app (not hot reload).')),
+      );
+    }
+    return null;
   } catch (e) {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(apiMessage(e))));
@@ -75,8 +95,43 @@ Future<String?> _uploadImage(BuildContext context, Session session, {bool camera
   }
 }
 
-Future<void> _pickImageSource(BuildContext context, Future<void> Function(bool camera) onPick) async {
-  await showModalBottomSheet<void>(
+Future<String?> _askImageUrl(BuildContext context) async {
+  final ctrl = TextEditingController();
+  final url = await showDialog<String>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text('Image link', style: inter(size: 17, weight: FontWeight.w800, color: navy)),
+      content: TextField(
+        controller: ctrl,
+        decoration: const InputDecoration(
+          hintText: 'https://…',
+          labelText: 'Paste image URL',
+        ),
+        keyboardType: TextInputType.url,
+        autofocus: true,
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: orange),
+          onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+          child: const Text('Use'),
+        ),
+      ],
+    ),
+  );
+  if (url == null || url.isEmpty) return null;
+  if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('data:')) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter a valid https image link')));
+    }
+    return null;
+  }
+  return url;
+}
+
+Future<String?> _pickOrLinkImage(BuildContext context, Session session) async {
+  final choice = await showModalBottomSheet<String>(
     context: context,
     builder: (ctx) => SafeArea(
       child: Column(
@@ -85,23 +140,34 @@ Future<void> _pickImageSource(BuildContext context, Future<void> Function(bool c
           ListTile(
             leading: const Icon(Icons.photo_library_outlined),
             title: const Text('Gallery'),
-            onTap: () {
-              Navigator.pop(ctx);
-              onPick(false);
-            },
+            onTap: () => Navigator.pop(ctx, 'gallery'),
           ),
           ListTile(
             leading: const Icon(Icons.photo_camera_outlined),
             title: const Text('Camera'),
-            onTap: () {
-              Navigator.pop(ctx);
-              onPick(true);
-            },
+            onTap: () => Navigator.pop(ctx, 'camera'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.link),
+            title: const Text('Paste image link'),
+            onTap: () => Navigator.pop(ctx, 'link'),
           ),
         ],
       ),
     ),
   );
+  if (!context.mounted) return null;
+  if (choice == 'gallery') return _uploadImage(context, session, camera: false);
+  if (choice == 'camera') return _uploadImage(context, session, camera: true);
+  if (choice == 'link') return _askImageUrl(context);
+  return null;
+}
+
+Future<void> _copyLink(BuildContext context, String url, {String okMessage = 'Link copied'}) async {
+  await Clipboard.setData(ClipboardData(text: url));
+  if (context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(okMessage)));
+  }
 }
 
 /// Simple installer quotes: company + items → share/print → client adds site items to cart.
@@ -125,6 +191,7 @@ class _QuotesScreenState extends State<QuotesScreen> {
   Future<void> load() async {
     final session = context.read<Session>();
     if (!session.isLoggedIn) {
+      if (!mounted) return;
       setState(() {
         loading = false;
         error = 'Sign in to make quotes';
@@ -133,12 +200,14 @@ class _QuotesScreenState extends State<QuotesScreen> {
     }
     try {
       final res = await session.dio.get('/quotes');
+      if (!mounted) return;
       setState(() {
         quotes = res.data['quotes'] as List? ?? [];
         error = null;
         loading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         error = apiMessage(e);
         loading = false;
@@ -310,14 +379,12 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
 
   Future<void> _pickLogo() async {
     final session = context.read<Session>();
-    await _pickImageSource(context, (camera) async {
-      setState(() => uploading = true);
-      final url = await _uploadImage(context, session, camera: camera);
-      if (!mounted) return;
-      setState(() {
-        uploading = false;
-        if (url != null) logoUrl = url;
-      });
+    setState(() => uploading = true);
+    final url = await _pickOrLinkImage(context, session);
+    if (!mounted) return;
+    setState(() {
+      uploading = false;
+      if (url != null) logoUrl = url;
     });
   }
 
@@ -432,23 +499,19 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
                       TextField(controller: name, decoration: const InputDecoration(labelText: 'Name')),
                     if (isCatalog)
                       Text(name.text, style: inter(size: 15, weight: FontWeight.w700, color: navy)),
-                    if (!isCatalog)
-                      TextField(
-                        controller: price,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'Price (KES)'),
-                      )
-                    else
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8, bottom: 8),
-                        child: Text(money(existing['unitPriceKes']), style: inter(size: 14, color: muted)),
+                    TextField(
+                      controller: price,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: isCatalog ? 'Your price (KES)' : 'Price (KES)',
                       ),
+                    ),
                     TextField(
                       controller: qty,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(labelText: 'Qty'),
                     ),
-                    if (!isCatalog) ...[
+                    if (imageUrl.isNotEmpty || !isCatalog) ...[
                       const SizedBox(height: 8),
                       if (imageUrl.isNotEmpty)
                         Align(
@@ -458,16 +521,15 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
                             child: SizedBox(width: 72, height: 72, child: NetzaImage(imageUrl)),
                           ),
                         ),
-                      OutlinedButton.icon(
-                        onPressed: () async {
-                          await _pickImageSource(ctx, (camera) async {
-                            final url = await _uploadImage(ctx, session, camera: camera);
+                      if (!isCatalog)
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            final url = await _pickOrLinkImage(ctx, session);
                             if (url != null && ctx.mounted) setLocal(() => imageUrl = url);
-                          });
-                        },
-                        icon: const Icon(Icons.image_outlined),
-                        label: Text(imageUrl.isEmpty ? 'Add photo' : 'Change photo'),
-                      ),
+                          },
+                          icon: const Icon(Icons.image_outlined),
+                          label: Text(imageUrl.isEmpty ? 'Add photo' : 'Change photo'),
+                        ),
                     ],
                     const SizedBox(height: 12),
                     FilledButton(
@@ -478,7 +540,7 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
                           items[index] = {
                             ...existing,
                             if (!isCatalog) 'name': name.text.trim().isEmpty ? existing['name'] : name.text.trim(),
-                            if (!isCatalog) 'unitPriceKes': num.tryParse(price.text.trim()) ?? existing['unitPriceKes'] ?? 0,
+                            'unitPriceKes': num.tryParse(price.text.trim()) ?? existing['unitPriceKes'] ?? 0,
                             if (!isCatalog) 'imageUrl': imageUrl,
                             'quantity': q < 1 ? 1 : q,
                           };
@@ -658,6 +720,7 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
       final res = isShared
           ? await session.dio.get('/quotes/shared/${widget.token}')
           : await session.dio.get('/quotes/${widget.id}');
+      if (!mounted) return;
       final q = Map<String, dynamic>.from(res.data['quote'] as Map);
       setState(() {
         quote = q;
@@ -668,6 +731,7 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
         loading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         error = apiMessage(e);
         loading = false;
@@ -678,6 +742,7 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
   Future<String?> _ensureShareUrl() async {
     if (isShared || quote == null) return shareUrl;
     final res = await context.read<Session>().dio.post('/quotes/${quote!['id']}/share');
+    if (!mounted) return shareUrl;
     final url = res.data['shareUrl']?.toString() ?? '';
     setState(() {
       quote = Map<String, dynamic>.from(res.data['quote'] as Map);
@@ -697,14 +762,23 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not create share link')));
         return;
       }
-      final box = context.findRenderObject() as RenderBox?;
-      await SharePlus.instance.share(
-        ShareParams(
-          text: '${quote!['companyName'] ?? 'Quote'} — ${money(quote!['totalKes'])}\n\nOpen & print:\n$url',
-          subject: 'Quote from ${quote!['companyName'] ?? 'NETZA'}',
-          sharePositionOrigin: box != null ? box.localToGlobal(Offset.zero) & box.size : null,
-        ),
-      );
+      final text = '${quote!['companyName'] ?? 'Quote'} — ${money(quote!['totalKes'])}\n\nOpen & print:\n$url';
+      try {
+        final box = context.findRenderObject() as RenderBox?;
+        await SharePlus.instance.share(
+          ShareParams(
+            text: text,
+            subject: 'Quote from ${quote!['companyName'] ?? 'NETZA'}',
+            sharePositionOrigin: box != null && box.hasSize ? box.localToGlobal(Offset.zero) & box.size : null,
+          ),
+        );
+      } on MissingPluginException {
+        if (!mounted) return;
+        await _copyLink(context, url, okMessage: 'Share unavailable — link copied. Paste it in WhatsApp.');
+      } on PlatformException {
+        if (!mounted) return;
+        await _copyLink(context, url, okMessage: 'Share unavailable — link copied. Paste it in WhatsApp.');
+      }
     } catch (e) {
       setState(() => busy = false);
       if (mounted) {
@@ -724,14 +798,19 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Share link not ready')));
         return;
       }
-      final uri = Uri.parse(link);
-      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!mounted) return;
-      if (!ok) {
-        await Clipboard.setData(ClipboardData(text: link));
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Link copied — open it in a browser to print')),
-        );
+      try {
+        final uri = Uri.parse(link);
+        final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+        if (!mounted) return;
+        if (!ok) {
+          await _copyLink(context, link, okMessage: 'Link copied — open it in Chrome to print');
+        }
+      } on MissingPluginException {
+        if (!mounted) return;
+        await _copyLink(context, link, okMessage: 'Browser open failed — link copied. Paste in Chrome to print.');
+      } on PlatformException {
+        if (!mounted) return;
+        await _copyLink(context, link, okMessage: 'Browser open failed — link copied. Paste in Chrome to print.');
       }
     } catch (e) {
       setState(() => busy = false);
@@ -844,8 +923,7 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
                                 children: [
                                   Text(i['name']?.toString() ?? '', style: inter(size: 14, weight: FontWeight.w700, color: navy)),
                                   Text(
-                                    '${i['quantity']} × ${money(i['unitPriceKes'])}'
-                                    '${i['availableOnSite'] == true ? ' · on site' : ''}',
+                                    '${i['quantity']} × ${money(i['unitPriceKes'])}',
                                     style: inter(size: 12, color: muted),
                                   ),
                                 ],

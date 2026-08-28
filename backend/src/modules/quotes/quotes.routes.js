@@ -19,14 +19,14 @@ const itemSchema = z.object({
   kind: z.enum(["catalog", "custom"]).default("custom"),
   productId: z.string().optional().nullable(),
   name: z.string().min(1).max(200),
-  imageUrl: z.string().optional().default(""),
+  imageUrl: z.string().max(2_000_000).optional().default(""),
   unitPriceKes: z.number().min(0),
   quantity: z.number().int().min(1).default(1),
 });
 
 const upsertSchema = z.object({
   companyName: z.string().max(120).optional(),
-  logoUrl: z.string().max(500).optional(),
+  logoUrl: z.string().max(2_000_000).optional(),
   clientName: z.string().max(120).optional(),
   note: z.string().max(500).optional(),
   items: z.array(itemSchema).optional(),
@@ -53,7 +53,9 @@ function serializeQuote(quote, { publicView = false } = {}) {
       quantity: item.quantity,
       lineTotalKes: lineTotal(item),
       inStock: product ? product.isActive && product.stock > 0 : false,
-      availableOnSite: item.kind === "catalog" && Boolean(product?.isActive),
+      ...(publicView
+        ? {}
+        : { availableOnSite: item.kind === "catalog" && Boolean(product?.isActive) }),
     };
   });
   const totalKes = items.reduce((s, i) => s + i.lineTotalKes, 0);
@@ -88,12 +90,16 @@ async function normalizeItems(rawItems = []) {
       if (!raw.productId || !isOid(raw.productId)) throw httpError(400, "Catalog item needs a product");
       const product = await Product.findById(raw.productId);
       if (!product || !product.isActive) throw httpError(404, "Product not found");
+      const quotedPrice =
+        raw.unitPriceKes != null && Number(raw.unitPriceKes) >= 0
+          ? Number(raw.unitPriceKes)
+          : product.priceKes;
       out.push({
         kind: "catalog",
         product: product._id,
-        name: product.name,
-        imageUrl: product.images?.[0]?.url || raw.imageUrl || "",
-        unitPriceKes: product.priceKes,
+        name: raw.name?.trim() || product.name,
+        imageUrl: raw.imageUrl || product.images?.[0]?.url || "",
+        unitPriceKes: quotedPrice,
         quantity: raw.quantity || 1,
       });
     } else {
@@ -128,56 +134,79 @@ function moneyKes(n) {
   return `KSh ${Math.round(Number(n) || 0).toLocaleString("en-KE")}`;
 }
 
+function resolvePublicImageUrl(url, base) {
+  const raw = String(url || "").trim();
+  if (!raw) return "";
+  if (raw.startsWith("http://") || raw.startsWith("https://") || raw.startsWith("data:")) return raw;
+  if (raw.startsWith("/")) return `${base.replace(/\/+$/, "")}${raw}`;
+  return raw;
+}
+
 router.get(
   "/view/:token",
   asyncHandler(async (req, res) => {
     const quote = await Quote.findOne({ shareToken: req.params.token }).populate("items.product");
     if (!quote) throw httpError(404, "Quote not found");
     const data = serializeQuote(quote, { publicView: true });
+    const base = config.publicBaseUrl || `${req.protocol}://${req.get("host")}`;
+    const logoSrc = resolvePublicImageUrl(data.logoUrl, base);
+
     const rows = data.items
-      .map(
-        (i) => `<tr>
-      <td style="padding:10px;border-bottom:1px solid #eee">${escapeHtml(i.name)}${i.availableOnSite ? ' <span style="color:#16a34a;font-size:12px">· on site</span>' : ""}</td>
-      <td style="padding:10px;border-bottom:1px solid #eee;text-align:center">${i.quantity}</td>
-      <td style="padding:10px;border-bottom:1px solid #eee;text-align:right">${moneyKes(i.unitPriceKes)}</td>
-      <td style="padding:10px;border-bottom:1px solid #eee;text-align:right">${moneyKes(i.lineTotalKes)}</td>
-    </tr>`
-      )
+      .map((i) => {
+        const imgSrc = resolvePublicImageUrl(i.imageUrl, base);
+        const thumb = imgSrc
+          ? `<img src="${escapeHtml(imgSrc)}" alt="" style="width:52px;height:52px;object-fit:cover;border-radius:8px;background:#f2f4f7;display:block"/>`
+          : `<div style="width:52px;height:52px;border-radius:8px;background:#eef2f7"></div>`;
+        return `<tr>
+      <td style="padding:10px 8px;border-bottom:1px solid #eee;width:60px;vertical-align:middle">${thumb}</td>
+      <td style="padding:10px 8px;border-bottom:1px solid #eee;vertical-align:middle">${escapeHtml(i.name)}</td>
+      <td style="padding:10px 8px;border-bottom:1px solid #eee;text-align:center;vertical-align:middle">${i.quantity}</td>
+      <td style="padding:10px 8px;border-bottom:1px solid #eee;text-align:right;vertical-align:middle">${moneyKes(i.unitPriceKes)}</td>
+      <td style="padding:10px 8px;border-bottom:1px solid #eee;text-align:right;vertical-align:middle;font-weight:700">${moneyKes(i.lineTotalKes)}</td>
+    </tr>`;
+      })
       .join("");
+
     res.type("html").send(`<!DOCTYPE html>
 <html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Quote · ${escapeHtml(data.companyName || "NETZA")}</title>
 <style>
-  body{font-family:system-ui,sans-serif;margin:0;background:#f7f8fa;color:#0b1f3a}
+  body{font-family:system-ui,-apple-system,sans-serif;margin:0;background:#f7f8fa;color:#0b1f3a}
   .page{max-width:720px;margin:24px auto;background:#fff;padding:28px;border-radius:16px;box-shadow:0 2px 12px #0001}
-  .logo{max-height:56px;max-width:160px;object-fit:contain}
+  .logo{max-height:64px;max-width:180px;object-fit:contain;margin-bottom:8px}
   h1{font-size:22px;margin:8px 0 4px}
-  .muted{color:#6b7280;font-size:14px}
+  .muted{color:#6b7280;font-size:14px;line-height:1.5}
   table{width:100%;border-collapse:collapse;margin-top:20px;font-size:14px}
-  .total{font-size:20px;font-weight:800;text-align:right;margin-top:16px}
+  th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#64748b;font-weight:700}
+  .total{font-size:20px;font-weight:800;text-align:right;margin-top:16px;padding-top:12px;border-top:2px solid #0b1f3a}
   .actions{margin-top:24px;display:flex;gap:10px;flex-wrap:wrap}
-  button,.btn{background:#f97316;color:#fff;border:0;padding:12px 18px;border-radius:10px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block}
-  @media print{.actions{display:none} body{background:#fff} .page{box-shadow:none;margin:0;border-radius:0}}
+  button{background:#f97316;color:#fff;border:0;padding:12px 18px;border-radius:10px;font-weight:700;cursor:pointer}
+  @media print{
+    .actions{display:none}
+    body{background:#fff}
+    .page{box-shadow:none;margin:0;border-radius:0;max-width:none}
+    img{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  }
 </style></head><body>
 <div class="page">
-  ${data.logoUrl ? `<img class="logo" src="${escapeHtml(data.logoUrl)}" alt=""/>` : ""}
+  ${logoSrc ? `<img class="logo" src="${escapeHtml(logoSrc)}" alt=""/>` : ""}
   <h1>${escapeHtml(data.companyName || "Quote")}</h1>
   ${data.clientName ? `<p class="muted">For ${escapeHtml(data.clientName)}</p>` : ""}
   ${data.note ? `<p class="muted">${escapeHtml(data.note)}</p>` : ""}
   <table>
     <thead><tr>
+      <th style="text-align:left;padding:8px;border-bottom:2px solid #0b1f3a"></th>
       <th style="text-align:left;padding:8px;border-bottom:2px solid #0b1f3a">Item</th>
       <th style="padding:8px;border-bottom:2px solid #0b1f3a">Qty</th>
       <th style="text-align:right;padding:8px;border-bottom:2px solid #0b1f3a">Price</th>
       <th style="text-align:right;padding:8px;border-bottom:2px solid #0b1f3a">Total</th>
     </tr></thead>
-    <tbody>${rows || `<tr><td colspan="4" style="padding:16px" class="muted">No items</td></tr>`}</tbody>
+    <tbody>${rows || `<tr><td colspan="5" style="padding:16px" class="muted">No items</td></tr>`}</tbody>
   </table>
   <div class="total">${moneyKes(data.totalKes)}</div>
   <div class="actions">
-    <button onclick="window.print()">Print</button>
+    <button onclick="window.print()">Print / Save PDF</button>
   </div>
-  <p class="muted" style="margin-top:20px">Site products marked “on site” can be added to cart in the NETZA app.</p>
 </div></body></html>`);
   })
 );
