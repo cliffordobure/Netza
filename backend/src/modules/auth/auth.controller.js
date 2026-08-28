@@ -5,7 +5,12 @@ const { signAccess, signRefresh, hashToken, verifyRefresh, publicUser } = requir
 const { randomCode, nairobiDateString } = require("../../lib/utils");
 const { creditPoints, getRule } = require("../../services/points.service");
 const { asyncHandler, httpError } = require("../../middleware/error");
-const { normalizeEmail, normalizePhone, phoneLookupVariants } = require("../../lib/identity");
+const {
+  normalizeEmail,
+  normalizePhone,
+  phoneLookupVariants,
+  emailMatchFilter,
+} = require("../../lib/identity");
 
 const registerSchema = z.object({
   firstName: z.string().min(2),
@@ -42,6 +47,7 @@ async function maybeDailyLogin(user) {
   const streak = user.lastLoginDate === yesterday ? user.loginStreak + 1 : 1;
   user.lastLoginDate = today;
   user.loginStreak = streak;
+  user.lastLoginAt = new Date();
   await user.save();
   const daily = await getRule("DAILY_LOGIN");
   let points = 0;
@@ -59,17 +65,20 @@ async function maybeDailyLogin(user) {
   return { awarded: true, streak, points };
 }
 
-async function findByIdentifier(identifier) {
+/** Return all candidate users for an identifier (handles legacy email casing / phone formats). */
+async function findCandidates(identifier) {
   const raw = String(identifier || "").trim();
-  if (!raw) return null;
+  if (!raw) return [];
 
   if (raw.includes("@")) {
-    const email = normalizeEmail(raw);
-    return User.findOne({ email });
+    const filter = emailMatchFilter(raw);
+    if (!filter) return [];
+    return User.find(filter).sort({ createdAt: 1 });
   }
 
   const phones = phoneLookupVariants(raw);
-  return User.findOne({ phone: { $in: phones } });
+  if (!phones.length) return [];
+  return User.find({ phone: { $in: phones } }).sort({ createdAt: 1 });
 }
 
 exports.register = asyncHandler(async (req, res) => {
@@ -83,15 +92,17 @@ exports.register = asyncHandler(async (req, res) => {
   }
 
   const email = normalizeEmail(body.email);
-  const or = [{ phone }];
-  if (email) or.push({ email });
 
-  const existing = await User.findOne({ $or: or });
-  if (existing) {
-    if (existing.phone === phone || phoneLookupVariants(existing.phone).includes(phone)) {
-      throw httpError(409, "This phone number is already registered. Sign in instead.");
+  const phoneTaken = await User.findOne({ phone: { $in: phoneLookupVariants(phone) } });
+  if (phoneTaken) {
+    throw httpError(409, "This phone number is already registered. Sign in instead.");
+  }
+
+  if (email) {
+    const emailTaken = await User.findOne(emailMatchFilter(email));
+    if (emailTaken) {
+      throw httpError(409, "This email is already registered. Sign in instead.");
     }
-    throw httpError(409, "This email is already registered. Sign in instead.");
   }
 
   let referredBy = null;
@@ -127,10 +138,19 @@ exports.register = asyncHandler(async (req, res) => {
 
 exports.login = asyncHandler(async (req, res) => {
   const body = loginSchema.parse(req.body);
-  const user = await findByIdentifier(body.identifier);
-  if (!user || !user.isActive) throw httpError(401, "Wrong phone/email or password");
-  const ok = await bcrypt.compare(body.password, user.passwordHash);
-  if (!ok) throw httpError(401, "Wrong phone/email or password");
+  const candidates = await findCandidates(body.identifier);
+  if (!candidates.length) throw httpError(401, "Wrong phone/email or password");
+
+  let user = null;
+  for (const candidate of candidates) {
+    if (!candidate.isActive) continue;
+    const ok = await bcrypt.compare(body.password, candidate.passwordHash);
+    if (ok) {
+      user = candidate;
+      break;
+    }
+  }
+  if (!user) throw httpError(401, "Wrong phone/email or password");
 
   // Heal legacy rows so future logins stay consistent
   let healed = false;
@@ -163,9 +183,11 @@ exports.refresh = asyncHandler(async (req, res) => {
   } catch {
     throw httpError(401, "Invalid refresh token");
   }
-  const record = await RefreshToken.findOne({ tokenHash: hashToken(token) });
-  if (!record) throw httpError(401, "Refresh token revoked");
-  await record.deleteOne();
+
+  // Atomic consume — prevents double-use races from logging the user out
+  const record = await RefreshToken.findOneAndDelete({ tokenHash: hashToken(token) });
+  if (!record) throw httpError(401, "Session expired. Please sign in again.");
+
   const user = await User.findById(payload.sub);
   if (!user || !user.isActive) throw httpError(401, "Invalid session");
   res.json(await issueTokens(user));
@@ -190,7 +212,7 @@ exports.completeProfile = asyncHandler(async (req, res) => {
   const body = schema.parse(req.body);
   if (body.email) {
     const email = normalizeEmail(body.email);
-    const taken = await User.findOne({ email, _id: { $ne: req.user._id } });
+    const taken = await User.findOne({ ...emailMatchFilter(email), _id: { $ne: req.user._id } });
     if (taken) throw httpError(409, "This email is already registered");
     req.user.email = email;
   }
@@ -210,7 +232,7 @@ exports.dailyLogin = asyncHandler(async (req, res) => {
   res.json(await maybeDailyLogin(req.user));
 });
 
-/** One-shot heal for existing accounts (email casing + phone format). */
+/** One-shot heal for existing accounts (email casing + phone format + duplicate emails). */
 exports.normalizeIdentities = async function normalizeIdentities() {
   const users = await User.find({}).sort({ createdAt: 1 });
   let updated = 0;
@@ -228,7 +250,6 @@ exports.normalizeIdentities = async function normalizeIdentities() {
           user.email = undefined;
           changed = true;
         } else if (seenEmail.has(email)) {
-          // Duplicate from the old case-sensitive bug — keep email on the oldest account
           user.email = undefined;
           changed = true;
           skipped += 1;

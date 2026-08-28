@@ -438,78 +438,99 @@ export default function MarketingBanners() {
       </section>
 
       {formOpen && (
-        <div className="prod-modal" onClick={() => !saving && setFormOpen(false)}>
-          <form className="card prod-modal-card" onClick={(e) => e.stopPropagation()} onSubmit={saveForm}>
-            <div className="ord-drawer-head">
+        <div className="prod-modal bnr-modal-overlay" onClick={() => !saving && setFormOpen(false)}>
+          <form className="card bnr-upload-modal" onClick={(e) => e.stopPropagation()} onSubmit={saveForm}>
+            <header className="bnr-upload-head">
               <div>
                 <h2>Upload Banner</h2>
-                <p className="muted">Image is uploaded and saved — Home Hero appears in the mobile app carousel.</p>
+                <p>Home Hero banners appear in the mobile app carousel.</p>
               </div>
-              <button className="btn btn-ghost btn-small" type="button" onClick={() => setFormOpen(false)} disabled={saving}>
-                <Icon name="x" size={14} />
+              <button className="bnr-upload-close" type="button" onClick={() => setFormOpen(false)} disabled={saving} aria-label="Close">
+                <Icon name="x" size={16} />
               </button>
-            </div>
-            <div className="form-grid">
-              <label>
-                Name
-                <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
-              </label>
-              <label>
-                Placement
-                <select value={form.placement} onChange={(e) => setForm((f) => ({ ...f, placement: e.target.value }))}>
-                  {(data.filters?.placements || ["Home Hero"]).map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="full">
-                Subtitle
-                <input value={form.subtitle} onChange={(e) => setForm((f) => ({ ...f, subtitle: e.target.value }))} />
-              </label>
-              <label>
-                Button label
-                <input value={form.ctaLabel} onChange={(e) => setForm((f) => ({ ...f, ctaLabel: e.target.value }))} />
-              </label>
-              <label>
-                Link
-                <input value={form.link} onChange={(e) => setForm((f) => ({ ...f, link: e.target.value }))} placeholder="/catalog or https://..." />
-              </label>
-              <label>
-                Starts
-                <input type="date" value={form.startsAt} onChange={(e) => setForm((f) => ({ ...f, startsAt: e.target.value }))} />
-              </label>
-              <label>
-                Ends
-                <input type="date" value={form.endsAt} onChange={(e) => setForm((f) => ({ ...f, endsAt: e.target.value }))} />
-              </label>
-              <label className="full">
-                Image
-                <input type="file" accept="image/*" onChange={onFile} required />
+            </header>
+
+            <div className="bnr-upload-body">
+              <label className={`bnr-drop ${form.preview ? "has-preview" : ""}`}>
+                {form.preview ? (
+                  <img src={form.preview} alt="Banner preview" />
+                ) : (
+                  <div className="bnr-drop-empty">
+                    <Icon name="upload" size={22} />
+                    <strong>Choose banner image</strong>
+                    <span>PNG or JPG · recommended 1200×600</span>
+                  </div>
+                )}
+                <input type="file" accept="image/*" onChange={onFile} required={!form.preview} />
               </label>
               {form.preview && (
-                <div className="full mktpg-banner-preview">
-                  <img src={form.preview} alt="Preview" />
-                </div>
+                <button
+                  className="btn btn-ghost btn-small bnr-change-img"
+                  type="button"
+                  onClick={() => document.getElementById("bnr-file-input")?.click()}
+                >
+                  Change image
+                </button>
               )}
-              <label className="full" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <input
-                  type="checkbox"
-                  checked={form.isActive}
-                  onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))}
-                />
-                Active (show when within dates)
-              </label>
+              <input id="bnr-file-input" type="file" accept="image/*" hidden onChange={onFile} />
+
+              <div className="bnr-form-grid">
+                <label>
+                  Name
+                  <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="e.g. Flash Drop Hero" required />
+                </label>
+                <label>
+                  Placement
+                  <select value={form.placement} onChange={(e) => setForm((f) => ({ ...f, placement: e.target.value }))}>
+                    {(data.filters?.placements || ["Home Hero"]).map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="full">
+                  Subtitle
+                  <input value={form.subtitle} onChange={(e) => setForm((f) => ({ ...f, subtitle: e.target.value }))} placeholder="Short line under the title" />
+                </label>
+                <label>
+                  Button label
+                  <input value={form.ctaLabel} onChange={(e) => setForm((f) => ({ ...f, ctaLabel: e.target.value }))} />
+                </label>
+                <label>
+                  Link
+                  <input value={form.link} onChange={(e) => setForm((f) => ({ ...f, link: e.target.value }))} placeholder="/catalog" />
+                </label>
+                <label>
+                  Starts
+                  <input type="date" value={form.startsAt} onChange={(e) => setForm((f) => ({ ...f, startsAt: e.target.value }))} />
+                </label>
+                <label>
+                  Ends
+                  <input type="date" value={form.endsAt} onChange={(e) => setForm((f) => ({ ...f, endsAt: e.target.value }))} />
+                </label>
+                <label className="bnr-active full">
+                  <input
+                    type="checkbox"
+                    checked={form.isActive}
+                    onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))}
+                  />
+                  <span>
+                    <strong>Active</strong>
+                    <em>Show when within the start/end dates</em>
+                  </span>
+                </label>
+              </div>
             </div>
-            <div className="prod-actions rule-drawer-acts">
-              <button className="btn btn-purple btn-small" type="submit" disabled={saving}>
-                {saving ? "Saving…" : "Save banner"}
-              </button>
-              <button className="btn btn-ghost btn-small" type="button" onClick={() => setFormOpen(false)} disabled={saving}>
+
+            <footer className="bnr-upload-foot">
+              <button className="btn btn-ghost" type="button" onClick={() => setFormOpen(false)} disabled={saving}>
                 Cancel
               </button>
-            </div>
+              <button className="btn btn-purple" type="submit" disabled={saving}>
+                {saving ? "Saving…" : "Save banner"}
+              </button>
+            </footer>
           </form>
         </div>
       )}

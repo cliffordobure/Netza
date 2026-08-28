@@ -5864,6 +5864,191 @@ body.sb-scroll-lock { overflow: hidden; }
   object-fit: cover;
   display: block;
 }
+
+/* Banner upload modal — sticky actions + scrollable body */
+.bnr-modal-overlay {
+  align-items: center;
+  justify-items: center;
+  overflow: auto;
+  padding: 16px;
+}
+.bnr-upload-modal {
+  width: min(560px, 100%);
+  max-height: min(92vh, 760px);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid #e8edf5;
+  box-shadow: 0 24px 64px rgba(11, 31, 58, 0.22);
+  background: #fff;
+}
+.bnr-upload-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid #eef2f7;
+  flex-shrink: 0;
+  background: linear-gradient(180deg, #fafbff 0%, #fff 100%);
+}
+.bnr-upload-head h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: #0b1f3a;
+}
+.bnr-upload-head p {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: #6b7a90;
+  line-height: 1.4;
+}
+.bnr-upload-close {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid #e5eaf2;
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #0b1f3a;
+  flex-shrink: 0;
+}
+.bnr-upload-close:hover { background: #f5f7fb; }
+.bnr-upload-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px 20px 8px;
+  min-height: 0;
+}
+.bnr-drop {
+  position: relative;
+  display: block;
+  border: 1.5px dashed #c9d4e5;
+  border-radius: 14px;
+  background: #f7f9fc;
+  overflow: hidden;
+  cursor: pointer;
+  min-height: 140px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.bnr-drop:hover { border-color: #7c3aed; background: #faf5ff; }
+.bnr-drop.has-preview {
+  border-style: solid;
+  border-color: #e5eaf2;
+  background: #0f172a;
+  min-height: 160px;
+}
+.bnr-drop input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.bnr-drop-empty {
+  display: grid;
+  place-items: center;
+  gap: 4px;
+  text-align: center;
+  padding: 28px 16px;
+  color: #6b7a90;
+}
+.bnr-drop-empty strong {
+  color: #0b1f3a;
+  font-size: 14px;
+  font-weight: 700;
+}
+.bnr-drop-empty span { font-size: 12px; }
+.bnr-drop img {
+  width: 100%;
+  height: 168px;
+  object-fit: cover;
+  display: block;
+}
+.bnr-change-img {
+  margin: 8px 0 12px;
+}
+.bnr-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.bnr-form-grid .full { grid-column: 1 / -1; }
+.bnr-form-grid label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+}
+.bnr-form-grid input,
+.bnr-form-grid select {
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  background: #fff;
+  color: #0b1f3a;
+}
+.bnr-form-grid input:focus,
+.bnr-form-grid select:focus {
+  outline: none;
+  border-color: #a78bfa;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
+}
+.bnr-active {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #eef2f7;
+  grid-template-columns: none !important;
+}
+.bnr-active input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  accent-color: #7c3aed;
+  flex-shrink: 0;
+}
+.bnr-active span {
+  display: grid;
+  gap: 2px;
+}
+.bnr-active strong {
+  font-size: 13px;
+  color: #0b1f3a;
+}
+.bnr-active em {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 400;
+  color: #6b7a90;
+}
+.bnr-upload-foot {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid #eef2f7;
+  background: #fff;
+}
+.bnr-upload-foot .btn { min-width: 110px; }
+@media (max-width: 560px) {
+  .bnr-form-grid { grid-template-columns: 1fr; }
+  .bnr-upload-modal { max-height: 96vh; }
+}
+
 .mktpg-recent {
   list-style: none;
   margin: 0 0 12px;

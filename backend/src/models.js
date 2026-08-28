@@ -16,7 +16,7 @@ function jsonId(schema, hide = []) {
 
 const userSchema = new mongoose.Schema(
   {
-    email: { type: String, unique: true, sparse: true },
+    email: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
     phone: { type: String, required: true, unique: true },
     passwordHash: { type: String, required: true },
     firstName: { type: String, required: true },
@@ -57,6 +57,7 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 jsonId(userSchema, ["passwordHash"]);
+
 
 const refreshTokenSchema = new mongoose.Schema({
   tokenHash: { type: String, unique: true, required: true },

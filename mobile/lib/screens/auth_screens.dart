@@ -82,6 +82,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     decoration: const InputDecoration(
                       labelText: 'Phone or email',
                       hintText: '07… or you@email.com',
+                      helperText: 'Use the same phone you registered with if email fails',
                     ),
                   ),
                   const SizedBox(height: 12),

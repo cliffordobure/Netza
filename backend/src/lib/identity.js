@@ -8,6 +8,17 @@ function normalizeEmail(value) {
   return String(value).trim().toLowerCase();
 }
 
+function escapeRegex(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Case-insensitive email match filter for Mongo queries. */
+function emailMatchFilter(email) {
+  const normalized = normalizeEmail(email);
+  if (!normalized) return null;
+  return { email: { $regex: `^${escapeRegex(normalized)}$`, $options: "i" } };
+}
+
 function digitsOnly(value) {
   return String(value || "").replace(/\D/g, "");
 }
@@ -63,4 +74,6 @@ module.exports = {
   normalizePhone,
   phoneLookupVariants,
   digitsOnly,
+  escapeRegex,
+  emailMatchFilter,
 };

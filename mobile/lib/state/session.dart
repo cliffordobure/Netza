@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,23 +19,21 @@ class Session extends ChangeNotifier {
         handler.next(options);
       },
       onError: (err, handler) async {
-        if (err.response?.statusCode == 401 && refresh != null && !_refreshing) {
-          _refreshing = true;
+        final status = err.response?.statusCode;
+        final path = err.requestOptions.path;
+        final skipRefresh = path.contains('/auth/login') ||
+            path.contains('/auth/register') ||
+            path.contains('/auth/refresh');
+        if (status == 401 && refresh != null && !skipRefresh) {
           try {
-            final res = await Dio(BaseOptions(baseUrl: apiBaseUrl())).post(
-              '/auth/refresh',
-              data: {'refreshToken': refresh},
-            );
-            await _saveTokens(res.data['accessToken'], res.data['refreshToken']);
+            await _refreshTokens();
             final req = err.requestOptions;
             req.headers['Authorization'] = 'Bearer $access';
             final clone = await dio.fetch(req);
-            _refreshing = false;
             return handler.resolve(clone);
           } catch (_) {
-            await logout();
+            // Session truly dead — fall through
           }
-          _refreshing = false;
         }
         handler.next(err);
       },
@@ -49,28 +48,67 @@ class Session extends ChangeNotifier {
   int totalEarned = 0;
   int cartCount = 0;
   bool ready = false;
-  bool _refreshing = false;
+  Completer<void>? _refreshGate;
 
   bool get isLoggedIn => user != null;
+
+  Future<void> _refreshTokens() async {
+    if (_refreshGate != null) return _refreshGate!.future;
+    final token = refresh;
+    if (token == null) throw StateError('No refresh token');
+
+    _refreshGate = Completer<void>();
+    try {
+      final res = await Dio(BaseOptions(
+        baseUrl: apiBaseUrl(),
+        connectTimeout: const Duration(seconds: 20),
+        receiveTimeout: const Duration(seconds: 20),
+      )).post('/auth/refresh', data: {'refreshToken': token});
+      await _saveTokens(res.data['accessToken'], res.data['refreshToken']);
+      _refreshGate!.complete();
+    } catch (e) {
+      _refreshGate!.completeError(e);
+      await logout();
+      rethrow;
+    } finally {
+      _refreshGate = null;
+    }
+  }
 
   Future<void> restore() async {
     final prefs = await SharedPreferences.getInstance();
     access = prefs.getString('access');
     refresh = prefs.getString('refresh');
-    if (access != null) {
+    if (access != null || refresh != null) {
       try {
-        final res = await dio.get('/auth/me');
-        user = Map<String, dynamic>.from(res.data['user']);
-        pointsBalance = res.data['pointsBalance'] ?? 0;
+        await _loadMe();
         await dio.post('/auth/daily-login');
         await refreshWallet();
         await refreshCart();
       } catch (_) {
-        user = null;
+        // Keep tokens if offline; only clear when refresh already logged out.
+        if (refresh == null && access == null) {
+          user = null;
+        } else if (user == null && refresh != null) {
+          try {
+            await _refreshTokens();
+            await _loadMe();
+            await refreshWallet();
+            await refreshCart();
+          } catch (_) {
+            user = null;
+          }
+        }
       }
     }
     ready = true;
     notifyListeners();
+  }
+
+  Future<void> _loadMe() async {
+    final res = await dio.get('/auth/me');
+    user = Map<String, dynamic>.from(res.data['user']);
+    pointsBalance = res.data['pointsBalance'] ?? 0;
   }
 
   Future<void> refreshCart() async {
@@ -109,7 +147,7 @@ class Session extends ChangeNotifier {
 
   Future<Map<String, dynamic>> login(String identifier, String password) async {
     final res = await dio.post('/auth/login', data: {
-      'identifier': identifier,
+      'identifier': identifier.trim(),
       'password': password,
     });
     await _saveTokens(res.data['accessToken'], res.data['refreshToken']);
@@ -135,6 +173,7 @@ class Session extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    final oldRefresh = refresh;
     user = null;
     access = null;
     refresh = null;
@@ -145,6 +184,14 @@ class Session extends ChangeNotifier {
     await prefs.remove('access');
     await prefs.remove('refresh');
     notifyListeners();
+    if (oldRefresh != null) {
+      try {
+        await Dio(BaseOptions(baseUrl: apiBaseUrl())).post(
+          '/auth/logout',
+          data: {'refreshToken': oldRefresh},
+        );
+      } catch (_) {}
+    }
   }
 }
 
@@ -152,6 +199,10 @@ String apiMessage(Object e) {
   if (e is DioException) {
     final data = e.response?.data;
     if (data is Map && data['message'] != null) return data['message'].toString();
+    if (e.type == DioExceptionType.connectionError ||
+        e.type == DioExceptionType.connectionTimeout) {
+      return 'No internet connection';
+    }
     return e.message ?? 'Network error';
   }
   return e.toString();
