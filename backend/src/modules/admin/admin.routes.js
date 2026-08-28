@@ -1892,7 +1892,7 @@ router.post(
 router.get(
   "/flash-drops",
   asyncHandler(async (req, res) => {
-    res.json(listFlashDrops(req.query));
+    res.json(await listFlashDrops(req.query));
   })
 );
 
@@ -1961,16 +1961,18 @@ router.post(
           remainingQty: Math.min(body.qtyEach || 10, p.stock),
         })),
       });
-      await mongoDrop.populate("products.product");
+      await mongoDrop.populate({ path: "products.product", populate: { path: "category" } });
     }
 
-    const created = upsertDrop({
-      ...body,
-      discount: body.discount ?? body.discountPercent ?? 0,
-      endsAtIso: body.endsAt,
-      maxQty: body.maxQty ?? body.maxQtyPerCustomer,
-    });
-    res.status(201).json({ flashDrop: mongoDrop, drop: created, ...listFlashDrops(req.query) });
+    const created = mongoDrop
+      ? await getDrop(String(mongoDrop.id))
+      : await upsertDrop({
+          ...body,
+          discount: body.discount ?? body.discountPercent ?? 0,
+          endsAtIso: body.endsAt,
+          maxQty: body.maxQty ?? body.maxQtyPerCustomer,
+        });
+    res.status(201).json({ flashDrop: mongoDrop, drop: created, ...(await listFlashDrops(req.query)) });
   })
 );
 
@@ -1978,16 +1980,16 @@ router.post(
   "/flash-drops/:id/duplicate",
   requireRoles("SUPER_ADMIN", "ADMIN", "SALES_MANAGER"),
   asyncHandler(async (req, res) => {
-    const copied = duplicateDrop(req.params.id);
+    const copied = await duplicateDrop(req.params.id);
     if (!copied) throw httpError(404, "Flash drop not found");
-    res.status(201).json({ drop: copied, ...listFlashDrops(req.query) });
+    res.status(201).json({ drop: copied, ...(await listFlashDrops(req.query)) });
   })
 );
 
 router.get(
   "/flash-drops/:id",
   asyncHandler(async (req, res) => {
-    const drop = getDrop(req.params.id);
+    const drop = await getDrop(req.params.id);
     if (!drop) throw httpError(404, "Flash drop not found");
     res.json({ drop });
   })
@@ -2031,23 +2033,14 @@ router.patch(
       })
       .parse(req.body);
 
-    if (String(req.params.id).startsWith("fd-")) {
-      const patch = { ...body, discount: body.discount ?? body.discountPercent };
-      if (body.isActive === false && !body.status) patch.status = "completed";
-      if (body.isActive === true && !body.status) patch.status = "live";
-      if (body.endsAt) patch.endsAtIso = body.endsAt;
-      const updated = upsertDrop(patch, req.params.id);
-      if (!updated) throw httpError(404, "Flash drop not found");
-      return res.json({ drop: updated, ...listFlashDrops(req.query) });
-    }
+    const patch = { ...body, discount: body.discount ?? body.discountPercent };
+    if (body.isActive === false && !body.status) patch.status = "completed";
+    if (body.isActive === true && !body.status) patch.status = "live";
+    if (body.endsAt) patch.endsAtIso = body.endsAt;
 
-    if (!isOid(req.params.id)) throw httpError(404, "Flash drop not found");
-    const flashDrop = await FlashDrop.findByIdAndUpdate(
-      req.params.id,
-      { isActive: body.isActive },
-      { new: true }
-    );
-    res.json({ flashDrop });
+    const updated = await upsertDrop(patch, req.params.id);
+    if (!updated) throw httpError(404, "Flash drop not found");
+    return res.json({ drop: updated, ...(await listFlashDrops(req.query)) });
   })
 );
 
@@ -2055,8 +2048,8 @@ router.delete(
   "/flash-drops/:id",
   requireRoles("SUPER_ADMIN", "ADMIN", "SALES_MANAGER"),
   asyncHandler(async (req, res) => {
-    if (!removeDrop(req.params.id)) throw httpError(404, "Flash drop not found");
-    res.json({ ok: true, ...listFlashDrops(req.query) });
+    if (!(await removeDrop(req.params.id))) throw httpError(404, "Flash drop not found");
+    res.json({ ok: true, ...(await listFlashDrops(req.query)) });
   })
 );
 
@@ -2164,21 +2157,21 @@ router.delete(
 router.get(
   "/flash-drop-analytics",
   asyncHandler(async (_req, res) => {
-    res.json(getFlashDropAnalytics());
+    res.json(await getFlashDropAnalytics());
   })
 );
 
 router.get(
   "/flash-drop-participants",
   asyncHandler(async (req, res) => {
-    res.json(listFlashDropParticipants(req.query));
+    res.json(await listFlashDropParticipants(req.query));
   })
 );
 
 router.get(
   "/flash-drop-history",
   asyncHandler(async (req, res) => {
-    res.json(listFlashDropHistory(req.query));
+    res.json(await listFlashDropHistory(req.query));
   })
 );
 
@@ -2215,7 +2208,7 @@ router.get(
 router.get(
   "/flash-drop-reports",
   asyncHandler(async (_req, res) => {
-    res.json(getFlashDropReports());
+    res.json(await getFlashDropReports());
   })
 );
 

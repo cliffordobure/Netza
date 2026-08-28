@@ -1,31 +1,33 @@
-const img = (id, sig) =>
-  `https://images.unsplash.com/${id}?auto=format&fit=crop&w=200&q=80&sig=${sig}`;
+const { FlashDrop, Order } = require("../../models");
 
-const LIVE_REMAINING = [
-  (1 * 3600 + 45 * 60 + 32) * 1000,
-  (3 * 3600 + 12 * 60) * 1000,
-  (6 * 3600 + 5 * 60) * 1000,
-];
-
-const CORE = [
-  { name: "TP-Link Archer C6 Router", category: "Networking", type: "percentage", discount: 40, startLabel: "27 May 2026, 10:00 AM", endLabel: "27 May 2026, 11:59 PM", stock: 44, sold: 156, revenue: 234000, image: img("photo-1606904825846-647eb07f5be2", 1) },
-  { name: "Hikvision DS-2CD2143G2-I 4MP Dome", category: "CCTV", type: "percentage", discount: 35, startLabel: "27 May 2026, 08:00 AM", endLabel: "27 May 2026, 10:00 PM", stock: 38, sold: 112, revenue: 386400, image: img("photo-1557597774-9d273bd59043", 2) },
-  { name: "KSh 5,000 Shopping Voucher", category: "Vouchers", type: "voucher", discount: 0, startLabel: "26 May 2026, 09:00 AM", endLabel: "27 May 2026, 11:59 PM", stock: 80, sold: 120, revenue: 600000, image: img("photo-1556742049-0cfed4f6a45d", 3) },
-];
-
-const COMPLETED = [];
-
-let catalog = null;
-let seq = 0;
-
-function sku(n) {
-  return `FD-2026-${String(n).padStart(4, "0")}`;
+function fmtLabel(value) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  const date = new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "Africa/Nairobi",
+  }).format(d);
+  const time = new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "Africa/Nairobi",
+  }).format(d);
+  return `${date}, ${time.replace("am", "AM").replace("pm", "PM")}`;
 }
 
-function discountLabel(row) {
-  if (row.type === "voucher") return "Voucher";
-  if (row.type === "fixed") return `KSh ${Number(row.discount).toLocaleString("en-KE")} OFF`;
-  return `${row.discount}% OFF`;
+function skuFor(doc, index) {
+  const year = doc.createdAt ? new Date(doc.createdAt).getFullYear() : new Date().getFullYear();
+  return `FD-${year}-${String(index + 1).padStart(4, "0")}`;
+}
+
+function discountLabel(type, discount) {
+  if (type === "voucher") return "Voucher";
+  if (type === "fixed") return `KSh ${Number(discount || 0).toLocaleString("en-KE")} OFF`;
+  return `${discount || 0}% OFF`;
 }
 
 function typeLabel(type) {
@@ -34,68 +36,111 @@ function typeLabel(type) {
   return "Percentage";
 }
 
-function row(spec, index, status, endsAt) {
-  const n = index + 1;
-  seq = Math.max(seq, n);
-  const stock = spec.stock;
-  const sold = spec.sold;
-  const total = (stock || 0) + (sold || 0) || 1;
-  return {
-    id: `fd-${n}`,
-    n,
-    sku: sku(n),
-    name: spec.name,
-    category: spec.category,
-    type: spec.type,
-    typeLabel: typeLabel(spec.type),
-    discount: spec.discount,
-    discountLabel: discountLabel(spec),
-    status,
-    startLabel: spec.startLabel,
-    endLabel: spec.endLabel,
-    endsAt: endsAt ? endsAt.toISOString() : null,
-    stock,
-    sold,
-    soldPct: Math.round((sold / total) * 100),
-    revenue: spec.revenue,
-    image: spec.image,
-    description: spec.description || `${spec.name} flash drop on NETZA Kenya.`,
-  };
-}
-
-function spark(seed) {
-  return Array.from({ length: 8 }, (_, i) => 40 + ((seed * (i + 3) * 17) % 55));
-}
-
-function buildCatalog() {
+function resolveStatus(doc) {
+  if (doc.isActive === false) return "cancelled";
   const now = Date.now();
-  const rows = [];
-  CORE.forEach((item, i) => {
-    const status = i < 3 ? "live" : "upcoming";
-    const endsAt = status === "live" ? new Date(now + LIVE_REMAINING[i]) : null;
-    rows.push(row(item, rows.length, status, endsAt));
-  });
-  COMPLETED.forEach((item) => {
-    const spec = {
-      name: item[0],
-      category: item[1],
-      type: item[2],
-      discount: item[3],
-      startLabel: item[4],
-      endLabel: item[5],
-      stock: item[6],
-      sold: item[7],
-      revenue: item[8],
-      image: img(item[9], item[10]),
-    };
-    rows.push(row(spec, rows.length, "completed", null));
-  });
-  return rows;
+  const start = doc.startsAt ? new Date(doc.startsAt).getTime() : 0;
+  const end = doc.endsAt ? new Date(doc.endsAt).getTime() : 0;
+  if (end && now > end) return "completed";
+  if (start && now > start && end && now <= end) return "live";
+  if (start && now < start) return "upcoming";
+  if (start && now >= start) return "live";
+  return "upcoming";
 }
 
-function getCatalog() {
-  if (!catalog) catalog = buildCatalog();
-  return catalog;
+function primaryProduct(doc) {
+  const item = (doc.products || []).find((p) => p.product);
+  return item?.product || null;
+}
+
+function categoryName(doc) {
+  const p = primaryProduct(doc);
+  if (!p) return "General";
+  const cat = p.category;
+  if (!cat) return "General";
+  return typeof cat === "object" ? (cat.name || "General") : String(cat);
+}
+
+function imageUrl(doc) {
+  const p = primaryProduct(doc);
+  const imgs = p?.images;
+  if (Array.isArray(imgs) && imgs[0]) return imgs[0];
+  return "";
+}
+
+function inferType(doc) {
+  const cat = categoryName(doc).toLowerCase();
+  if (cat.includes("voucher")) return "voucher";
+  return "percentage";
+}
+
+async function productOrderStats() {
+  const rows = await Order.aggregate([
+    { $match: { paymentStatus: "COMPLETED", "items.wasFlashDrop": true } },
+    { $unwind: "$items" },
+    { $match: { "items.wasFlashDrop": true } },
+    {
+      $group: {
+        _id: "$items.product",
+        sold: { $sum: "$items.quantity" },
+        revenue: { $sum: "$items.lineTotalKes" },
+      },
+    },
+  ]);
+  return Object.fromEntries(rows.map((r) => [String(r._id), { sold: r.sold || 0, revenue: r.revenue || 0 }]));
+}
+
+function dropMetrics(doc, orderStats) {
+  let stock = 0;
+  let sold = 0;
+  let revenue = 0;
+  for (const item of doc.products || []) {
+    const pid = item.product?._id || item.product;
+    stock += Math.max(0, Number(item.remainingQty || 0));
+    const stats = orderStats[String(pid)] || { sold: 0, revenue: 0 };
+    sold += stats.sold;
+    revenue += stats.revenue;
+  }
+  const total = stock + sold || 1;
+  return { stock, sold, revenue, soldPct: Math.round((sold / total) * 100) };
+}
+
+function serializeDrop(doc, index, orderStats) {
+  const json = typeof doc.toJSON === "function" ? doc.toJSON() : doc;
+  const p = primaryProduct(doc);
+  const type = inferType(doc);
+  const discount = json.discountPercent ?? 0;
+  const status = resolveStatus(json);
+  const metrics = dropMetrics(doc, orderStats);
+  const displayName = json.name || p?.name || "Flash Drop";
+
+  return {
+    id: json.id || String(json._id),
+    n: index + 1,
+    sku: skuFor(json, index),
+    name: displayName,
+    category: categoryName(doc),
+    type,
+    typeLabel: typeLabel(type),
+    discount,
+    discountLabel: discountLabel(type, discount),
+    status,
+    startLabel: fmtLabel(json.startsAt),
+    endLabel: fmtLabel(json.endsAt),
+    startsAt: json.startsAt,
+    endsAt: json.endsAt ? new Date(json.endsAt).toISOString() : null,
+    stock: metrics.stock,
+    sold: metrics.sold,
+    soldPct: metrics.soldPct,
+    revenue: metrics.revenue,
+    image: imageUrl(doc),
+    description: json.description || `${displayName} flash drop on NETZA Kenya.`,
+    discountPercent: discount,
+    isActive: json.isActive !== false,
+    productId: p?.id || (p?._id ? String(p._id) : ""),
+    productName: p?.name || "",
+    productSku: p?.sku || "",
+  };
 }
 
 function statsOf(rows) {
@@ -110,145 +155,173 @@ function statsOf(rows) {
   };
 }
 
-function widgets() {
-  const rows = getCatalog();
+function spark(seed) {
+  return Array.from({ length: 8 }, (_, i) => 40 + ((seed * (i + 3) * 17) % 55));
+}
+
+function widgets(rows) {
   const stats = statsOf(rows);
   const cats = {};
-  rows.forEach((r) => { cats[r.category] = (cats[r.category] || 0) + 1; });
+  rows.forEach((r) => {
+    cats[r.category] = (cats[r.category] || 0) + 1;
+  });
+  const avgDiscount = rows.length
+    ? rows.reduce((s, r) => s + (r.discount || 0), 0) / rows.length
+    : 0;
+
   return {
     stats,
     overview: [
-      { label: "Active", value: 3, tone: "green" },
-      { label: "Upcoming", value: 5, tone: "orange" },
-      { label: "Completed", value: 12, tone: "blue" },
-      { label: "Items Available", value: 2150, tone: "purple" },
-      { label: "Items Sold", value: 3842, tone: "green" },
-      { label: "Total Revenue", value: 4205600, tone: "green", money: true },
-      { label: "Avg. Discount", value: "23.6%", tone: "orange" },
+      { label: "Active", value: stats.active, tone: "green" },
+      { label: "Upcoming", value: stats.upcoming, tone: "orange" },
+      { label: "Completed", value: stats.completed, tone: "blue" },
+      { label: "Items Available", value: rows.reduce((s, r) => s + (r.stock || 0), 0), tone: "purple" },
+      { label: "Items Sold", value: stats.sold, tone: "green" },
+      { label: "Total Revenue", value: stats.revenue, tone: "green", money: true },
+      { label: "Avg. Discount", value: `${avgDiscount.toFixed(1)}%`, tone: "orange" },
     ],
     activeDrops: rows.filter((r) => r.status === "live"),
     analytics: [
-      { key: "revenue", label: "Revenue", value: 4205600, money: true, hint: "↑ 16.8%", up: true, tone: "green", spark: spark(4) },
-      { key: "sold", label: "Items Sold", value: 3842, hint: "↑ 18.3%", up: true, tone: "purple", spark: spark(7) },
-      { key: "discount", label: "Avg. Discount", value: "23.6%", hint: "↓ 3.2%", up: false, tone: "orange", spark: spark(2) },
-      { key: "conversion", label: "Conversion Rate", value: "11.7%", hint: "↑ 2.9%", up: true, tone: "blue", spark: spark(9) },
+      { key: "revenue", label: "Revenue", value: stats.revenue, money: true, hint: "", up: true, tone: "green", spark: spark(4) },
+      { key: "sold", label: "Items Sold", value: stats.sold, hint: "", up: true, tone: "purple", spark: spark(7) },
+      { key: "discount", label: "Avg. Discount", value: `${avgDiscount.toFixed(1)}%`, hint: "", up: true, tone: "orange", spark: spark(2) },
+      { key: "conversion", label: "Conversion Rate", value: "0%", hint: "", up: true, tone: "blue", spark: spark(9) },
     ],
     categories: Object.entries(cats).map(([name, count]) => ({ name, count })),
-    participants: [
-      { name: "Brian Otieno", drops: 6, spent: 42800 },
-      { name: "Faith Wanjiku", drops: 4, spent: 18600 },
-      { name: "Daniel Mwangi", drops: 5, spent: 31200 },
-      { name: "Alice Chebet", drops: 3, spent: 15400 },
-      { name: "Samuel Kariuki", drops: 4, spent: 22100 },
-      { name: "Mercy Wanjiku", drops: 2, spent: 9800 },
-      { name: "Amina Otieno", drops: 3, spent: 14200 },
-      { name: "John Kamau", drops: 2, spent: 7600 },
-    ],
-    history: rows.filter((r) => r.status === "completed").slice(0, 8).map((r) => ({
-      title: r.name,
-      detail: `${r.sold} sold · ${r.startLabel}`,
-      at: r.endLabel,
-    })),
+    participants: [],
+    history: rows
+      .filter((r) => r.status === "completed")
+      .slice(0, 8)
+      .map((r) => ({
+        title: r.name,
+        detail: `${r.sold} sold · ${r.startLabel}`,
+        at: r.endLabel,
+      })),
   };
 }
 
-function listFlashDrops(query = {}) {
+async function loadAllRows() {
+  const [docs, orderStats] = await Promise.all([
+    FlashDrop.find()
+      .sort({ createdAt: -1 })
+      .populate({ path: "products.product", populate: { path: "category" } }),
+    productOrderStats(),
+  ]);
+  return docs.map((doc, i) => serializeDrop(doc, i, orderStats));
+}
+
+async function listFlashDrops(query = {}) {
   const page = Math.max(1, Number(query.page || 1));
   const limit = Math.min(50, Math.max(1, Number(query.limit || 10)));
   const q = String(query.q || "").trim().toLowerCase();
   const status = String(query.status || "").trim().toLowerCase();
   const category = String(query.category || "").trim();
   const type = String(query.type || "").trim().toLowerCase();
-  const all = getCatalog().filter((row) => {
+
+  const allRows = await loadAllRows();
+  const all = allRows.filter((row) => {
     if (q && !`${row.name} ${row.sku} ${row.category}`.toLowerCase().includes(q)) return false;
     if (status && row.status !== status) return false;
     if (category && row.category !== category) return false;
     if (type && row.type !== type) return false;
     return true;
   });
+
   const skip = (page - 1) * limit;
   const drops = all.slice(skip, skip + limit).map((row, i) => ({ ...row, n: skip + i + 1 }));
+
   return {
     drops,
     flashDrops: drops,
     total: all.length,
     page,
     limit,
-    ...widgets(),
+    ...widgets(allRows),
   };
 }
 
-function upsertDrop(body = {}, dropId) {
-  const rows = getCatalog();
-  const existing = dropId ? rows.find((r) => r.id === dropId) : null;
-  if (dropId && !existing) return null;
-  const type = ["percentage", "fixed", "voucher"].includes(body.type)
-    ? body.type
-    : (existing?.type || "percentage");
-  const discount = body.discount != null ? Number(body.discount) : (existing?.discount || 0);
-  const status = ["live", "upcoming", "completed", "cancelled"].includes(body.status)
-    ? body.status
-    : (existing?.status || "upcoming");
-  const next = {
-    name: body.name != null ? (String(body.name).trim() || existing?.name || "Untitled drop") : (existing?.name || "Untitled drop"),
-    category: body.category || existing?.category || "Networking",
-    type,
-    typeLabel: typeLabel(type),
-    discount,
-    discountLabel: discountLabel({ type, discount }),
-    status,
-    startLabel: body.startLabel || existing?.startLabel || "",
-    endLabel: body.endLabel || existing?.endLabel || "",
-    endsAt: body.endsAtIso || existing?.endsAt || (status === "live" && !existing ? new Date(Date.now() + 2 * 3600 * 1000).toISOString() : existing?.endsAt || null),
-    stock: body.stock != null ? Math.max(0, Number(body.stock)) : (existing?.stock || 0),
-    sold: body.sold != null ? Math.max(0, Number(body.sold)) : (existing?.sold || 0),
-    revenue: body.revenue != null ? Math.max(0, Number(body.revenue)) : (existing?.revenue || 0),
-    image: body.image || existing?.image || img("photo-1606904825846-647eb07f5be2", Date.now() % 99),
-    description: body.description != null ? String(body.description) : (existing?.description || ""),
-    originalKes: body.originalKes != null ? Number(body.originalKes) : (existing?.originalKes || 0),
-    flashKes: body.flashKes != null ? Number(body.flashKes) : (existing?.flashKes || 0),
-    maxQty: body.maxQty != null ? Number(body.maxQty) : (existing?.maxQty || 1),
-    reserved: body.reserved != null ? Number(body.reserved) : (existing?.reserved || 0),
-    productSku: body.productSku || existing?.productSku || "",
-    productName: body.productName || existing?.productName || "",
-    productId: body.productId || existing?.productId || "",
-    showCountdown: body.showCountdown != null ? Boolean(body.showCountdown) : (existing?.showCountdown !== false),
-    allowBackorders: body.allowBackorders != null ? Boolean(body.allowBackorders) : (existing?.allowBackorders !== false),
-    requirePoints: body.requirePoints != null ? Boolean(body.requirePoints) : Boolean(existing?.requirePoints),
-    notify: body.notify != null ? Boolean(body.notify) : (existing?.notify !== false),
-    bonusPoints: body.bonusPoints != null ? Number(body.bonusPoints) : (existing?.bonusPoints || 0),
-    tags: Array.isArray(body.tags) ? body.tags : (existing?.tags || []),
-    isDraft: body.isDraft != null ? Boolean(body.isDraft) : Boolean(existing?.isDraft),
-  };
-  const total = (next.stock || 0) + (next.sold || 0) || 1;
-  next.soldPct = Math.round((next.sold / total) * 100);
-  if (dropId) {
-    const idx = rows.findIndex((r) => r.id === dropId);
-    rows[idx] = { ...existing, ...next };
-    return rows[idx];
-  }
-  seq += 1;
-  const created = { id: `fd-${seq}`, sku: sku(seq), n: 1, ...next };
-  rows.unshift(created);
-  return created;
-}
-
-function removeDrop(dropId) {
-  const rows = getCatalog();
-  const idx = rows.findIndex((r) => r.id === dropId);
-  if (idx < 0) return false;
-  rows.splice(idx, 1);
+function statusToActive(status) {
+  if (status === "cancelled" || status === "completed") return false;
   return true;
 }
 
-function duplicateDrop(dropId) {
-  const src = getCatalog().find((r) => r.id === dropId);
-  if (!src) return null;
-  return upsertDrop({ ...src, name: `${src.name} (copy)`, status: "upcoming", sold: 0, revenue: 0 });
+async function upsertDrop(body = {}, dropId) {
+  const patch = {};
+  if (body.name != null) patch.name = String(body.name).trim() || "Flash Drop";
+  if (body.discount != null || body.discountPercent != null) {
+    patch.discountPercent = Math.min(90, Math.max(0, Number(body.discount ?? body.discountPercent ?? 50)));
+  }
+  if (body.startsAt || body.startsAtIso) patch.startsAt = new Date(body.startsAt || body.startsAtIso);
+  if (body.endsAt || body.endsAtIso) patch.endsAt = new Date(body.endsAt || body.endsAtIso);
+  if (body.maxQty != null || body.maxQtyPerCustomer != null) {
+    patch.maxQtyPerCustomer = Math.max(1, Number(body.maxQty ?? body.maxQtyPerCustomer ?? 1));
+  }
+  if (body.isActive != null) patch.isActive = Boolean(body.isActive);
+  if (body.status) patch.isActive = statusToActive(body.status);
+
+  if (dropId) {
+    const updated = await FlashDrop.findByIdAndUpdate(dropId, patch, { new: true }).populate({
+      path: "products.product",
+      populate: { path: "category" },
+    });
+    if (!updated) return null;
+    const orderStats = await productOrderStats();
+    const rows = await loadAllRows();
+    const idx = rows.findIndex((r) => r.id === String(updated.id));
+    return serializeDrop(updated, idx >= 0 ? idx : 0, orderStats);
+  }
+
+  const created = await FlashDrop.create({
+    name: patch.name || body.name || "Flash Drop",
+    discountPercent: patch.discountPercent ?? 50,
+    startsAt: patch.startsAt || (body.startsAt ? new Date(body.startsAt) : new Date()),
+    endsAt: patch.endsAt || (body.endsAt ? new Date(body.endsAt) : new Date(Date.now() + 12 * 3600000)),
+    maxQtyPerCustomer: patch.maxQtyPerCustomer ?? 1,
+    isActive: patch.isActive !== false,
+    products: [],
+  });
+  await created.populate({ path: "products.product", populate: { path: "category" } });
+  const orderStats = await productOrderStats();
+  return serializeDrop(created, 0, orderStats);
 }
 
-function getDrop(dropId) {
-  return getCatalog().find((r) => r.id === dropId) || null;
+async function removeDrop(dropId) {
+  const result = await FlashDrop.findByIdAndDelete(dropId);
+  return Boolean(result);
+}
+
+async function duplicateDrop(dropId) {
+  const src = await FlashDrop.findById(dropId).lean();
+  if (!src) return null;
+  const copy = await FlashDrop.create({
+    name: `${src.name || "Flash Drop"} (copy)`,
+    discountPercent: src.discountPercent ?? 50,
+    startsAt: src.startsAt,
+    endsAt: src.endsAt,
+    maxQtyPerCustomer: src.maxQtyPerCustomer ?? 1,
+    isActive: true,
+    products: (src.products || []).map((p) => ({
+      product: p.product,
+      originalKes: p.originalKes,
+      flashKes: p.flashKes,
+      remainingQty: p.remainingQty,
+    })),
+  });
+  await copy.populate({ path: "products.product", populate: { path: "category" } });
+  const orderStats = await productOrderStats();
+  return serializeDrop(copy, 0, orderStats);
+}
+
+async function getDrop(dropId) {
+  const doc = await FlashDrop.findById(dropId).populate({
+    path: "products.product",
+    populate: { path: "category" },
+  });
+  if (!doc) return null;
+  const orderStats = await productOrderStats();
+  const rows = await loadAllRows();
+  const idx = rows.findIndex((r) => r.id === String(doc.id));
+  return serializeDrop(doc, idx >= 0 ? idx : 0, orderStats);
 }
 
 module.exports = {
@@ -257,4 +330,9 @@ module.exports = {
   removeDrop,
   duplicateDrop,
   getDrop,
+  serializeDrop,
+  loadAllRows,
+  statsOf,
+  fmtLabel,
+  productOrderStats,
 };
