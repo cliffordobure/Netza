@@ -838,7 +838,7 @@ function serializeAdminOrder(order) {
 router.get(
   "/orders-catalog",
   asyncHandler(async (req, res) => {
-    res.json(getOrdersCatalog(req.query));
+    res.json(await getOrdersCatalog(req.query));
   })
 );
 
@@ -1231,14 +1231,9 @@ router.post(
 router.get(
   "/orders/:id",
   asyncHandler(async (req, res) => {
-    const demo = getOrderDetail(req.params.id);
-    if (demo) return res.json({ order: demo });
-    const q = {};
-    if (isOid(req.params.id)) q._id = req.params.id;
-    else q.orderNumber = req.params.id;
-    const order = await Order.findOne(q).populate("user", "firstName lastName phone email");
-    if (!order) throw httpError(404, "Order not found");
-    res.json({ order: serializeAdminOrder(order) });
+    const detail = await getOrderDetail(req.params.id);
+    if (!detail) throw httpError(404, "Order not found");
+    res.json({ order: detail });
   })
 );
 
