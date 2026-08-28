@@ -20,4 +20,10 @@ module.exports = {
     apiSecret: process.env.CLOUDINARY_API_SECRET || "",
     folder: process.env.CLOUDINARY_FOLDER || "netza",
   },
+  pesapal: {
+    consumerKey: process.env.PESAPAL_CONSUMER_KEY || "",
+    consumerSecret: process.env.PESAPAL_CONSUMER_SECRET || "",
+    env: (process.env.PESAPAL_ENV || "sandbox").toLowerCase() === "live" ? "live" : "sandbox",
+    ipnId: process.env.PESAPAL_IPN_ID || "",
+  },
 };

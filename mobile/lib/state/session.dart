@@ -68,7 +68,11 @@ class Session extends ChangeNotifier {
       _refreshGate!.complete();
     } catch (e) {
       _refreshGate!.completeError(e);
-      await logout();
+      final isAuthFailure = e is DioException &&
+          (e.response?.statusCode == 401 || e.response?.statusCode == 403);
+      if (isAuthFailure) {
+        await logout();
+      }
       rethrow;
     } finally {
       _refreshGate = null;
@@ -146,8 +150,9 @@ class Session extends ChangeNotifier {
   }
 
   Future<Map<String, dynamic>> login(String identifier, String password) async {
+    final id = identifier.trim();
     final res = await dio.post('/auth/login', data: {
-      'identifier': identifier.trim(),
+      'identifier': id,
       'password': password,
     });
     await _saveTokens(res.data['accessToken'], res.data['refreshToken']);
@@ -159,7 +164,14 @@ class Session extends ChangeNotifier {
   }
 
   Future<void> register(Map<String, dynamic> body) async {
-    final res = await dio.post('/auth/register', data: body);
+    final payload = Map<String, dynamic>.from(body);
+    if (payload['email'] != null) {
+      payload['email'] = payload['email'].toString().trim().toLowerCase();
+    }
+    if (payload['phone'] != null) {
+      payload['phone'] = payload['phone'].toString().trim();
+    }
+    final res = await dio.post('/auth/register', data: payload);
     await _saveTokens(res.data['accessToken'], res.data['refreshToken']);
     user = Map<String, dynamic>.from(res.data['user']);
     await refreshWallet();

@@ -26,6 +26,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
   List products = [];
   String? error;
   int total = 0;
+  String? categoryLabel;
   int chipIndex = 0;
   String sort = 'popular';
   final liked = <String>{};
@@ -69,22 +70,33 @@ class _CatalogScreenState extends State<CatalogScreen> {
 
   String get title {
     if (widget.flash) return 'Flash Drop';
+    if (categoryLabel != null && categoryLabel!.isNotEmpty) return categoryLabel!;
     final match = shopCategories.where((c) => c.slug == widget.category);
     if (match.isNotEmpty) return match.first.name;
     if (widget.query != null && widget.query!.isNotEmpty) return widget.query!;
     return 'Catalog';
   }
 
-  String get countLabel {
-    final match = shopCategories.where((c) => c.slug == widget.category);
-    if (match.isNotEmpty) return match.first.countLabel;
-    return '$total products';
-  }
+  String get countLabel => '$total products';
 
   Future<void> load() async {
     final session = context.read<Session>();
     final chip = chips[chipIndex.clamp(0, chips.length - 1)];
     try {
+      if (widget.category != null && widget.category!.isNotEmpty) {
+        try {
+          final catRes = await session.dio.get('/categories');
+          final cats = catRes.data['categories'] as List? ?? [];
+          for (final raw in cats) {
+            final c = Map<String, dynamic>.from(raw as Map);
+            if (c['slug']?.toString() == widget.category) {
+              categoryLabel = c['name']?.toString();
+              break;
+            }
+          }
+        } catch (_) {}
+      }
+
       final flashRes = await session.dio.get('/flash-drops/active');
       flashDrop = flashRes.data['flashDrop'];
       _tick();
@@ -105,7 +117,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
       final res = await session.dio.get('/products', queryParameters: {
         if (widget.category != null && !widget.flash) 'category': widget.category,
         if (q != null && q.isNotEmpty) 'q': q,
-        'limit': 40,
+        'limit': 100,
       });
       final list = res.data['products'] as List;
       setState(() {

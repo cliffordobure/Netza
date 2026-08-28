@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../core/format.dart';
 import '../core/theme.dart';
 import '../core/type.dart';
@@ -25,7 +26,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   bool redeem = false;
   bool showDetails = false;
   int step = 0;
-  String pay = 'MPESA';
+  String pay = 'MPESA'; // Pesapal channel: MPESA | AIRTEL | CARD
 
   static const standardKes = 150;
   static const expressKes = 350;
@@ -155,28 +156,40 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Your cart is empty')));
       return;
     }
-    if (pay == 'POINTS' && !redeem) {
-      setState(() => redeem = true);
-    }
 
-    final method = pay == 'POINTS' ? 'MPESA' : pay;
     setState(() => busy = true);
     final dio = context.read<Session>().dio;
     try {
       final orderRes = await dio.post('/orders', data: {
         'addressId': addressId,
-        'paymentMethod': method,
+        'paymentMethod': 'PESAPAL',
+        'pesapalChannel': pay,
         'deliveryMethod': express ? 'EXPRESS' : 'STANDARD',
       });
       final order = orderRes.data['order'] as Map;
-      if (method == 'MPESA') {
-        await dio.post('/payments/mpesa/stk', data: {'orderId': order['id']});
-        if (!mounted) return;
+      final payRes = await dio.post('/payments/pesapal/initiate', data: {
+        'orderId': order['id'],
+        'channel': pay,
+      });
+      final redirectUrl = payRes.data['redirectUrl']?.toString();
+      final configured = payRes.data['configured'] != false;
+
+      if (redirectUrl != null && redirectUrl.isNotEmpty) {
+        final uri = Uri.parse(redirectUrl);
+        final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+        if (!opened && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Open this link to pay: $redirectUrl')),
+          );
+        }
+      } else if (!configured && mounted) {
         final confirm = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text('M-Pesa STK Push'),
-            content: Text('Check your phone for the M-Pesa prompt and enter your PIN to pay ${money(order['totalKes'])}.'),
+            title: const Text('Pesapal (dev mode)'),
+            content: Text(
+              'Pesapal credentials are not set on the server yet. Simulate payment for ${money(order['totalKes'])}?',
+            ),
             actions: [
               TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Later')),
               FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Simulate payment')),
@@ -184,14 +197,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           ),
         );
         if (confirm == true) {
-          await dio.post('/payments/mpesa/simulate', data: {'orderId': order['id']});
+          await dio.post('/payments/pesapal/simulate', data: {'orderId': order['id']});
         }
-      } else {
-        if (!mounted) return;
+      } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Order ${order['orderNumber']} created. Complete ${pay == 'CARD' ? 'card' : 'Pesapal'} payment to confirm.')),
+          const SnackBar(content: Text('Could not open Pesapal checkout. Check server configuration.')),
         );
       }
+
       if (!mounted) return;
       await context.read<Session>().refreshCart();
       if (mounted) context.go('/order/${order['id']}');
@@ -336,88 +349,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         onTap: () => setState(() => express = true),
       ),
       const SizedBox(height: 18),
-      Row(
-        children: [
-          Text('Payment Method', style: inter(size: 16, weight: FontWeight.w800, color: navy)),
-          const Spacer(),
-          const Icon(Icons.verified_user, size: 14, color: Color(0xFF16A34A)),
-          const SizedBox(width: 4),
-          Text('100% Secure', style: inter(size: 11, weight: FontWeight.w700, color: const Color(0xFF16A34A))),
-        ],
-      ),
-      const SizedBox(height: 10),
-      GridView.count(
-        crossAxisCount: 2,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        mainAxisSpacing: 10,
-        crossAxisSpacing: 10,
-        childAspectRatio: 1.55,
-        children: [
-          _PayCard(
-            selected: pay == 'MPESA',
-            onTap: () => setState(() => pay = 'MPESA'),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _MpessaMark(),
-                const Spacer(),
-                Text('Pay with M-Pesa', style: inter(size: 12, weight: FontWeight.w600, color: navy)),
-              ],
-            ),
-          ),
-          _PayCard(
-            selected: pay == 'CARD',
-            onTap: () => setState(() => pay = 'CARD'),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  children: [
-                    _BrandChip('VISA', Color(0xFF1A1F71)),
-                    SizedBox(width: 4),
-                    _BrandChip('MC', Color(0xFFEB001B)),
-                  ],
-                ),
-                const Spacer(),
-                Text('Debit / Credit Card', style: inter(size: 12, weight: FontWeight.w600, color: navy)),
-              ],
-            ),
-          ),
-          _PayCard(
-            selected: pay == 'PESAPAL',
-            onTap: () => setState(() => pay = 'PESAPAL'),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('pesapal', style: inter(size: 16, weight: FontWeight.w800, color: const Color(0xFF00AEEF))),
-                const Spacer(),
-                Text('Pay with Pesapal', style: inter(size: 12, weight: FontWeight.w600, color: navy)),
-              ],
-            ),
-          ),
-          _PayCard(
-            selected: pay == 'POINTS',
-            onTap: () => setState(() {
-              pay = 'POINTS';
-              redeem = true;
-            }),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(Icons.account_balance_wallet_outlined, color: purple, size: 22),
-                const Spacer(),
-                Text('Netza Points', style: inter(size: 12, weight: FontWeight.w700, color: navy)),
-                Text(
-                  'Balance: ${NumberFormatHelper.pts(session.pointsBalance)} Pts',
-                  style: inter(size: 11, weight: FontWeight.w700, color: orange),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-      const SizedBox(height: 16),
       _summaryPair(),
       const SizedBox(height: 10),
       _redeemBanner(session, compact: true),
@@ -439,7 +370,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Your payment is 100% secure and encrypted',
+                'Payments are processed securely by Pesapal',
                 style: inter(size: 12, weight: FontWeight.w600, color: const Color(0xFF166534)),
               ),
             ),
@@ -447,19 +378,41 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         ),
       ),
       const SizedBox(height: 16),
-      Text('Select Payment Method', style: inter(size: 16, weight: FontWeight.w800, color: navy)),
-      const SizedBox(height: 10),
-      _MpesaOption(
+      Row(
+        children: [
+          Text('pesapal', style: inter(size: 22, weight: FontWeight.w900, color: const Color(0xFF00AEEF))),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Choose how you want to pay',
+              style: inter(size: 13, weight: FontWeight.w600, color: muted),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 12),
+      _PesapalChannelOption(
         selected: pay == 'MPESA',
         onTap: () => setState(() => pay = 'MPESA'),
+        title: 'M-Pesa',
+        subtitle: 'Pay with Safaricom M-Pesa via Pesapal',
+        badge: _MpessaMark(),
       ),
       const SizedBox(height: 10),
-      _PayRow(
+      _PesapalChannelOption(
+        selected: pay == 'AIRTEL',
+        onTap: () => setState(() => pay = 'AIRTEL'),
+        title: 'Airtel Money',
+        subtitle: 'Pay with Airtel Money via Pesapal',
+        badge: _AirtelMark(),
+      ),
+      const SizedBox(height: 10),
+      _PesapalChannelOption(
         selected: pay == 'CARD',
-        title: 'Debit / Credit Card',
-        subtitle: 'Pay securely using your card',
         onTap: () => setState(() => pay = 'CARD'),
-        leading: const Row(
+        title: 'Debit / Credit Card',
+        subtitle: 'Visa, Mastercard and other cards via Pesapal',
+        badge: const Row(
           children: [
             _BrandChip('VISA', Color(0xFF1A1F71)),
             SizedBox(width: 4),
@@ -467,31 +420,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           ],
         ),
       ),
-      const SizedBox(height: 10),
-      _PayRow(
-        selected: pay == 'PESAPAL',
-        title: 'Pay with Pesapal',
-        subtitle: 'Secure payments via Pesapal',
-        onTap: () => setState(() => pay = 'PESAPAL'),
-        leading: Text('pesapal', style: inter(size: 15, weight: FontWeight.w800, color: const Color(0xFF00AEEF))),
-      ),
-      const SizedBox(height: 10),
-      _PayRow(
-        selected: pay == 'POINTS',
-        title: 'Pay with Netza Points',
-        subtitle: 'Redeem points at 100 Pts = KSh 10',
-        onTap: () => setState(() {
-          pay = 'POINTS';
-          redeem = true;
-        }),
-        leading: const Icon(Icons.account_balance_wallet_outlined, color: purple, size: 26),
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(color: const Color(0xFFF3E8FF), borderRadius: BorderRadius.circular(20)),
-          child: Text(
-            'Balance: ${NumberFormatHelper.pts(session.pointsBalance)} Pts',
-            style: inter(size: 10, weight: FontWeight.w800, color: purple),
-          ),
+      const SizedBox(height: 12),
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF0FAFF),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFBFEAFF)),
+        ),
+        child: Text(
+          'You will be redirected to Pesapal to complete payment. M-Pesa, Airtel Money and cards are all handled on the secure Pesapal page.',
+          style: inter(size: 12, color: const Color(0xFF0C4A6E), height: 1.4),
         ),
       ),
       const SizedBox(height: 16),
@@ -682,7 +622,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               const SizedBox(width: 4),
               Flexible(
                 child: Text(
-                  step == 0 ? 'Your payment information is secure and encrypted' : 'You will be redirected to a secure payment page',
+                  step == 0 ? 'Your payment information is secure and encrypted' : 'You will be redirected to Pesapal to pay',
                   style: inter(size: 10, color: muted),
                   textAlign: TextAlign.center,
                 ),
@@ -808,10 +748,20 @@ class _TrustItem extends StatelessWidget {
   }
 }
 
-class _MpesaOption extends StatelessWidget {
-  const _MpesaOption({required this.selected, required this.onTap});
+class _PesapalChannelOption extends StatelessWidget {
+  const _PesapalChannelOption({
+    required this.selected,
+    required this.onTap,
+    required this.title,
+    required this.subtitle,
+    required this.badge,
+  });
+
   final bool selected;
   final VoidCallback onTap;
+  final String title;
+  final String subtitle;
+  final Widget badge;
 
   @override
   Widget build(BuildContext context) {
@@ -825,83 +775,22 @@ class _MpesaOption extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: selected ? orange : const Color(0xFFE8ECF1), width: selected ? 1.8 : 1),
         ),
-        child: Column(
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(selected ? Icons.radio_button_checked : Icons.radio_button_off, color: selected ? orange : const Color(0xFFC5CDD6), size: 22),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          _MpessaMark(),
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE31C23),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text('Safaricom', style: inter(size: 9, weight: FontWeight.w800, color: Colors.white)),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text('Pay with M-Pesa', style: inter(size: 14, weight: FontWeight.w800, color: navy)),
-                      Text('Pay securely via M-Pesa STK Push', style: T.memberMeta.copyWith(fontSize: 12)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            if (selected) ...[
-              const SizedBox(height: 10),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEAF8EE),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('How it works', style: inter(size: 12, weight: FontWeight.w800, color: const Color(0xFF166534))),
-                          const SizedBox(height: 6),
-                          Text('1. Click “Pay Now”', style: inter(size: 11, color: const Color(0xFF166534), height: 1.35)),
-                          Text('2. You will receive an STK Push', style: inter(size: 11, color: const Color(0xFF166534), height: 1.35)),
-                          Text('3. Enter your M-Pesa PIN', style: inter(size: 11, color: const Color(0xFF166534), height: 1.35)),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      width: 52,
-                      height: 72,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFFBBF7D0)),
-                      ),
-                      child: const Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.smartphone, color: Color(0xFF16A34A), size: 28),
-                          Icon(Icons.check_circle, color: Color(0xFF16A34A), size: 18),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+            Icon(selected ? Icons.radio_button_checked : Icons.radio_button_off, color: selected ? orange : const Color(0xFFC5CDD6), size: 22),
+            const SizedBox(width: 10),
+            badge,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: inter(size: 14, weight: FontWeight.w800, color: navy)),
+                  Text(subtitle, style: T.memberMeta.copyWith(fontSize: 11)),
+                ],
               ),
-            ],
+            ),
           ],
         ),
       ),
@@ -909,55 +798,13 @@ class _MpesaOption extends StatelessWidget {
   }
 }
 
-class _PayRow extends StatelessWidget {
-  const _PayRow({
-    required this.selected,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-    required this.leading,
-    this.trailing,
-  });
-
-  final bool selected;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-  final Widget leading;
-  final Widget? trailing;
-
+class _AirtelMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: selected ? orange : const Color(0xFFE8ECF1), width: selected ? 1.6 : 1),
-        ),
-        child: Row(
-          children: [
-            Icon(selected ? Icons.radio_button_checked : Icons.radio_button_off, color: selected ? orange : const Color(0xFFC5CDD6), size: 22),
-            const SizedBox(width: 10),
-            leading,
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: inter(size: 13, weight: FontWeight.w800, color: navy)),
-                  Text(subtitle, style: T.memberMeta.copyWith(fontSize: 11)),
-                ],
-              ),
-            ),
-            if (trailing != null) ...[trailing!, const SizedBox(width: 6)],
-            const Icon(Icons.chevron_right, color: muted),
-          ],
-        ),
-      ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(color: const Color(0xFFE40000), borderRadius: BorderRadius.circular(4)),
+      child: Text('Airtel', style: inter(size: 11, weight: FontWeight.w800, color: Colors.white)),
     );
   }
 }
@@ -1102,29 +949,6 @@ class _MethodCard extends StatelessWidget {
   }
 }
 
-class _PayCard extends StatelessWidget {
-  const _PayCard({required this.selected, required this.onTap, required this.child});
-  final bool selected;
-  final VoidCallback onTap;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: selected ? orange : const Color(0xFFE8ECF1), width: selected ? 1.6 : 1),
-        ),
-        child: child,
-      ),
-    );
-  }
-}
 
 class _MpessaMark extends StatelessWidget {
   @override

@@ -8,6 +8,7 @@
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
     "db:seed": "node src/seed.js",
+    "db:reset": "node src/scripts/reset-data.js",
     "setup": "npm install && node src/seed.js"
   },
   "dependencies": {

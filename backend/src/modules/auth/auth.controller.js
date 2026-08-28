@@ -184,13 +184,16 @@ exports.refresh = asyncHandler(async (req, res) => {
     throw httpError(401, "Invalid refresh token");
   }
 
-  // Atomic consume — prevents double-use races from logging the user out
-  const record = await RefreshToken.findOneAndDelete({ tokenHash: hashToken(token) });
+  // Atomic consume — only one refresh wins; issue new tokens before removing old row
+  const record = await RefreshToken.findOne({ tokenHash: hashToken(token) });
   if (!record) throw httpError(401, "Session expired. Please sign in again.");
 
-  const user = await User.findById(payload.sub);
+  const user = await User.findById(record.user);
   if (!user || !user.isActive) throw httpError(401, "Invalid session");
-  res.json(await issueTokens(user));
+
+  const tokens = await issueTokens(user);
+  await RefreshToken.deleteOne({ _id: record._id });
+  res.json(tokens);
 });
 
 exports.logout = asyncHandler(async (req, res) => {
@@ -237,8 +240,6 @@ exports.normalizeIdentities = async function normalizeIdentities() {
   const users = await User.find({}).sort({ createdAt: 1 });
   let updated = 0;
   let skipped = 0;
-  const seenEmail = new Map();
-  const seenPhone = new Map();
 
   for (const user of users) {
     try {
@@ -249,16 +250,9 @@ exports.normalizeIdentities = async function normalizeIdentities() {
         if (!email) {
           user.email = undefined;
           changed = true;
-        } else if (seenEmail.has(email)) {
-          user.email = undefined;
+        } else if (email !== user.email) {
+          user.email = email;
           changed = true;
-          skipped += 1;
-        } else {
-          seenEmail.set(email, user._id);
-          if (email !== user.email) {
-            user.email = email;
-            changed = true;
-          }
         }
       }
 
@@ -271,12 +265,6 @@ exports.normalizeIdentities = async function normalizeIdentities() {
           if (changed) await user.save();
           continue;
         }
-        if (seenPhone.has(phone) && String(seenPhone.get(phone)) !== String(user._id)) {
-          skipped += 1;
-          if (changed) await user.save();
-          continue;
-        }
-        seenPhone.set(phone, user._id);
         if (phone !== user.phone) {
           user.phone = phone;
           changed = true;

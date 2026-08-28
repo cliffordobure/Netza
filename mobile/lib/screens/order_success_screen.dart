@@ -71,14 +71,16 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
   }
 
   String get payLabel {
-    switch ((order?['paymentMethod'] ?? '').toString().toUpperCase()) {
-      case 'CARD':
-        return 'Debit / Credit Card';
-      case 'PESAPAL':
-        return 'Pesapal';
-      default:
-        return 'M-Pesa (STK Push)';
-    }
+    try {
+      final payments = order?['payments'] as List?;
+      if (payments != null && payments.isNotEmpty) {
+        final raw = payments.first['rawPayload']?.toString() ?? '';
+        if (raw.contains('AIRTEL')) return 'Airtel Money (Pesapal)';
+        if (raw.contains('CARD')) return 'Card (Pesapal)';
+        if (raw.contains('MPESA')) return 'M-Pesa (Pesapal)';
+      }
+    } catch (_) {}
+    return 'Pesapal';
   }
 
   Map get address => (order?['address'] as Map?) ?? {};
@@ -402,14 +404,8 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
                             children: [
                               Text('Payment Method', style: inter(size: 13, weight: FontWeight.w800, color: navy)),
                               const SizedBox(height: 10),
-                              if ((order?['paymentMethod'] ?? '').toString().toUpperCase() == 'MPESA') ...[
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                                  decoration: BoxDecoration(color: const Color(0xFF00A651), borderRadius: BorderRadius.circular(4)),
-                                  child: Text('M-PESA', style: inter(size: 9, weight: FontWeight.w800, color: Colors.white, spacing: 0.3)),
-                                ),
-                                const SizedBox(height: 6),
-                              ],
+                              Text('pesapal', style: inter(size: 14, weight: FontWeight.w900, color: const Color(0xFF00AEEF))),
+                              const SizedBox(height: 6),
                               Text(payLabel, style: inter(size: 12, weight: FontWeight.w700, color: const Color(0xFF16A34A))),
                               const SizedBox(height: 12),
                               Text('Paid Amount', style: T.memberMeta.copyWith(fontSize: 10)),

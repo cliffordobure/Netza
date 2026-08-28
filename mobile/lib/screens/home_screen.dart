@@ -7,6 +7,7 @@ import '../core/theme.dart';
 import '../core/type.dart';
 import '../data/shop_categories.dart';
 import '../state/session.dart';
+import 'categories_screen.dart' show categoryIcon;
 import '../widgets/offline_guard.dart';
 import '../widgets/storefront_chrome.dart';
 
@@ -22,6 +23,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List trending = [];
   List moreProducts = [];
   List banners = [];
+  List apiCategories = [];
   Map? flash;
   List flashProducts = [];
   int slide = 0;
@@ -56,10 +58,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final session = context.read<Session>();
     try {
       final results = await Future.wait([
-        session.dio.get('/products', queryParameters: {'trending': 'true', 'limit': 12}),
+        session.dio.get('/products', queryParameters: {'trending': 'true', 'limit': 24}),
         session.dio.get('/flash-drops/active'),
-        session.dio.get('/products', queryParameters: {'limit': 12}),
+        session.dio.get('/products', queryParameters: {'limit': 50}),
         session.dio.get('/banners', queryParameters: {'placement': 'home'}),
+        session.dio.get('/categories'),
       ]);
       if (session.isLoggedIn) {
         await session.refreshWallet();
@@ -67,6 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
       final trend = (results[0].data['products'] as List?) ?? [];
       final all = (results[2].data['products'] as List?) ?? [];
+      final cats = (results[4].data['categories'] as List?) ?? [];
       final trendIds = {
         for (final p in trend)
           if (p is Map && p['id'] != null) p['id'].toString(),
@@ -82,6 +86,7 @@ class _HomeScreenState extends State<HomeScreen> {
         flash = results[1].data['flashDrop'];
         flashProducts = results[1].data['products'] as List? ?? [];
         banners = results[3].data['banners'] as List? ?? [];
+        apiCategories = cats;
         error = null;
         slide = 0;
       });
@@ -92,6 +97,19 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   String _pad(int n) => n.toString().padLeft(2, '0');
+
+  List get _homeCategories {
+    if (apiCategories.isNotEmpty) {
+      return apiCategories.take(9).toList();
+    }
+    return homeQuickCats
+        .map((c) => {
+              'name': c.name,
+              'slug': c.slug,
+              'imageUrl': c.imageUrl,
+            })
+        .toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -141,7 +159,7 @@ class _HomeScreenState extends State<HomeScreen> {
               GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: homeQuickCats.length + 1,
+                itemCount: _homeCategories.length + 1,
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 5,
                   mainAxisSpacing: 8,
@@ -149,7 +167,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   childAspectRatio: 0.68,
                 ),
                 itemBuilder: (_, i) {
-                  if (i == homeQuickCats.length) {
+                  if (i == _homeCategories.length) {
                     return InkWell(
                       onTap: () => context.go('/shop'),
                       child: Column(
@@ -169,9 +187,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     );
                   }
-                  final c = homeQuickCats[i];
+                  final c = Map<String, dynamic>.from(_homeCategories[i] as Map);
+                  final slug = c['slug']?.toString() ?? '';
+                  final name = c['name']?.toString() ?? '';
                   return InkWell(
-                    onTap: () => context.push(c.route),
+                    onTap: () => context.push('/catalog?category=${Uri.encodeQueryComponent(slug)}'),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.start,
                       children: [
@@ -180,12 +200,12 @@ class _HomeScreenState extends State<HomeScreen> {
                           height: 50,
                           decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
                           clipBehavior: Clip.antiAlias,
-                          child: NetzaImage(c.imageUrl, fallback: c.icon),
+                          child: NetzaImage(c['imageUrl']?.toString(), fallback: categoryIcon(slug)),
                         ),
                         const SizedBox(height: 4),
                         Flexible(
                           child: Text(
-                            _homeCatLabel(c.name),
+                            _homeCatLabel(name),
                             textAlign: TextAlign.center,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,

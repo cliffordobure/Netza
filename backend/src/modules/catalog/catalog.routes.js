@@ -49,7 +49,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const { page, limit, skip } = paginate(req.query);
     const q = (req.query.q || "").trim();
-    const filter = { isActive: true };
+    const filter = { isActive: true, visibility: { $ne: "hidden" } };
     if (q) {
       const rx = new RegExp(escapeRegex(q), "i");
       filter.$or = [{ name: rx }, { description: rx }, { sku: rx }];

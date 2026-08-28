@@ -438,7 +438,69 @@ async function seed() {
   console.log("Customers: 3 · Orders: 3 · Competitions: 2");
 }
 
-module.exports = { seed };
+async function seedAdminOnly() {
+  const existing = await User.findOne({ role: { $in: ["SUPER_ADMIN", "ADMIN"] } });
+  if (existing) return existing;
+
+  const passwordHash = await bcrypt.hash("Admin@123", 10);
+  const user = await User.create({
+    firstName: "Francis",
+    lastName: "Admin",
+    email: normalizeEmail("admin@netza.co.ke"),
+    phone: normalizePhone("0700000000"),
+    passwordHash,
+    role: "SUPER_ADMIN",
+    referralCode: "NETZAADMIN",
+    profileCompleted: true,
+    membershipLevel: "PLATINUM",
+    isActive: true,
+  });
+  await Cart.create({ user: user._id, items: [] });
+
+  const rules = await PointsRule.countDocuments();
+  if (rules === 0) {
+    await PointsRule.insertMany([
+      {
+        key: "PURCHASE",
+        name: "Purchase Points",
+        points: 1,
+        ruleType: "purchase",
+        trigger: "amount_spent",
+        conditionValue: "100",
+        limit: "none",
+        priority: 1,
+        isActive: true,
+        description: "1 NETZA Point for every KSh 100 spent.",
+        configJson: JSON.stringify({ kesPerPoint: 100 }),
+      },
+      {
+        key: "WELCOME",
+        name: "Welcome Bonus",
+        points: 50,
+        ruleType: "special",
+        trigger: "signup",
+        limit: "once",
+        priority: 2,
+        isActive: true,
+        description: "Welcome points for new customer accounts.",
+      },
+    ]);
+  }
+
+  const settings = await Setting.countDocuments();
+  if (settings === 0) {
+    await Setting.insertMany([
+      { key: "currency", value: "KES" },
+      { key: "country", value: "KE" },
+      { key: "supportPhone", value: "+254700000000" },
+      { key: "pointsKesPerPoint", value: "10" },
+    ]);
+  }
+
+  return user;
+}
+
+module.exports = { seed, seedAdminOnly };
 
 if (require.main === module) {
   require("dotenv").config();

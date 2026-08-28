@@ -70,7 +70,8 @@ router.post(
     const body = z
       .object({
         addressId: z.string(),
-        paymentMethod: z.enum(["MPESA", "PESAPAL", "CARD"]),
+        paymentMethod: z.enum(["PESAPAL"]).default("PESAPAL"),
+        pesapalChannel: z.enum(["MPESA", "AIRTEL", "CARD"]).optional().default("MPESA"),
         deliveryMethod: z.enum(["STANDARD", "EXPRESS"]).optional().default("STANDARD"),
         installationRequested: z.boolean().optional(),
         installationNotes: z.string().optional(),
@@ -117,7 +118,7 @@ router.post(
         street: address.street,
         phone: address.phone,
       },
-      paymentMethod: body.paymentMethod,
+      paymentMethod: "PESAPAL",
       subtotalKes: subtotal,
       deliveryKes,
       totalKes,
@@ -127,21 +128,19 @@ router.post(
       items: lines,
       payments: [
         {
-          provider: body.paymentMethod,
+          provider: "PESAPAL",
           reference: randomCode("PAY"),
           amountKes: totalKes,
           phone: req.user.phone,
           status: "PENDING",
+          rawPayload: JSON.stringify({ channel: body.pesapalChannel }),
         },
       ],
     });
 
     res.status(201).json({
       order: await serializeOrder(order),
-      paymentHint:
-        body.paymentMethod === "MPESA"
-          ? "Call POST /api/v1/payments/mpesa/stk with this orderId, then simulate confirmation in development."
-          : "Complete payment via the selected provider.",
+      paymentHint: "Complete payment on the secure Pesapal page (M-Pesa, Airtel Money, or card).",
     });
   })
 );

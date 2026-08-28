@@ -1,17 +1,19 @@
 const { createApp } = require("./app");
 const config = require("./config");
 const { connectDb, disconnectDb } = require("./lib/db");
-const { Product } = require("./models");
-const { seed, seedCompetitions } = require("./seed");
+const { Product, User } = require("./models");
+const { seed, seedAdminOnly } = require("./seed");
 const { normalizeIdentities } = require("./modules/auth/auth.controller");
 
 async function start() {
   await connectDb();
-  if ((await Product.countDocuments()) === 0) {
+  if ((await User.countDocuments()) === 0) {
+    await seedAdminOnly();
+    console.log("Created admin account (no demo users or products).");
+  }
+  if ((await Product.countDocuments()) === 0 && process.env.SEED_DEMO === "true") {
     await seed();
-  } else {
-    const { Competition } = require("./models");
-    if ((await Competition.countDocuments()) === 0) await seedCompetitions();
+    console.log("SEED_DEMO=true: loaded demo catalog and sample customers.");
   }
   try {
     const healed = await normalizeIdentities();
