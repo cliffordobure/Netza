@@ -82,6 +82,7 @@ const {
 const { publicUser } = require("../../lib/jwt");
 const { creditPoints } = require("../../services/points.service");
 const { resetToAdminOnly } = require("../../scripts/reset-data");
+const { clearOrders } = require("../../scripts/clear-orders");
 const { uploadBuffer, FOLDERS } = require("../../lib/cloudinary");
 const bcrypt = require("bcryptjs");
 const multer = require("multer");
@@ -3643,6 +3644,16 @@ router.post(
         id: admin.id,
       },
     });
+  })
+);
+
+router.post(
+  "/system/clear-orders",
+  requireRoles("SUPER_ADMIN"),
+  asyncHandler(async (req, res) => {
+    z.object({ confirm: z.literal("CLEAR ORDERS") }).parse(req.body);
+    await clearOrders();
+    res.json({ ok: true, message: "All orders and related demo order data removed." });
   })
 );
 

@@ -10,6 +10,8 @@
     "db:seed": "node src/seed.js",
     "db:reset": "node src/scripts/reset-data.js",
     "db:reset:remote": "node src/scripts/reset-via-api.js",
+    "db:clear-orders": "node src/scripts/clear-orders.js",
+    "db:clear-orders:remote": "node src/scripts/clear-orders-via-api.js",
     "setup": "npm install && node src/seed.js"
   },
   "dependencies": {
