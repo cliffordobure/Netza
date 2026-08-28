@@ -79,6 +79,10 @@ export default function Categories() {
   const to = Math.min(safePage * limit, filtered.length);
   const stats = data.stats;
   const parents = data.categories.filter((c) => !c.parentId && c.id !== editingId);
+  const parentNameById = useMemo(
+    () => Object.fromEntries(data.categories.map((c) => [c.id, c.name])),
+    [data.categories]
+  );
   const allChecked = slice.length > 0 && slice.every((c) => selected.includes(c.id));
 
   function set(key, value) {
@@ -308,6 +312,7 @@ export default function Categories() {
                     />
                   </th>
                   <th>Category Name</th>
+                  <th>Parent</th>
                   <th>Slug</th>
                   <th>Products</th>
                   <th>Sub Categories</th>
@@ -341,6 +346,7 @@ export default function Categories() {
                         <strong>{c.name}</strong>
                       </div>
                     </td>
+                    <td className="muted">{c.parentId ? parentNameById[c.parentId] || "—" : "—"}</td>
                     <td className="mono">{c.slug}</td>
                     <td>{fmtNum(c.productCount)}</td>
                     <td>{fmtNum(c.childCount)}</td>
@@ -364,7 +370,7 @@ export default function Categories() {
                 ))}
                 {slice.length === 0 && (
                   <tr>
-                    <td colSpan="8" className="muted">No categories match these filters.</td>
+                    <td colSpan="9" className="muted">No categories match these filters.</td>
                   </tr>
                 )}
               </tbody>
@@ -417,11 +423,16 @@ export default function Categories() {
             />
             <label>Parent Category</label>
             <select value={form.parentId} onChange={(e) => set("parentId", e.target.value)}>
-              <option value="">Select parent category</option>
+              <option value="">None — top-level category</option>
               {parents.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
+            <p className="cat-field-hint">
+              {parents.length === 0
+                ? "Leave as “None” to create your first top-level category (e.g. Networking, CCTV). Save it, then add sub-categories and pick it here as the parent."
+                : "Choose a parent to make this a sub-category (e.g. Routers under Networking). Leave as “None” for a top-level category."}
+            </p>
             <label>Description</label>
             <textarea
               rows={3}
@@ -472,9 +483,10 @@ export default function Categories() {
           <section className="pf-tips">
             <h2><Icon name="bulb" size={16} /> Tips</h2>
             <ul>
+              <li><strong>Top-level:</strong> leave Parent Category as “None”, save (e.g. Networking).</li>
+              <li><strong>Sub-category:</strong> click Add New Category, pick the parent from the dropdown (e.g. Routers → parent Networking).</li>
               <li>Drag and drop to reorder categories.</li>
               <li>Hide a category if you don&apos;t want it to appear on the store.</li>
-              <li>Sub categories will inherit visibility from parent category.</li>
             </ul>
           </section>
         </aside>

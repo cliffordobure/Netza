@@ -81,6 +81,7 @@ const {
 } = require("./flash-drop-categories");
 const { publicUser } = require("../../lib/jwt");
 const { creditPoints } = require("../../services/points.service");
+const { resetToAdminOnly } = require("../../scripts/reset-data");
 const { uploadBuffer, FOLDERS } = require("../../lib/cloudinary");
 const bcrypt = require("bcryptjs");
 const multer = require("multer");
@@ -3624,6 +3625,24 @@ router.delete(
     if (!isOid(req.params.id)) throw httpError(404, "Competition not found");
     await Competition.deleteOne({ _id: req.params.id });
     res.json({ ok: true });
+  })
+);
+
+router.post(
+  "/system/reset-database",
+  requireRoles("SUPER_ADMIN"),
+  asyncHandler(async (req, res) => {
+    const body = z.object({ confirm: z.literal("RESET NETZA") }).parse(req.body);
+    const admin = await resetToAdminOnly();
+    res.json({
+      ok: true,
+      message: "All data wiped. Only super admin remains.",
+      admin: {
+        email: admin.email,
+        phone: admin.phone,
+        id: admin.id,
+      },
+    });
   })
 );
 

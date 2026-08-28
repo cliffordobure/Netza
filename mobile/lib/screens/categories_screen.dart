@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../core/format.dart';
+import '../core/theme.dart';
 import '../core/type.dart';
 import '../data/shop_categories.dart';
 import '../state/session.dart';

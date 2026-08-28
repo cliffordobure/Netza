@@ -6724,6 +6724,12 @@ body.sb-scroll-lock { overflow: hidden; }
 .cat-drop img { width: 72px; height: 72px; object-fit: cover; border-radius: 10px; margin: 0 auto 8px; display: block; }
 .cat-form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .cat-form-actions .btn { width: auto; margin: 0; }
+.cat-field-hint {
+  margin: -6px 0 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
 .cat-table-card .prod-pager { padding: 12px 16px 16px; margin-top: 0; border-top: 1px solid var(--line); }
 .brand-logo {
   width: 32px; height: 32px; border-radius: 8px;
