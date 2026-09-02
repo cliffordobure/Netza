@@ -213,17 +213,31 @@ function scoreZone(zone, address = {}) {
   return score;
 }
 
+function isLeftoverDemoZone(zone) {
+  const id = String(zone.id || "");
+  const name = norm(zone.name);
+  const fee = Number(zone.fee);
+  const demoId = id === "zone1" || id === "zone2" || id === "zone3";
+  const demoName = name === "nairobi cbd" || name === "westlands" || name === "eastlands";
+  const demoFee = fee === 150 || fee === 120 || fee === 130;
+  return (demoId || demoName) && demoFee;
+}
+
 function pickZone(zones, address) {
   let best = null;
   let bestScore = 0;
   for (const zone of zones) {
+    if (isLeftoverDemoZone(zone)) continue;
     const score = scoreZone(zone, address);
     if (score > bestScore) {
       best = zone;
       bestScore = score;
     }
   }
-  return bestScore >= 2 ? best : null;
+  // City-only (e.g. "Nairobi") must not pick a neighbourhood zone.
+  // Require an area / coverage / street hit so guests and logged-in users
+  // both fall back to the admin default fee unless the address is specific.
+  return bestScore >= 6 ? best : null;
 }
 
 function weekendInNairobi(now = new Date()) {
@@ -238,7 +252,8 @@ async function quoteDelivery({ address = {}, method = "STANDARD", subtotalKes = 
     ? Number(matched.fee) || 0
     : Number(settings.defaultZoneFeeKes ?? settings.baseFeeKes) || 0;
 
-  if (!matched && Number(settings.remoteAreaSurchargeKes) > 0) {
+  const hasPlace = Boolean(norm(address.city) || norm(address.county) || norm(address.street));
+  if (!matched && hasPlace && Number(settings.remoteAreaSurchargeKes) > 0) {
     deliveryKes += Number(settings.remoteAreaSurchargeKes) || 0;
   }
   if (String(method).toUpperCase() === "EXPRESS") {
