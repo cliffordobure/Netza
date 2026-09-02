@@ -195,8 +195,8 @@ export default function Orders() {
   }
 
   useAutoRefresh(() => {
-    if (!isAllOrders) load({}, { silent: true });
-  });
+    load({}, { silent: true });
+  }, 8000);
 
   useEffect(() => {
     const nextStatus = navStatus === "returns" ? "" : navStatus;

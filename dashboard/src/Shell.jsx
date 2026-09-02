@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate, Link } from "react-router-do
 import { api, kes, mediaUrl } from "./api";
 import { useAuth } from "./auth";
 import { Icon } from "./icons";
+import { useAutoRefresh } from "./useAutoRefresh";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: "home", end: true },
@@ -176,6 +177,11 @@ export default function Shell() {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState({});
   const [badges, setBadges] = useState({ orders: 0, alerts: 0, mail: 0 });
+  const [inbox, setInbox] = useState({ recentOrders: [], lowStockProducts: [], tickets: [] });
+  const [panel, setPanel] = useState(null);
+  const [shellToast, setShellToast] = useState("");
+  const newestOrderRef = useRef(null);
+  const inboxRef = useRef(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchBusy, setSearchBusy] = useState(false);
   const [hits, setHits] = useState({ products: [], productTotal: 0, orders: [], orderTotal: 0, customers: [], customerTotal: 0 });
@@ -205,17 +211,52 @@ export default function Shell() {
     return () => document.body.classList.remove("sb-scroll-lock");
   }, [isMobile, sidebarOpen]);
 
-  useEffect(() => {
-    api("/admin/dashboard")
-      .then((d) =>
+  function refreshInbox() {
+    Promise.all([
+      api("/admin/dashboard"),
+      api("/admin/support?tab=open&limit=8").catch(() => ({ tickets: [], stats: {} })),
+    ])
+      .then(([d, support]) => {
+        const tickets = support.tickets || [];
+        const openMail = support.stats?.open || tickets.length || 0;
+        setInbox({
+          recentOrders: d.recentOrders || [],
+          lowStockProducts: d.lowStockProducts || [],
+          tickets,
+        });
         setBadges({
           orders: d.kpis?.pendingOrders || 0,
-          alerts: d.kpis?.lowStock || 0,
-          mail: Math.min(d.kpis?.ordersToday || 0, 9),
-        })
-      )
+          alerts: (d.kpis?.pendingOrders || 0) + (d.kpis?.lowStock || 0),
+          mail: openMail,
+        });
+        const newest = d.recentOrders?.[0];
+        if (newestOrderRef.current && newest?.id && newest.id !== newestOrderRef.current) {
+          setShellToast(`New order ${newest.orderNumber || ""}`.trim());
+        }
+        if (newest?.id) newestOrderRef.current = newest.id;
+      })
       .catch(() => {});
+  }
+
+  useEffect(() => {
+    refreshInbox();
   }, [location.pathname]);
+
+  useAutoRefresh(refreshInbox, 8000);
+
+  useEffect(() => {
+    if (!shellToast) return undefined;
+    const t = setTimeout(() => setShellToast(""), 4000);
+    return () => clearTimeout(t);
+  }, [shellToast]);
+
+  useEffect(() => {
+    function close(e) {
+      if (inboxRef.current && !inboxRef.current.contains(e.target)) setPanel(null);
+    }
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, []);
 
   useEffect(() => {
     const match = NAV
@@ -806,15 +847,115 @@ export default function Shell() {
             </div>
           )}
           </div>
-          <div className="top-actions">
-            <button className="icon-btn" type="button" title="Notifications" onClick={() => navigate("/orders")}>
-              <Icon name="bell" />
-              {badges.alerts > 0 && <span className="dot-badge">{badges.alerts}</span>}
-            </button>
-            <button className="icon-btn" type="button" title="Messages" onClick={() => navigate("/orders")}>
-              <Icon name="mail" />
-              {badges.mail > 0 && <span className="dot-badge">{badges.mail}</span>}
-            </button>
+          <div className="top-actions" ref={inboxRef}>
+            {shellToast && <div className="top-inbox-toast">{shellToast}</div>}
+            <div className="top-inbox-wrap">
+              <button
+                className="icon-btn"
+                type="button"
+                title="Notifications"
+                aria-expanded={panel === "alerts"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPanel((cur) => (cur === "alerts" ? null : "alerts"));
+                }}
+              >
+                <Icon name="bell" />
+                {badges.alerts > 0 && <span className="dot-badge">{badges.alerts > 9 ? "9+" : badges.alerts}</span>}
+              </button>
+              {panel === "alerts" && (
+                <div className="top-inbox" role="menu">
+                  <header>
+                    <span>Notifications</span>
+                    <em>{(inbox.recentOrders?.length || 0) + (inbox.lowStockProducts?.length || 0)}</em>
+                  </header>
+                  {(inbox.recentOrders || []).map((o) => (
+                    <button
+                      key={o.id}
+                      type="button"
+                      className="top-inbox-item"
+                      onClick={() => {
+                        setPanel(null);
+                        navigate(`/orders/${o.id}`);
+                      }}
+                    >
+                      <span className="top-search-ph"><Icon name="receipt" size={14} /></span>
+                      <span>
+                        <strong>{o.orderNumber || "New order"}</strong>
+                        <small>{o.customer} · {kes(o.totalKes)} · {o.paymentStatus === "COMPLETED" ? "Paid" : "Payment pending"}</small>
+                      </span>
+                    </button>
+                  ))}
+                  {(inbox.lowStockProducts || []).map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className="top-inbox-item"
+                      onClick={() => {
+                        setPanel(null);
+                        navigate(`/products/${p.id}`);
+                      }}
+                    >
+                      <span className="top-search-ph"><Icon name="box" size={14} /></span>
+                      <span>
+                        <strong>Low stock · {p.name}</strong>
+                        <small>{[p.sku, `${p.stock} left`].filter(Boolean).join(" · ")}</small>
+                      </span>
+                    </button>
+                  ))}
+                  {!inbox.recentOrders?.length && !inbox.lowStockProducts?.length && (
+                    <p className="top-search-empty">No new notifications</p>
+                  )}
+                  <button type="button" className="top-search-more" onClick={() => { setPanel(null); navigate("/orders"); }}>
+                    View all orders
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="top-inbox-wrap">
+              <button
+                className="icon-btn"
+                type="button"
+                title="Messages"
+                aria-expanded={panel === "mail"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPanel((cur) => (cur === "mail" ? null : "mail"));
+                }}
+              >
+                <Icon name="mail" />
+                {badges.mail > 0 && <span className="dot-badge">{badges.mail > 9 ? "9+" : badges.mail}</span>}
+              </button>
+              {panel === "mail" && (
+                <div className="top-inbox" role="menu">
+                  <header>
+                    <span>Messages</span>
+                    <em>{inbox.tickets?.length || 0}</em>
+                  </header>
+                  {(inbox.tickets || []).map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      className="top-inbox-item"
+                      onClick={() => {
+                        setPanel(null);
+                        navigate(`/support?ticket=${encodeURIComponent(t.id)}`);
+                      }}
+                    >
+                      <span className="top-search-ph"><Icon name="mail" size={14} /></span>
+                      <span>
+                        <strong>{t.subject}</strong>
+                        <small>{t.customer} · {t.statusLabel || t.status}</small>
+                      </span>
+                    </button>
+                  ))}
+                  {!inbox.tickets?.length && <p className="top-search-empty">No open tickets</p>}
+                  <button type="button" className="top-search-more" onClick={() => { setPanel(null); navigate("/support"); }}>
+                    Open support inbox
+                  </button>
+                </div>
+              )}
+            </div>
             <button className="icon-btn" type="button" title="Help" onClick={() => window.alert("Need help with the catalog? Email support@tajira.co.ke")}>
               <Icon name="help" />
             </button>

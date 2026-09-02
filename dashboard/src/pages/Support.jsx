@@ -87,6 +87,13 @@ export default function Support() {
   }, [searchParams]);
 
   useEffect(() => {
+    const ticket = searchParams.get("ticket");
+    if (!ticket || !data?.tickets) return;
+    const found = data.tickets.find((t) => t.id === ticket);
+    if (found) setViewing(found);
+  }, [searchParams, data]);
+
+  useEffect(() => {
     if (!toast) return undefined;
     const t = setTimeout(() => setToast(""), 2800);
     return () => clearTimeout(t);

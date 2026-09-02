@@ -497,6 +497,8 @@ router.get(
           itemCount: (json.items || []).reduce((s, i) => s + (i.quantity || 1), 0),
           totalKes: json.totalKes,
           status: json.status,
+          paymentStatus: json.paymentStatus,
+          createdAt: json.createdAt,
         };
       }),
       nextFlashDrop: nextFlash

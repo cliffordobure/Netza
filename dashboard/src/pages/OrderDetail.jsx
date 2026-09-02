@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, kes } from "../api";
 import { Icon } from "../icons";
+import { useAutoRefresh } from "../useAutoRefresh";
 
 const TABS = [
   { id: "info", label: "Order Information" },
@@ -62,14 +63,25 @@ export default function OrderDetail() {
   const [toast, setToast] = useState("");
   const [actionsOpen, setActionsOpen] = useState(false);
 
-  useEffect(() => {
+  function loadOrder(silent = false) {
     api(`/admin/orders/${id}`)
       .then((d) => {
         setOrder(d.order);
-        setError("");
+        if (!silent) setError("");
       })
-      .catch((e) => setError(e.message || "Order not found"));
+      .catch((e) => {
+        if (!silent) setError(e.message || "Order not found");
+      });
+  }
+
+  useEffect(() => {
+    loadOrder(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  useAutoRefresh(() => {
+    if (id) loadOrder(true);
+  }, 8000);
 
   useEffect(() => {
     if (!toast) return undefined;

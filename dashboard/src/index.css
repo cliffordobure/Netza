@@ -343,6 +343,66 @@ body.sb-scroll-lock { overflow: hidden; }
   border-radius: 99px; background: #ef4444; color: white;
   font-size: 10px; font-weight: 800; display: grid; place-items: center;
 }
+.top-inbox-wrap { position: relative; }
+.top-inbox {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 90;
+  width: min(380px, 92vw);
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
+  max-height: min(70vh, 480px);
+  overflow: auto;
+  padding: 6px 0 8px;
+}
+.top-inbox header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px 6px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+}
+.top-inbox header em {
+  font-style: normal;
+  background: #f1f5f9;
+  border-radius: 99px;
+  padding: 1px 8px;
+  font-size: 11px;
+}
+.top-inbox-item {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 10px 14px;
+  cursor: pointer;
+  color: inherit;
+}
+.top-inbox-item:hover { background: #f8fafc; }
+.top-inbox-item strong { display: block; font-size: 13px; }
+.top-inbox-item small { display: block; color: var(--muted); margin-top: 2px; }
+.top-inbox-toast {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 95;
+  background: #0b1f3a;
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 12px;
+  border-radius: 10px;
+  white-space: nowrap;
+  box-shadow: 0 10px 24px rgba(11, 31, 58, 0.2);
+}
 .top-search-wrap {
   flex: 1 1 220px;
   position: relative;
@@ -483,7 +543,7 @@ body.sb-scroll-lock { overflow: hidden; }
   background: white;
   white-space: nowrap;
 }
-.top-actions { margin-left: auto; display: flex; align-items: center; gap: 4px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+.top-actions { margin-left: auto; display: flex; align-items: center; gap: 4px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; position: relative; }
 .top-user { display: flex; align-items: center; gap: 10px; margin-left: 8px; min-width: 0; }
 .top-user-meta { min-width: 0; }
 .avatar {

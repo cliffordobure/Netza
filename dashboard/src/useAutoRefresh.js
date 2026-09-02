@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 
 /** Poll callback while the tab is visible (orders, dashboard stats, etc.). */
-export function useAutoRefresh(callback, intervalMs = 12000) {
+export function useAutoRefresh(callback, intervalMs = 8000) {
   const cbRef = useRef(callback);
   cbRef.current = callback;
 
