@@ -177,10 +177,12 @@ async function findOrderForPesapal({ trackingId, merchantReference, orderId }) {
 }
 
 async function applyPesapalStatus(order, trackingId) {
-  if (!order || !trackingId || order.paymentStatus === "COMPLETED") return order;
+  if (!order || !trackingId || order.paymentStatus === "COMPLETED") {
+    return { order, pesapalStatus: null };
+  }
   const status = await pesapal.getTransactionStatus(String(trackingId));
   if (pesapal.isPaidStatus(status)) {
-    return markPaid(order.id);
+    return { order: await markPaid(order.id), pesapalStatus: status };
   }
   if (pesapal.isFailedStatus(status)) {
     order.paymentStatus = "FAILED";
@@ -196,7 +198,7 @@ async function applyPesapalStatus(order, trackingId) {
     await order.save();
     notifyOrderEventSafe(order, "payment_failed");
   }
-  return order;
+  return { order, pesapalStatus: status };
 }
 
 function ipnAck(req, extra = {}) {
@@ -221,7 +223,7 @@ async function handleIpn(req, res) {
     return res.status(200).json(ipnAck(req, { ok: true, message: "Order not found locally" }));
   }
   await applyPesapalStatus(order, trackingId);
-  res.status(200).json(ipnAck(req, { ok: true }));
+  return res.status(200).json(ipnAck(req, { ok: true }));
 }
 
 router.get("/pesapal/ipn", asyncHandler(handleIpn));
@@ -234,28 +236,32 @@ router.get(
     const trackingId = req.query.OrderTrackingId || req.query.orderTrackingId;
     const merchantReference = req.query.OrderMerchantReference;
     const cancelled = String(req.query.cancelled || "") === "1";
-    let heading = "Return to the Tajira app";
-    let copy = "You can close this page and open the Tajira Kenya app to see your order status.";
+    let heading = "Payment not completed";
+    let copy = "No payment was confirmed. Return to the Tajira Kenya app and tap Pay to try again.";
     try {
       const order = await findOrderForPesapal({ trackingId, merchantReference, orderId });
-      if (order && trackingId && !cancelled) {
-        const next = await applyPesapalStatus(order, trackingId);
+      if (cancelled) {
+        heading = "Payment cancelled";
+        copy = "No payment was taken. Return to the app to try again.";
+      } else if (order && trackingId) {
+        const { order: next, pesapalStatus } = await applyPesapalStatus(order, trackingId);
         if (next?.paymentStatus === "COMPLETED") {
           heading = "Payment received";
           copy = "Thank you. Your Tajira order is paid. Return to the app to track delivery.";
         } else if (next?.paymentStatus === "FAILED") {
           heading = "Payment did not complete";
           copy = "No charge was confirmed. Open the app and try checkout again.";
-        } else {
+        } else if (pesapal.isPendingStatus(pesapalStatus)) {
           heading = "Payment is processing";
           copy = "Pesapal is confirming the payment. The app will update as soon as it clears.";
+        } else {
+          heading = "Payment not completed";
+          copy = "You left checkout before paying. Return to the app and tap Pay with Pesapal to finish.";
         }
-      } else if (cancelled) {
-        heading = "Payment cancelled";
-        copy = "No payment was taken. Return to the app to try again.";
       }
     } catch {
-      heading = "Payment is processing";
+      heading = "Payment not completed";
+      copy = "No payment was confirmed. Return to the app and try again.";
     }
     res.type("html").send(`<!DOCTYPE html>
 <html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>

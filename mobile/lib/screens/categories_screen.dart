@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import '../core/format.dart';
 import '../core/theme.dart';
 import '../core/type.dart';
-import '../data/shop_categories.dart';
+import '../data/catalog_cache.dart';
 import '../state/session.dart';
 import '../widgets/storefront_chrome.dart';
 
@@ -42,6 +41,11 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
   @override
   void initState() {
     super.initState();
+    final cached = context.read<Session>().catalog?.categories ?? const [];
+    if (cached.isNotEmpty) {
+      categories = cached;
+      loading = false;
+    }
     load();
   }
 
@@ -52,28 +56,33 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
   }
 
   Future<void> load() async {
-    setState(() {
-      loading = true;
-      error = null;
-    });
+    final session = context.read<Session>();
+    if (categories.isEmpty) {
+      setState(() {
+        loading = true;
+        error = null;
+      });
+    }
     try {
-      final res = await context.read<Session>().dio.get('/categories');
+      final res = await session.dio.get('/categories');
       final list = res.data['categories'] as List? ?? [];
+      if (!mounted) return;
       setState(() {
         categories = list;
         loading = false;
+        error = null;
       });
+      final existing = session.catalog;
+      await session.rememberCatalog(CatalogSnapshot(
+        products: existing?.products ?? const [],
+        trending: existing?.trending ?? const [],
+        categories: list,
+        banners: existing?.banners ?? const [],
+      ));
     } catch (e) {
+      if (!mounted) return;
       setState(() {
-        error = apiMessage(e);
-        categories = shopCategories
-            .map((c) => {
-                  'name': c.name,
-                  'slug': c.slug,
-                  'imageUrl': c.imageUrl,
-                  'productCount': c.count,
-                })
-            .toList();
+        error = categories.isEmpty ? apiMessage(e) : null;
         loading = false;
       });
     }

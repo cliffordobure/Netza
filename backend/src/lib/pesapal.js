@@ -224,16 +224,32 @@ async function getTransactionStatus(orderTrackingId) {
   return api(`Transactions/GetTransactionStatus?orderTrackingId=${encodeURIComponent(orderTrackingId)}`, { token });
 }
 
+function paymentStatusCode(status) {
+  const raw = status?.status_code ?? status?.payment_status_code;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
+function paymentStatusDesc(status) {
+  return String(status?.payment_status_description || "").trim().toUpperCase();
+}
+
+// Pesapal GetTransactionStatus often returns message: "success" for the HTTP call
+// itself, including unpaid / pending checkouts. Never treat that as paid.
 function isPaidStatus(status) {
-  const code = Number(status?.status_code ?? status?.payment_status_code);
-  const desc = String(status?.payment_status_description || status?.message || "").toUpperCase();
-  return code === 1 || desc.includes("COMPLETED") || desc.includes("SUCCESS");
+  const code = paymentStatusCode(status);
+  const desc = paymentStatusDesc(status);
+  return code === 1 || desc === "COMPLETED";
 }
 
 function isFailedStatus(status) {
-  const code = Number(status?.status_code ?? status?.payment_status_code);
-  const desc = String(status?.payment_status_description || status?.message || "").toUpperCase();
-  return code === 2 || code === 3 || desc.includes("FAILED") || desc.includes("INVALID") || desc.includes("REVERSED");
+  const code = paymentStatusCode(status);
+  const desc = paymentStatusDesc(status);
+  return code === 2 || code === 3 || desc === "FAILED" || desc === "INVALID" || desc === "REVERSED";
+}
+
+function isPendingStatus(status) {
+  return paymentStatusDesc(status) === "PENDING";
 }
 
 module.exports = {
@@ -245,6 +261,7 @@ module.exports = {
   getTransactionStatus,
   isPaidStatus,
   isFailedStatus,
+  isPendingStatus,
   normalizePhone,
   getToken,
   ensureIpnId,

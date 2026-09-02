@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../core/theme.dart';
 import '../core/type.dart';
+import '../data/catalog_cache.dart';
 import '../data/category_chips.dart';
 import '../data/shop_categories.dart';
 import '../state/session.dart';
@@ -40,8 +41,30 @@ class _CatalogScreenState extends State<CatalogScreen> {
   void initState() {
     super.initState();
     if (widget.query != null && widget.query!.isNotEmpty) search.text = widget.query!;
+    _hydrateFromCache();
     load();
     ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+  }
+
+  void _hydrateFromCache() {
+    if (widget.flash || (widget.query != null && widget.query!.isNotEmpty)) return;
+    final snap = context.read<Session>().catalog;
+    if (snap == null) return;
+    final cached = liveProducts(snap.products.isNotEmpty ? snap.products : snap.trending);
+    if (cached.isEmpty) return;
+    if (widget.category != null && widget.category!.isNotEmpty) {
+      final filtered = cached.where((p) {
+        final cat = p['category'];
+        final slug = cat is Map ? cat['slug']?.toString() : cat?.toString();
+        return slug == widget.category;
+      }).toList();
+      if (filtered.isEmpty) return;
+      products = _sorted(filtered);
+      total = filtered.length;
+      return;
+    }
+    products = _sorted(cached);
+    total = cached.length;
   }
 
   @override
@@ -102,7 +125,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
       _tick();
 
       if (widget.flash && (chip.query == null || chipIndex == 0)) {
-        final list = flashRes.data['products'] as List? ?? [];
+        final list = liveProducts(flashRes.data['products'] as List?);
         setState(() {
           products = _sorted(list);
           total = list.length;
@@ -119,12 +142,24 @@ class _CatalogScreenState extends State<CatalogScreen> {
         if (q != null && q.isNotEmpty) 'q': q,
         'limit': 100,
       });
-      final list = res.data['products'] as List;
+      final list = liveProducts(res.data['products'] as List?);
+      if (list.isEmpty && products.isNotEmpty) {
+        setState(() => error = null);
+        return;
+      }
       setState(() {
         products = _sorted(list);
-        total = res.data['total'] ?? list.length;
+        total = list.length;
         error = null;
       });
+      if (widget.category == null && (q == null || q.isEmpty) && !widget.flash) {
+        await session.rememberCatalog(CatalogSnapshot(
+          products: list,
+          trending: session.catalog?.trending ?? const [],
+          categories: session.catalog?.categories ?? const [],
+          banners: session.catalog?.banners ?? const [],
+        ));
+      }
     } catch (e) {
       setState(() => error = apiMessage(e));
     }

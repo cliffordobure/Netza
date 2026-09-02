@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 import '../core/format.dart';
 import '../core/theme.dart';
 import '../core/type.dart';
-import '../data/shop_categories.dart';
+import '../data/catalog_cache.dart';
 import '../state/session.dart';
 import 'categories_screen.dart' show categoryIcon;
 import '../widgets/offline_guard.dart';
@@ -28,14 +28,36 @@ class _HomeScreenState extends State<HomeScreen> {
   List flashProducts = [];
   int slide = 0;
   String? error;
+  bool fetching = true;
   Timer? _ticker;
   Duration remaining = Duration.zero;
 
   @override
   void initState() {
     super.initState();
+    _applyCachedCatalog();
     load();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+  }
+
+  void _applyCachedCatalog() {
+    final snap = context.read<Session>().catalog;
+    if (snap == null || !snap.hasCatalog) return;
+    trending = snap.trending.isNotEmpty ? snap.trending : snap.products.take(24).toList();
+    final trendIds = {
+      for (final p in trending)
+        if (p is Map && p['id'] != null) p['id'].toString(),
+    };
+    moreProducts = snap.products
+        .where((p) => p is Map && p['id'] != null && !trendIds.contains(p['id'].toString()))
+        .take(8)
+        .toList();
+    if (moreProducts.isEmpty && snap.products.length > 6) {
+      moreProducts = snap.products.skip(6).take(8).toList();
+    }
+    apiCategories = snap.categories;
+    banners = snap.banners;
+    fetching = false;
   }
 
   @override
@@ -68,9 +90,13 @@ class _HomeScreenState extends State<HomeScreen> {
         await session.refreshWallet();
         await session.refreshCart();
       }
-      final trend = (results[0].data['products'] as List?) ?? [];
-      final all = (results[2].data['products'] as List?) ?? [];
+      final trend = liveProducts(results[0].data['products'] as List?);
+      final all = liveProducts(results[2].data['products'] as List?);
       final cats = (results[4].data['categories'] as List?) ?? [];
+      if (all.isEmpty && trend.isEmpty && session.catalog?.hasCatalog == true) {
+        if (mounted) setState(() { error = null; fetching = false; });
+        return;
+      }
       final trendIds = {
         for (final p in trend)
           if (p is Map && p['id'] != null) p['id'].toString(),
@@ -80,36 +106,39 @@ class _HomeScreenState extends State<HomeScreen> {
         final id = p['id']?.toString();
         return id != null && !trendIds.contains(id);
       }).toList();
+      final nextTrending = trend.isNotEmpty ? trend : all;
+      final nextMore = trend.isNotEmpty ? extras.take(8).toList() : all.skip(6).take(8).toList();
+      if (!mounted) return;
       setState(() {
-        trending = trend.isNotEmpty ? trend : all;
-        moreProducts = trend.isNotEmpty ? extras.take(8).toList() : all.skip(6).take(8).toList();
+        trending = nextTrending;
+        moreProducts = nextMore;
         flash = results[1].data['flashDrop'];
-        flashProducts = results[1].data['products'] as List? ?? [];
+        flashProducts = liveProducts(results[1].data['products'] as List?);
         banners = results[3].data['banners'] as List? ?? [];
         apiCategories = cats;
         error = null;
+        fetching = false;
         slide = 0;
       });
       _tick();
+      await session.rememberCatalog(CatalogSnapshot(
+        products: all.isNotEmpty ? all : nextTrending,
+        trending: nextTrending,
+        categories: cats,
+        banners: banners,
+      ));
     } catch (e) {
-      setState(() => error = isConnectionError(e) ? null : apiMessage(e));
+      if (!mounted) return;
+      setState(() {
+        fetching = false;
+        error = isConnectionError(e) ? null : apiMessage(e);
+      });
     }
   }
 
   String _pad(int n) => n.toString().padLeft(2, '0');
 
-  List get _homeCategories {
-    if (apiCategories.isNotEmpty) {
-      return apiCategories.take(9).toList();
-    }
-    return homeQuickCats
-        .map((c) => {
-              'name': c.name,
-              'slug': c.slug,
-              'imageUrl': c.imageUrl,
-            })
-        .toList();
-  }
+  List get _homeCategories => apiCategories.take(9).toList();
 
   @override
   Widget build(BuildContext context) {
@@ -155,6 +184,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 banners: banners,
                 onViewFlash: () => context.push('/flash'),
               ),
+              if (_homeCategories.isNotEmpty) ...[
               const SizedBox(height: 18),
               GridView.builder(
                 shrinkWrap: true,
@@ -217,6 +247,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   );
                 },
               ),
+              ],
               const SizedBox(height: 18),
               Row(
                 children: [
@@ -230,7 +261,9 @@ class _HomeScreenState extends State<HomeScreen> {
               if (trending.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 20),
-                  child: Text('No products yet. Pull to refresh.', style: inter(size: 13, color: muted)),
+                  child: fetching
+                      ? const Center(child: CircularProgressIndicator(color: orange))
+                      : Text('No products yet. Pull to refresh.', style: inter(size: 13, color: muted)),
                 )
               else
                 SizedBox(

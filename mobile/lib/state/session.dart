@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/config.dart';
+import '../data/catalog_cache.dart';
 
 class Session extends ChangeNotifier {
   Session() {
@@ -48,6 +49,7 @@ class Session extends ChangeNotifier {
   int totalEarned = 0;
   int cartCount = 0;
   bool ready = false;
+  CatalogSnapshot? catalog;
   Completer<void>? _refreshGate;
 
   bool get isLoggedIn => user != null;
@@ -80,6 +82,7 @@ class Session extends ChangeNotifier {
   }
 
   Future<void> restore() async {
+    catalog = await loadCatalogCache();
     final prefs = await SharedPreferences.getInstance();
     access = prefs.getString('access');
     refresh = prefs.getString('refresh');
@@ -166,6 +169,18 @@ class Session extends ChangeNotifier {
       }
       notifyListeners();
     } catch (_) {}
+  }
+
+  Future<void> rememberCatalog(CatalogSnapshot snap) async {
+    final live = CatalogSnapshot(
+      products: liveProducts(snap.products),
+      trending: liveProducts(snap.trending),
+      categories: snap.categories,
+      banners: snap.banners,
+    );
+    if (!live.hasCatalog) return;
+    catalog = live;
+    await saveCatalogCache(live);
   }
 
   Future<void> _saveTokens(String a, String r) async {

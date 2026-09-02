@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../core/format.dart';
 import '../core/theme.dart';
 import '../core/type.dart';
@@ -19,26 +20,38 @@ class OrderSuccessScreen extends StatefulWidget {
   State<OrderSuccessScreen> createState() => _OrderSuccessScreenState();
 }
 
-class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
+class _OrderSuccessScreenState extends State<OrderSuccessScreen> with WidgetsBindingObserver {
   Map? order;
   String? error;
   Timer? _poll;
+  bool _resumingPay = false;
 
   String get _payStatus => (order?['paymentStatus'] ?? '').toString().toUpperCase();
 
-  bool get _awaitingPay => order != null && _payStatus != 'COMPLETED' && _payStatus != 'FAILED';
+  bool get _paid => _payStatus == 'COMPLETED' || _payStatus == 'PAID';
+
+  bool get _failed => _payStatus == 'FAILED';
+
+  bool get _awaitingPay => order != null && !_paid && !_failed;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     load();
     _poll = Timer.periodic(const Duration(seconds: 4), (_) => refreshPayment());
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _poll?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) refreshPayment();
   }
 
   Future<void> load() async {
@@ -50,9 +63,34 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
     }
   }
 
+  Future<void> resumePesapal() async {
+    if (_resumingPay) return;
+    setState(() => _resumingPay = true);
+    try {
+      final dio = context.read<Session>().dio;
+      final payRes = await dio.post('/payments/pesapal/initiate', data: {'orderId': widget.id});
+      final redirectUrl = payRes.data['redirectUrl']?.toString();
+      if (redirectUrl == null || redirectUrl.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not reopen Pesapal. Try checkout again.')),
+          );
+        }
+        return;
+      }
+      await launchUrl(Uri.parse(redirectUrl), mode: LaunchMode.externalApplication);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(apiMessage(e))));
+      }
+    } finally {
+      if (mounted) setState(() => _resumingPay = false);
+    }
+  }
+
   Future<void> refreshPayment() async {
     if (!mounted || !_awaitingPay) {
-      if (_payStatus == 'COMPLETED' || _payStatus == 'FAILED') _poll?.cancel();
+      if (_paid || _failed) _poll?.cancel();
       return;
     }
     try {
@@ -91,6 +129,7 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
   }
 
   int get trackStep {
+    if (!_paid) return 0;
     final status = (order?['status'] ?? '').toString().toUpperCase();
     if (status == 'DELIVERED') return 3;
     if (status == 'SHIPPED' || status == 'IN_TRANSIT') return 2;
@@ -151,7 +190,7 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
             const Divider(),
             Row(
               children: [
-                Text('Total paid', style: inter(size: 14, weight: FontWeight.w800, color: navy)),
+                Text(_paid ? 'Total paid' : 'Order total', style: inter(size: 14, weight: FontWeight.w800, color: navy)),
                 const Spacer(),
                 Text(money(total), style: T.price.copyWith(fontSize: 16)),
               ],
@@ -198,19 +237,19 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
                 children: [
-                  const _SuccessMark(),
+                  _StatusMark(paid: _paid, failed: _failed),
                   const SizedBox(height: 12),
                   Text(
-                    _payStatus == 'FAILED'
+                    _failed
                         ? 'Payment did not complete'
                         : _awaitingPay
-                            ? 'Waiting for Pesapal payment'
+                            ? 'Payment not completed'
                             : 'Order Placed Successfully!',
                     textAlign: TextAlign.center,
                     style: inter(
                       size: 20,
                       weight: FontWeight.w800,
-                      color: _payStatus == 'FAILED'
+                      color: _failed
                           ? const Color(0xFFDC2626)
                           : _awaitingPay
                               ? const Color(0xFFEA580C)
@@ -219,14 +258,28 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    _payStatus == 'FAILED'
-                        ? 'Pesapal did not confirm this payment. Try checkout again.'
+                    _failed
+                        ? 'Pesapal did not confirm this payment. You can try again below.'
                         : _awaitingPay
-                            ? 'Finish payment on the Pesapal page. This screen updates automatically.'
+                            ? 'You left Pesapal before paying. Nothing has been charged. Tap Pay with Pesapal to finish.'
                             : 'Thank you for shopping with Tajira Kenya. Your order has been received.',
                     textAlign: TextAlign.center,
                     style: T.memberMeta.copyWith(fontSize: 13, height: 1.35),
                   ),
+                  if (!_paid) ...[
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      onPressed: _resumingPay ? null : resumePesapal,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: orange,
+                        minimumSize: const Size.fromHeight(48),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: _resumingPay
+                          ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          : Text(_failed ? 'TRY PAYMENT AGAIN' : 'PAY WITH PESAPAL', style: T.playNow.copyWith(fontSize: 13)),
+                    ),
+                  ],
                   const SizedBox(height: 14),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -325,15 +378,26 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
                           ],
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEAF8EE),
-                          border: Border.all(color: const Color(0xFF16A34A)),
-                          borderRadius: BorderRadius.circular(20),
+                      if (_paid)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEAF8EE),
+                            border: Border.all(color: const Color(0xFF16A34A)),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text('On Time', style: inter(size: 11, weight: FontWeight.w800, color: const Color(0xFF16A34A))),
+                        )
+                      else
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFEDD5),
+                            border: Border.all(color: const Color(0xFFEA580C)),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text('Unpaid', style: inter(size: 11, weight: FontWeight.w800, color: const Color(0xFFEA580C))),
                         ),
-                        child: Text('On Time', style: inter(size: 11, weight: FontWeight.w800, color: const Color(0xFF16A34A))),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 14),
@@ -342,6 +406,7 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
                     placed: stamp,
                     processing: step >= 1 ? stamp : 'Pending',
                   ),
+                  if (_paid) ...[
                   const SizedBox(height: 12),
                   InkWell(
                     onTap: () => context.go('/orders'),
@@ -376,6 +441,7 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
                     ),
                   ),
                   ),
+                  ],
                   const SizedBox(height: 16),
                   _TintCard(
                     child: Row(
@@ -432,7 +498,7 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
                               _kv('Discount', '- ${money(discount)}', valueColor: const Color(0xFFE53935)),
                               _kv('Delivery Fee', money(delivery)),
                               const Divider(height: 16, color: Color(0xFFE8ECF1)),
-                              Text('Total Paid', style: T.memberMeta.copyWith(fontSize: 11)),
+                              Text(_paid ? 'Total Paid' : 'Amount due', style: T.memberMeta.copyWith(fontSize: 11)),
                               const SizedBox(height: 2),
                               Text(money(total), style: T.price.copyWith(fontSize: 18)),
                             ],
@@ -449,19 +515,25 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
                               const SizedBox(height: 10),
                               Text('pesapal', style: inter(size: 14, weight: FontWeight.w900, color: const Color(0xFF00AEEF))),
                               const SizedBox(height: 6),
-                              Text(payLabel, style: inter(size: 12, weight: FontWeight.w700, color: const Color(0xFF16A34A))),
+                              Text(
+                                _paid ? payLabel : (_failed ? 'Payment failed' : 'Payment pending'),
+                                style: inter(size: 12, weight: FontWeight.w700, color: _paid ? const Color(0xFF16A34A) : const Color(0xFFEA580C)),
+                              ),
                               const SizedBox(height: 12),
-                              Text('Paid Amount', style: T.memberMeta.copyWith(fontSize: 10)),
+                              Text(_paid ? 'Paid Amount' : 'Amount due', style: T.memberMeta.copyWith(fontSize: 10)),
                               Text(money(total), style: T.price.copyWith(fontSize: 16)),
-                              const SizedBox(height: 4),
-                              Text('Paid On', style: T.memberMeta.copyWith(fontSize: 10)),
-                              Text(paidStamp, style: T.memberMeta.copyWith(fontSize: 10)),
+                              if (_paid) ...[
+                                const SizedBox(height: 4),
+                                Text('Paid On', style: T.memberMeta.copyWith(fontSize: 10)),
+                                Text(paidStamp, style: T.memberMeta.copyWith(fontSize: 10)),
+                              ],
                             ],
                           ),
                         ),
                       ),
                     ],
                   ),
+                  if (_paid) ...[
                   const SizedBox(height: 16),
                   Text("What's Next?", style: inter(size: 15, weight: FontWeight.w800, color: navy)),
                   const SizedBox(height: 12),
@@ -475,6 +547,7 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
                       Expanded(child: _NextItem(Icons.home, Color(0xFF16A34A), 'Enjoy', 'Enjoy your purchase. Thank you for choosing TAJIRA!')),
                     ],
                   ),
+                  ],
                   const SizedBox(height: 14),
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -572,11 +645,23 @@ String _phone(String? raw) {
   return raw ?? '';
 }
 
-class _SuccessMark extends StatelessWidget {
-  const _SuccessMark();
+class _StatusMark extends StatelessWidget {
+  const _StatusMark({required this.paid, required this.failed});
+  final bool paid;
+  final bool failed;
 
   @override
   Widget build(BuildContext context) {
+    final color = failed
+        ? const Color(0xFFDC2626)
+        : paid
+            ? const Color(0xFF16A34A)
+            : const Color(0xFFEA580C);
+    final icon = failed
+        ? Icons.close
+        : paid
+            ? Icons.check
+            : Icons.payments_outlined;
     return Center(
       child: SizedBox(
         width: 200,
@@ -584,19 +669,21 @@ class _SuccessMark extends StatelessWidget {
         child: Stack(
           alignment: Alignment.center,
           children: [
-            const Positioned(left: 18, top: 10, child: _Dot(Color(0xFFF5B400), 7)),
-            const Positioned(right: 22, top: 16, child: _Dot(purple, 6)),
-            const Positioned(left: 8, bottom: 22, child: _Dot(Color(0xFF38BDF8), 5)),
-            const Positioned(right: 12, bottom: 18, child: _Dot(Color(0xFF16A34A), 6)),
-            const Positioned(left: 48, top: 2, child: _Dot(orange, 4)),
-            const Positioned(right: 52, bottom: 6, child: _Dot(Color(0xFFF5B400), 4)),
-            const Positioned(left: 28, top: 48, child: _Dot(purple, 4)),
-            const Positioned(right: 30, top: 44, child: _Dot(Color(0xFF38BDF8), 4)),
+            if (paid) ...[
+              const Positioned(left: 18, top: 10, child: _Dot(Color(0xFFF5B400), 7)),
+              const Positioned(right: 22, top: 16, child: _Dot(purple, 6)),
+              const Positioned(left: 8, bottom: 22, child: _Dot(Color(0xFF38BDF8), 5)),
+              const Positioned(right: 12, bottom: 18, child: _Dot(Color(0xFF16A34A), 6)),
+              const Positioned(left: 48, top: 2, child: _Dot(orange, 4)),
+              const Positioned(right: 52, bottom: 6, child: _Dot(Color(0xFFF5B400), 4)),
+              const Positioned(left: 28, top: 48, child: _Dot(purple, 4)),
+              const Positioned(right: 30, top: 44, child: _Dot(Color(0xFF38BDF8), 4)),
+            ],
             Container(
               width: 72,
               height: 72,
-              decoration: const BoxDecoration(color: Color(0xFF16A34A), shape: BoxShape.circle),
-              child: const Icon(Icons.check, color: Colors.white, size: 40),
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              child: Icon(icon, color: Colors.white, size: 40),
             ),
           ],
         ),
