@@ -7,12 +7,10 @@ const { randomCode } = require("../../lib/utils");
 const { resolveUnitPrice } = require("../../services/pricing.service");
 const { pointsFromPurchase } = require("../../services/points.service");
 const { notifyOrderEventSafe } = require("../../services/sms.service");
+const { quoteDelivery } = require("../../lib/delivery");
 
 const router = Router();
 router.use(auth());
-
-const STANDARD_DELIVERY = 150;
-const EXPRESS_DELIVERY = 350;
 
 async function serializeOrder(order) {
   const json = order.toJSON();
@@ -106,7 +104,12 @@ router.post(
       });
     }
 
-    const deliveryKes = body.deliveryMethod === "EXPRESS" ? EXPRESS_DELIVERY : STANDARD_DELIVERY;
+    const quote = await quoteDelivery({
+      address,
+      method: body.deliveryMethod,
+      subtotalKes: subtotal,
+    });
+    const deliveryKes = quote.deliveryKes;
     const totalKes = subtotal + deliveryKes;
     const order = await Order.create({
       orderNumber: randomCode("NZ"),

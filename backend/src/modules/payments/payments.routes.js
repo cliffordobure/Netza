@@ -160,6 +160,94 @@ function escapeRe(value) {
   return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function safeToken(value) {
+  return String(value || "").replace(/[^a-zA-Z0-9:_-]/g, "");
+}
+
+function paymentReturnPage({ heading, copy, orderId, trackingId, poll }) {
+  const id = safeToken(orderId);
+  const track = safeToken(trackingId);
+  const deepLink = id ? `tajira://open/order/${id}` : "tajira://open/";
+  const intentLink = id
+    ? `intent://open/order/${id}#Intent;scheme=tajira;package=ke.tajira.tajira_mobile;end`
+    : "intent://open/#Intent;scheme=tajira;package=ke.tajira.tajira_mobile;end";
+  const pollPath = poll && id && track
+    ? `/api/v1/payments/pesapal/return-poll?orderId=${encodeURIComponent(id)}&OrderTrackingId=${encodeURIComponent(track)}`
+    : "";
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Payment · Tajira Kenya</title>
+<style>
+  body{font-family:system-ui,sans-serif;margin:0;background:#f7f8fa;color:#0b1f3a;display:grid;place-items:center;min-height:100vh;padding:24px}
+  .card{max-width:420px;background:#fff;border-radius:16px;padding:28px;text-align:center;box-shadow:0 2px 12px #0001}
+  h1{font-size:20px;margin:0 0 8px}
+  p{color:#64748b;line-height:1.5}
+  a,button{display:inline-block;margin-top:18px;background:#ff7a00;color:#fff;text-decoration:none;border:0;border-radius:10px;padding:12px 18px;font-weight:700;font-size:14px;cursor:pointer}
+</style></head><body>
+<div class="card">
+  <h1 id="heading">${escapeHtml(heading)}</h1>
+  <p id="copy">${escapeHtml(copy)}</p>
+  <a id="open" href="${deepLink}">Open Tajira app</a>
+</div>
+<script>
+(function () {
+  var deep = ${JSON.stringify(deepLink)};
+  var intent = ${JSON.stringify(intentLink)};
+  var poll = ${JSON.stringify(pollPath)};
+  function openApp() {
+    var android = /android/i.test(navigator.userAgent);
+    window.location.href = android ? intent : deep;
+  }
+  document.getElementById("open").addEventListener("click", function (e) {
+    if (/android/i.test(navigator.userAgent)) {
+      e.preventDefault();
+      openApp();
+    }
+  });
+  if (!poll) {
+    setTimeout(openApp, 600);
+    return;
+  }
+  var tries = 0;
+  var timer = setInterval(function () {
+    tries += 1;
+    fetch(poll, { credentials: "omit" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || !data.done) {
+          if (tries >= 45) {
+            clearInterval(timer);
+            document.getElementById("heading").textContent = "Still confirming";
+            document.getElementById("copy").textContent = "Return to the app. It will update when Pesapal finishes.";
+            openApp();
+          }
+          return;
+        }
+        clearInterval(timer);
+        document.getElementById("heading").textContent = data.paymentStatus === "COMPLETED" ? "Payment received" : "Payment did not complete";
+        document.getElementById("copy").textContent = "Returning you to the Tajira app…";
+        openApp();
+      })
+      .catch(function () {
+        if (tries >= 45) {
+          clearInterval(timer);
+          openApp();
+        }
+      });
+  }, 2000);
+})();
+</script>
+</body></html>`;
+}
+
 async function findOrderForPesapal({ trackingId, merchantReference, orderId }) {
   const clauses = [];
   if (orderId && require("../../models").isOid(orderId)) clauses.push({ _id: orderId });
@@ -230,6 +318,24 @@ router.get("/pesapal/ipn", asyncHandler(handleIpn));
 router.post("/pesapal/ipn", asyncHandler(handleIpn));
 
 router.get(
+  "/pesapal/return-poll",
+  asyncHandler(async (req, res) => {
+    const orderId = req.query.orderId;
+    const trackingId = req.query.OrderTrackingId || req.query.orderTrackingId;
+    if (!orderId || !trackingId) throw httpError(400, "Missing payment reference");
+    const order = await findOrderForPesapal({ trackingId, orderId });
+    if (!order) return res.json({ paymentStatus: "UNKNOWN", done: false });
+    const { order: next } = await applyPesapalStatus(order, trackingId);
+    const status = next?.paymentStatus || "PENDING";
+    res.json({
+      paymentStatus: status,
+      done: status === "COMPLETED" || status === "FAILED",
+      orderId: next?.id || order.id,
+    });
+  })
+);
+
+router.get(
   "/pesapal/return",
   asyncHandler(async (req, res) => {
     const orderId = req.query.orderId;
@@ -237,45 +343,44 @@ router.get(
     const merchantReference = req.query.OrderMerchantReference;
     const cancelled = String(req.query.cancelled || "") === "1";
     let heading = "Payment not completed";
-    let copy = "No payment was confirmed. Return to the Tajira Kenya app and tap Pay to try again.";
+    let copy = "No payment was confirmed. Returning you to the Tajira app.";
+    let resolvedOrderId = orderId;
+    let poll = false;
     try {
       const order = await findOrderForPesapal({ trackingId, merchantReference, orderId });
+      if (order) resolvedOrderId = order.id;
       if (cancelled) {
         heading = "Payment cancelled";
-        copy = "No payment was taken. Return to the app to try again.";
+        copy = "No payment was taken. Returning you to the Tajira app.";
       } else if (order && trackingId) {
         const { order: next, pesapalStatus } = await applyPesapalStatus(order, trackingId);
+        if (next) resolvedOrderId = next.id;
         if (next?.paymentStatus === "COMPLETED") {
           heading = "Payment received";
-          copy = "Thank you. Your Tajira order is paid. Return to the app to track delivery.";
+          copy = "Returning you to the Tajira app to track your order.";
         } else if (next?.paymentStatus === "FAILED") {
           heading = "Payment did not complete";
-          copy = "No charge was confirmed. Open the app and try checkout again.";
+          copy = "No charge was confirmed. Returning you to the app.";
         } else if (pesapal.isPendingStatus(pesapalStatus)) {
           heading = "Payment is processing";
-          copy = "Pesapal is confirming the payment. The app will update as soon as it clears.";
+          copy = "Confirming with Pesapal. We will open the Tajira app as soon as it clears.";
+          poll = true;
         } else {
           heading = "Payment not completed";
-          copy = "You left checkout before paying. Return to the app and tap Pay with Pesapal to finish.";
+          copy = "You left checkout before paying. Returning you to the app.";
         }
       }
     } catch {
       heading = "Payment not completed";
-      copy = "No payment was confirmed. Return to the app and try again.";
+      copy = "Returning you to the Tajira app.";
     }
-    res.type("html").send(`<!DOCTYPE html>
-<html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Payment · Tajira Kenya</title>
-<style>
-  body{font-family:system-ui,sans-serif;margin:0;background:#f7f8fa;color:#0b1f3a;display:grid;place-items:center;min-height:100vh;padding:24px}
-  .card{max-width:420px;background:#fff;border-radius:16px;padding:28px;text-align:center;box-shadow:0 2px 12px #0001}
-  h1{font-size:20px;margin:0 0 8px}
-  p{color:#64748b;line-height:1.5}
-</style></head><body>
-<div class="card">
-  <h1>${heading}</h1>
-  <p>${copy}</p>
-</div></body></html>`);
+    res.type("html").send(paymentReturnPage({
+      heading,
+      copy,
+      orderId: resolvedOrderId,
+      trackingId,
+      poll,
+    }));
   })
 );
 

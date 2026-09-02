@@ -27,9 +27,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   bool showDetails = false;
   int step = 0;
   String pay = 'MPESA'; // Pesapal channel: MPESA | AIRTEL | CARD
-
-  static const standardKes = 150;
-  static const expressKes = 350;
+  int standardKes = 0;
+  int expressKes = 0;
+  String? quoteZone;
 
   @override
   void initState() {
@@ -65,6 +65,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         error = null;
         loading = false;
       });
+      await refreshQuote();
     } catch (e) {
       setState(() {
         error = apiMessage(e);
@@ -90,6 +91,26 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       });
 
   int get delivery => items.isEmpty ? 0 : (express ? expressKes : standardKes);
+
+  Future<void> refreshQuote() async {
+    if (!mounted || items.isEmpty) {
+      if (mounted) setState(() { standardKes = 0; expressKes = 0; });
+      return;
+    }
+    try {
+      final res = await context.read<Session>().dio.get('/shipping/quote', queryParameters: {
+        if (addressId != null) 'addressId': addressId,
+        'method': express ? 'EXPRESS' : 'STANDARD',
+        'subtotalKes': subtotal,
+      });
+      if (!mounted) return;
+      setState(() {
+        standardKes = (res.data['standardKes'] as num?)?.toInt() ?? 0;
+        expressKes = (res.data['expressKes'] as num?)?.toInt() ?? 0;
+        quoteZone = res.data['zoneName']?.toString();
+      });
+    } catch (_) {}
+  }
 
   int get redeemKes {
     if (!redeem) return 0;
@@ -308,7 +329,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             phone: formatPhone(a['phone']?.toString()),
             line: '${a['street']}, ${a['city']}',
             city: '${a['city']}, ${a['county']}',
-            onTap: () => setState(() => addressId = id),
+            onTap: () {
+              setState(() => addressId = id);
+              refreshQuote();
+            },
             onEdit: () => editAddress(a),
           ),
         );
@@ -333,7 +357,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         selected: !express,
         icon: Icons.local_shipping_outlined,
         title: 'Standard Delivery',
-        subtitle: '1 - 3 working days',
+        subtitle: quoteZone == null || quoteZone!.isEmpty ? '1 - 3 working days' : quoteZone!,
         price: money(standardKes),
         priceColor: const Color(0xFF16A34A),
         onTap: () => setState(() => express = false),
@@ -343,7 +367,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         selected: express,
         icon: Icons.delivery_dining,
         title: 'Express Delivery',
-        subtitle: 'Get it tomorrow',
+        subtitle: 'Faster dispatch',
         subtitleColor: orange,
         price: money(expressKes),
         onTap: () => setState(() => express = true),

@@ -45,7 +45,7 @@ const { getPointsSettings, savePointsSettings } = require("./points-settings");
 const { getDeliveryOverview } = require("./delivery-overview");
 const { getDeliveryShipments } = require("./delivery-shipments");
 const { getDeliveryCouriers } = require("./delivery-couriers");
-const { getDeliveryZones } = require("./delivery-zones");
+const { getDeliveryZones, upsertDeliveryZone, deleteDeliveryZone } = require("./delivery-zones");
 const { getDeliveryReturns } = require("./delivery-returns");
 const { getDeliveryReports } = require("./delivery-reports");
 const { getDeliverySettings, saveDeliverySettings, resetDeliverySettings } = require("./delivery-settings");
@@ -987,7 +987,32 @@ router.get(
 router.get(
   "/delivery-zones",
   asyncHandler(async (req, res) => {
-    res.json(getDeliveryZones(req.query));
+    res.json(await getDeliveryZones(req.query));
+  })
+);
+
+router.post(
+  "/delivery-zones",
+  asyncHandler(async (req, res) => {
+    const zone = await upsertDeliveryZone(req.body || {});
+    res.status(201).json({ ok: true, zone, message: "Delivery zone saved." });
+  })
+);
+
+router.put(
+  "/delivery-zones/:id",
+  asyncHandler(async (req, res) => {
+    const zone = await upsertDeliveryZone(req.body || {}, req.params.id);
+    res.json({ ok: true, zone, message: "Delivery zone updated." });
+  })
+);
+
+router.delete(
+  "/delivery-zones/:id",
+  asyncHandler(async (req, res) => {
+    const ok = await deleteDeliveryZone(req.params.id);
+    if (!ok) throw httpError(404, "Delivery zone not found");
+    res.json({ ok: true, message: "Delivery zone deleted." });
   })
 );
 
@@ -1008,21 +1033,21 @@ router.get(
 router.get(
   "/delivery-settings",
   asyncHandler(async (_req, res) => {
-    res.json(getDeliverySettings());
+    res.json(await getDeliverySettings());
   })
 );
 
 router.put(
   "/delivery-settings",
   asyncHandler(async (req, res) => {
-    res.json(saveDeliverySettings(req.body || {}));
+    res.json(await saveDeliverySettings(req.body || {}));
   })
 );
 
 router.post(
   "/delivery-settings/reset",
   asyncHandler(async (_req, res) => {
-    res.json(resetDeliverySettings());
+    res.json(await resetDeliverySettings());
   })
 );
 

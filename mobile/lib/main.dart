@@ -1,3 +1,4 @@
+import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -98,6 +99,22 @@ class _TajiraAppState extends State<TajiraApp> {
       ],
     );
     session.restore();
+    _bindPaymentReturnLinks();
+  }
+
+  void _openDeepLink(Uri uri) {
+    if (uri.scheme != 'tajira') return;
+    final path = uri.path;
+    if (path.startsWith('/order/')) router.go(path);
+  }
+
+  Future<void> _bindPaymentReturnLinks() async {
+    final links = AppLinks();
+    try {
+      final first = await links.getInitialLink();
+      if (first != null) _openDeepLink(first);
+    } catch (_) {}
+    links.uriLinkStream.listen(_openDeepLink, onError: (_) {});
   }
 
   @override

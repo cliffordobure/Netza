@@ -19,6 +19,7 @@ const quoteRoutes = require("./modules/quotes/quotes.routes");
 const bannerRoutes = require("./modules/banners/banners.routes");
 const competitionRoutes = require("./modules/competitions/competitions.routes");
 const adminRoutes = require("./modules/admin/admin.routes");
+const shippingRoutes = require("./modules/shipping/shipping.routes");
 
 function createApp() {
   ensureUploadRoot();
@@ -62,6 +63,7 @@ function createApp() {
   app.use("/api/v1/points", pointsRoutes);
   app.use("/api/v1/flash-drops", flashRoutes);
   app.use("/api/v1/addresses", addressRoutes);
+  app.use("/api/v1/shipping", shippingRoutes);
   app.use("/api/v1/products", reviewRoutes);
   app.use("/api/v1/quotes", quoteRoutes);
   app.use("/api/v1/banners", bannerRoutes);

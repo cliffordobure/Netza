@@ -254,62 +254,79 @@ export default function DeliveryZones() {
     load({ q: "", status: "", city: "", deliveryType: "", page: 1 });
   }
 
-  function patchZone(row, next) {
-    const updated = {
-      ...row,
-      ...next,
-      statusLabel: next.status
-        ? (next.status === "active" ? "Active" : "Inactive")
-        : (next.statusLabel || row.statusLabel),
-    };
+  function applyZone(updated) {
     setData((d) => ({
       ...d,
-      zones: (d.zones || []).map((r) => (r.id === row.id ? updated : r)),
+      zones: (d.zones || []).some((r) => r.id === updated.id)
+        ? (d.zones || []).map((r) => (r.id === updated.id ? updated : r))
+        : [...(d.zones || []), updated],
     }));
-    setViewing((v) => (v && v.id === row.id ? updated : v));
-    setEditing((v) => (v && v.id === row.id ? updated : v));
+    setViewing((v) => (v && v.id === updated.id ? updated : v));
+    setEditing((v) => (v && v.id === updated.id ? updated : v));
     setMenu(null);
-    return updated;
   }
 
-  function toggleZoneStatus(row) {
+  async function persistZone(row, next = {}) {
+    const payload = { ...row, ...next, fee: Number(next.fee ?? row.fee) || 0 };
+    const isNew = !row.id || String(row.id).startsWith("new-");
+    const res = await api(isNew ? "/admin/delivery-zones" : `/admin/delivery-zones/${row.id}`, {
+      method: isNew ? "POST" : "PUT",
+      body: JSON.stringify(payload),
+    });
+    applyZone(res.zone);
+    return res.zone;
+  }
+
+  async function toggleZoneStatus(row) {
     const status = row.status === "active" ? "inactive" : "active";
-    patchZone(row, { status });
-    setToast(`${row.name} ${status === "active" ? "activated" : "deactivated"}`);
+    try {
+      await persistZone(row, { status });
+      setToast(`${row.name} ${status === "active" ? "activated" : "deactivated"}`);
+      load();
+    } catch (e) {
+      setError(e.message || "Could not update zone.");
+    }
   }
 
-  function saveZone(e) {
+  async function saveZone(e) {
     e.preventDefault();
     if (!editing) return;
-    patchZone(editing, {
-      name: editing.name,
-      city: editing.city,
-      area: editing.area,
-      coverage: editing.coverage,
-      fee: Number(editing.fee) || 0,
-      eta: editing.eta,
-    });
-    setEditing(null);
-    setToast(`${editing.name} updated`);
+    try {
+      const zone = await persistZone(editing, {
+        name: editing.name,
+        city: editing.city,
+        area: editing.area,
+        coverage: editing.coverage,
+        fee: Number(editing.fee) || 0,
+        eta: editing.eta,
+      });
+      setEditing(null);
+      setToast(`${zone.name} saved`);
+      load();
+    } catch (err) {
+      setError(err.message || "Could not save zone.");
+    }
   }
 
-  function duplicateZone(row) {
-    const copy = {
-      ...row,
-      id: `${row.id}-copy-${Date.now()}`,
-      n: (data?.zones?.length || 0) + 1,
-      name: `${row.name} (Copy)`,
-      status: "inactive",
-      statusLabel: "Inactive",
-      orders: 0,
-    };
-    setData((d) => ({
-      ...d,
-      zones: [...(d.zones || []), copy],
-      total: (d.total || 0) + 1,
-    }));
-    setMenu(null);
-    setToast(`Duplicated ${row.name}`);
+  async function duplicateZone(row) {
+    try {
+      const res = await api("/admin/delivery-zones", {
+        method: "POST",
+        body: JSON.stringify({
+          ...row,
+          id: undefined,
+          name: `${row.name} (Copy)`,
+          status: "inactive",
+          orders: 0,
+        }),
+      });
+      setMenu(null);
+      setToast(`Duplicated ${row.name}`);
+      load();
+      applyZone(res.zone);
+    } catch (e) {
+      setError(e.message || "Could not duplicate zone.");
+    }
   }
 
   if (!data) {
@@ -378,7 +395,21 @@ export default function DeliveryZones() {
             </button>
             {addOpen && (
               <div className="dlvzon-dd" onClick={(e) => e.stopPropagation()}>
-                <button type="button" onClick={() => { setAddOpen(false); setToast("New zone form coming soon"); }}>Single Zone</button>
+                <button type="button" onClick={() => {
+                  setAddOpen(false);
+                  setEditing({
+                    id: `new-${Date.now()}`,
+                    name: "",
+                    city: "Nairobi",
+                    area: "",
+                    coverage: "",
+                    fee: 150,
+                    eta: "1-2 days",
+                    deliveryType: "standard",
+                    status: "active",
+                    region: "nairobi",
+                  });
+                }}>Single Zone</button>
                 <button type="button" onClick={() => { setAddOpen(false); setToast("Bulk zone import started"); }}>Bulk Import</button>
                 <button type="button" onClick={() => { setAddOpen(false); setToast("Drawing tools opening soon"); }}>Draw on Map</button>
               </div>
@@ -652,7 +683,7 @@ export default function DeliveryZones() {
         <div className="prod-modal" onClick={() => setEditing(null)}>
           <form className="card prod-modal-card dlv-detail-modal" onClick={(e) => e.stopPropagation()} onSubmit={saveZone}>
             <div className="ord-drawer-head">
-              <h2>Edit Zone</h2>
+              <h2>{String(editing.id || "").startsWith("new-") ? "Add Zone" : "Edit Zone"}</h2>
               <button className="btn btn-ghost btn-small" type="button" onClick={() => setEditing(null)}>
                 <Icon name="x" size={14} />
               </button>

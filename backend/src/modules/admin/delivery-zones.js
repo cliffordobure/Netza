@@ -1,3 +1,5 @@
+const { loadZones, saveZones, decorateZone } = require("../../lib/delivery");
+
 const STATUSES = [
   { key: "active", label: "Active" },
   { key: "inactive", label: "Inactive" },
@@ -20,67 +22,6 @@ const DELIVERY_TYPES = [
   { value: "economy", label: "3-5 days" },
 ];
 
-const SEED = [
-  {
-    name: "Nairobi CBD",
-    city: "Nairobi",
-    area: "CBD & Surroundings",
-    coverage: "CBD, Upper Hill, Community",
-    fee: 150,
-    eta: "Same day",
-    etaTone: "same",
-    deliveryType: "same_day",
-    status: "active",
-    orders: 2,
-    region: "nairobi",
-  },
-  {
-    name: "Westlands",
-    city: "Nairobi",
-    area: "Westlands Area",
-    coverage: "Westlands, Parklands, Spring Valley",
-    fee: 120,
-    eta: "1 day",
-    etaTone: "next",
-    deliveryType: "next_day",
-    status: "active",
-    orders: 1,
-    region: "nairobi",
-  },
-  {
-    name: "Eastlands",
-    city: "Nairobi",
-    area: "Eastlands Corridor",
-    coverage: "Eastlands, Embakasi, Donholm",
-    fee: 130,
-    eta: "1 day",
-    etaTone: "next",
-    deliveryType: "next_day",
-    status: "inactive",
-    orders: 0,
-    region: "nairobi",
-  },
-];
-
-function buildRows() {
-  return SEED.map((row, i) => ({
-    id: `zone${i + 1}`,
-    n: i + 1,
-    name: row.name,
-    city: row.city,
-    area: row.area,
-    coverage: row.coverage,
-    fee: row.fee,
-    eta: row.eta,
-    etaTone: row.etaTone,
-    deliveryType: row.deliveryType,
-    status: row.status,
-    statusLabel: row.status === "active" ? "Active" : "Inactive",
-    orders: row.orders,
-    region: row.region,
-  }));
-}
-
 function filterRows(rows, query = {}) {
   let list = [...rows];
   const q = (query.q || "").trim().toLowerCase();
@@ -100,44 +41,48 @@ function filterRows(rows, query = {}) {
   return list;
 }
 
-function getDeliveryZones(query = {}) {
+async function getDeliveryZones(query = {}) {
   const page = Math.max(1, Number(query.page) || 1);
   const limit = Math.max(1, Math.min(50, Number(query.limit) || 10));
-  const all = buildRows();
+  const all = await loadZones();
   const filtered = filterRows(all, query);
   const total = filtered.length;
   const skip = (page - 1) * limit;
   const zones = filtered.slice(skip, skip + limit);
-
-  const stats = {
-    total: 3,
-    totalHint: "Active delivery areas",
-    active: 2,
-    activePct: 66.7,
-    activeHint: "of total",
-    ordersMonth: 3,
-    ordersDelta: 0,
-    ordersHint: "vs last month",
-    avgTime: "1 day",
-    avgTimeHint: "Across all zones",
-    avgFee: 133,
-    avgFeeHint: "Across all zones",
-    onTime: 100,
-    onTimeDelta: 0,
-    onTimeHint: "vs last month",
-  };
+  const active = all.filter((z) => z.status === "active");
+  const avgFee = all.length
+    ? Math.round(all.reduce((s, z) => s + (Number(z.fee) || 0), 0) / all.length)
+    : 0;
+  const ranked = [...all].sort((a, b) => (b.orders || 0) - (a.orders || 0)).slice(0, 3);
+  const maxOrders = ranked[0]?.orders || 1;
 
   return {
     total,
     page,
     limit,
-    stats,
+    stats: {
+      total: all.length,
+      totalHint: "Configured delivery areas",
+      active: active.length,
+      activePct: all.length ? Math.round((active.length / all.length) * 1000) / 10 : 0,
+      activeHint: "of total",
+      ordersMonth: all.reduce((s, z) => s + (z.orders || 0), 0),
+      ordersDelta: 0,
+      ordersHint: "vs last month",
+      avgTime: "1-3 days",
+      avgTimeHint: "Across all zones",
+      avgFee,
+      avgFeeHint: "Across all zones",
+      onTime: 100,
+      onTimeDelta: 0,
+      onTimeHint: "vs last month",
+    },
     zones,
-    topZones: [
-      { name: "Nairobi CBD", orders: 2, pct: 100 },
-      { name: "Westlands", orders: 1, pct: 50 },
-      { name: "Eastlands", orders: 0, pct: 0 },
-    ],
+    topZones: ranked.map((z) => ({
+      name: z.name,
+      orders: z.orders || 0,
+      pct: Math.round(((z.orders || 0) / maxOrders) * 100),
+    })),
     mapLegend: [
       { key: "nairobi", label: "Nairobi Zones", color: "#16a34a" },
       { key: "rift", label: "Rift Valley", color: "#6c5dd3" },
@@ -146,9 +91,9 @@ function getDeliveryZones(query = {}) {
       { key: "inactive", label: "Inactive Zones", color: "#94a3b8" },
     ],
     insights: [
-      { key: "active", tone: "green", icon: "checkCircle", text: "2 zones are active and delivering" },
-      { key: "same", tone: "blue", icon: "clock", text: "Same day delivery available in 1 zone" },
-      { key: "inactive", tone: "orange", icon: "warning", text: "1 zone is currently inactive" },
+      { key: "active", tone: "green", icon: "checkCircle", text: `${active.length} zone${active.length === 1 ? "" : "s"} are active and delivering` },
+      { key: "same", tone: "blue", icon: "clock", text: `Same day delivery available in ${all.filter((z) => z.deliveryType === "same_day" && z.status === "active").length} zone(s)` },
+      { key: "inactive", tone: "orange", icon: "warning", text: `${all.length - active.length} zone(s) currently inactive` },
     ],
     filters: {
       statuses: STATUSES.map((s) => ({ value: s.key, label: s.label })),
@@ -156,8 +101,31 @@ function getDeliveryZones(query = {}) {
       deliveryTypes: DELIVERY_TYPES,
     },
     footerMessage:
-      "Note: Delivery fees and times are calculated based on zone configuration. Update zones regularly for accurate pricing and customer experience.",
+      "Delivery fees on the app use these zone prices. Inactive zones are not charged. Unmatched addresses use the default zone fee from Delivery Settings.",
   };
 }
 
-module.exports = { getDeliveryZones };
+async function upsertDeliveryZone(body = {}, id) {
+  const zones = await loadZones();
+  const rawId = id || body.id;
+  const safeId = rawId && !String(rawId).startsWith("new-") ? rawId : `zone_${Date.now().toString(36)}`;
+  const incoming = decorateZone({
+    ...body,
+    id: safeId,
+  }, zones.length);
+  const idx = zones.findIndex((z) => z.id === incoming.id);
+  if (idx >= 0) zones[idx] = { ...zones[idx], ...incoming, n: idx + 1 };
+  else zones.push(incoming);
+  const saved = await saveZones(zones);
+  return saved.find((z) => z.id === incoming.id);
+}
+
+async function deleteDeliveryZone(id) {
+  const zones = await loadZones();
+  const next = zones.filter((z) => z.id !== id);
+  if (next.length === zones.length) return null;
+  await saveZones(next);
+  return true;
+}
+
+module.exports = { getDeliveryZones, upsertDeliveryZone, deleteDeliveryZone };

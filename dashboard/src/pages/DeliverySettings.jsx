@@ -376,11 +376,19 @@ export default function DeliverySettings() {
             <form className="ptsset-form" onSubmit={save}>
               <Section icon="pin" title="Zones & Fees" subtitle="Default fees and surcharges applied across zones.">
                 <div className="ptsset-grid-2">
-                  <Field label="Default Zone Fee (KES)">
+                  <Field label="Default Zone Fee (KES)" hint="Used when the customer address does not match a zone">
                     <input type="number" min="0" value={form.defaultZoneFeeKes} onChange={(e) => set("defaultZoneFeeKes", Number(e.target.value))} />
                   </Field>
-                  <Field label="Remote Area Surcharge (KES)">
+                  <Field label="Remote Area Surcharge (KES)" hint="Added on top of the default fee when no zone matches">
                     <input type="number" min="0" value={form.remoteAreaSurchargeKes} onChange={(e) => set("remoteAreaSurchargeKes", Number(e.target.value))} />
+                  </Field>
+                </div>
+                <div className="ptsset-grid-2">
+                  <Field label="Express surcharge (KES)" hint="Added when the customer picks Express in the app">
+                    <input type="number" min="0" value={form.expressSurchargeKes ?? 200} onChange={(e) => set("expressSurchargeKes", Number(e.target.value))} />
+                  </Field>
+                  <Field label="Weekend Surcharge (KES)">
+                    <input type="number" min="0" value={form.weekendSurchargeKes} onChange={(e) => set("weekendSurchargeKes", Number(e.target.value))} />
                   </Field>
                 </div>
                 <div className="ptsset-row">
@@ -390,14 +398,9 @@ export default function DeliverySettings() {
                 <Field label="VAT Percent">
                   <input type="number" min="0" max="100" value={form.vatPercent} onChange={(e) => set("vatPercent", Number(e.target.value))} disabled={!form.vatOnDelivery} />
                 </Field>
-                <div className="ptsset-grid-2">
-                  <Field label="Weekend Surcharge (KES)">
-                    <input type="number" min="0" value={form.weekendSurchargeKes} onChange={(e) => set("weekendSurchargeKes", Number(e.target.value))} />
-                  </Field>
-                  <Field label="Peak-Hour Surcharge (KES)">
-                    <input type="number" min="0" value={form.peakHourSurchargeKes} onChange={(e) => set("peakHourSurchargeKes", Number(e.target.value))} />
-                  </Field>
-                </div>
+                <Field label="Peak-Hour Surcharge (KES)">
+                  <input type="number" min="0" value={form.peakHourSurchargeKes} onChange={(e) => set("peakHourSurchargeKes", Number(e.target.value))} />
+                </Field>
                 <p className="muted dlvset-link-hint">
                   Edit coverage areas on{" "}
                   <button className="link-reset" type="button" onClick={() => navigate("/delivery?tab=zones")}>Delivery Zones</button>.

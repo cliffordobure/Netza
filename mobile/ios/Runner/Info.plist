@@ -70,5 +70,20 @@
 	<string>TAJIRA needs photo access to add your company logo and product images to quotes.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>TAJIRA needs camera access to capture product photos for quotes.</string>
+	<key>FlutterDeepLinkingEnabled</key>
+	<true/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>ke.tajira.tajira_mobile</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>tajira</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

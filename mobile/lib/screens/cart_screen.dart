@@ -22,8 +22,7 @@ class _CartScreenState extends State<CartScreen> {
   final selected = <String>{};
   final promo = TextEditingController();
   int promoPercent = 0;
-
-  static const deliveryKes = 150;
+  int deliveryKes = 0;
 
   @override
   void initState() {
@@ -60,6 +59,7 @@ class _CartScreenState extends State<CartScreen> {
         }
       });
       await session.refreshCart();
+      await refreshQuote();
     } catch (e) {
       setState(() {
         error = apiMessage(e);
@@ -92,6 +92,21 @@ class _CartScreenState extends State<CartScreen> {
   int get promoOff => (subtotal * promoPercent / 100).round();
 
   int get delivery => chosen.isEmpty ? 0 : deliveryKes;
+
+  Future<void> refreshQuote() async {
+    if (!mounted || chosen.isEmpty) {
+      if (mounted) setState(() => deliveryKes = 0);
+      return;
+    }
+    try {
+      final res = await context.read<Session>().dio.get('/shipping/quote', queryParameters: {
+        'method': 'STANDARD',
+        'subtotalKes': subtotal,
+      });
+      if (!mounted) return;
+      setState(() => deliveryKes = (res.data['standardKes'] as num?)?.toInt() ?? 0);
+    } catch (_) {}
+  }
 
   int get total => (subtotal - promoOff + delivery).clamp(0, 1 << 30);
 
@@ -286,7 +301,10 @@ class _CartScreenState extends State<CartScreen> {
                               compare: (p['compareAtKes'] as num?)?.toInt(),
                               qty: item['quantity'] as int? ?? 1,
                               checked: selected.contains(id),
-                              onCheck: (v) => setState(() => v ? selected.add(id) : selected.remove(id)),
+                              onCheck: (v) {
+                                setState(() => v ? selected.add(id) : selected.remove(id));
+                                refreshQuote();
+                              },
                               onQty: (q) => setQty(id, q),
                               onRemove: () => remove(id),
                               onOpen: () => context.push('/product/${p['id']}'),
