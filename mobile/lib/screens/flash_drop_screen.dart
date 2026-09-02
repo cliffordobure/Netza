@@ -139,7 +139,7 @@ class _FlashDropScreenState extends State<FlashDropScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      bottomNavigationBar: const NetzaBottomNav(currentIndex: 3),
+      bottomNavigationBar: const TajiraBottomNav(currentIndex: 3),
       body: SafeArea(
         child: Column(
           children: [
@@ -272,13 +272,13 @@ class _FlashHeader extends StatelessWidget {
           constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
           icon: const Icon(Icons.arrow_back, color: navy, size: 22),
         ),
-        const NetzaLogo(),
+        const TajiraLogo(),
         const SizedBox(width: 8),
         Expanded(
           child: Column(
             children: [
               Text(
-                'NETZA FLASH DROP ⚡',
+                'TAJIRA FLASH DROP ⚡',
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -640,16 +640,16 @@ class _FeaturedDrop extends StatelessWidget {
                     Expanded(
                       child: Row(
                         children: [
-                          Expanded(child: NetzaImage(images[0], fallback: Icons.watch)),
-                          Expanded(child: NetzaImage(images[1], fallback: Icons.headphones)),
+                          Expanded(child: TajiraImage(images[0], fallback: Icons.watch)),
+                          Expanded(child: TajiraImage(images[1], fallback: Icons.headphones)),
                         ],
                       ),
                     ),
                     Expanded(
                       child: Row(
                         children: [
-                          Expanded(child: NetzaImage(images[2], fallback: Icons.blender)),
-                          Expanded(child: NetzaImage(images[3], fallback: Icons.speaker)),
+                          Expanded(child: TajiraImage(images[2], fallback: Icons.blender)),
+                          Expanded(child: TajiraImage(images[3], fallback: Icons.speaker)),
                         ],
                       ),
                     ),
@@ -838,7 +838,7 @@ class _LiveCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  NetzaImage(image, fallback: Icons.devices_other),
+                  TajiraImage(image, fallback: Icons.devices_other),
                   Positioned(
                     top: 8,
                     left: 8,
@@ -997,7 +997,7 @@ class _Winners extends StatelessWidget {
                 width: 168,
                 child: Row(
                   children: [
-                    ClipOval(child: SizedBox(width: 44, height: 44, child: NetzaImage(w.avatar, fallback: Icons.person))),
+                    ClipOval(child: SizedBox(width: 44, height: 44, child: TajiraImage(w.avatar, fallback: Icons.person))),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Column(

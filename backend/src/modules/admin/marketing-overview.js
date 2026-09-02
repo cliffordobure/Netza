@@ -85,7 +85,7 @@ function getMarketingOverview(query = {}) {
       { name: "New Arrivals Push", rate: 0, tone: "blue" },
     ],
     coupons: [
-      { code: "NETZA500", usage: 2, revenue: 1000 },
+      { code: "TAJIRA500", usage: 2, revenue: 1000 },
       { code: "FLASH15", usage: 1, revenue: 450 },
       { code: "LOYAL10", usage: 1, revenue: 300 },
     ],

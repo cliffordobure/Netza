@@ -3,7 +3,7 @@ function getPointsSettings() {
     settings: {
       // General
       enabled: true,
-      programName: "Netza Loyalty Program",
+      programName: "Tajira Loyalty Program",
       programDescription: "Earn points every time you shop and redeem exciting rewards.",
       pointsSingular: "Point",
       pointsPlural: "Points",

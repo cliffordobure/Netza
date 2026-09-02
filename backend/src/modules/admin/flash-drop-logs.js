@@ -109,7 +109,7 @@ const CORE = [
     at: "2026-05-26T07:15:30.000Z",
     user: "francis",
     action: "scheduled",
-    dropName: "NETZA Branded Cap",
+    dropName: "TAJIRA Branded Cap",
     dropSku: "FD-2026-0047",
     details: "Scheduled for 28 May 2026 10:00 AM",
     ip: "196.201.72.18",

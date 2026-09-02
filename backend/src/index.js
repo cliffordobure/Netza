@@ -27,7 +27,7 @@ async function start() {
   }
   const app = createApp();
   app.listen(config.port, () => {
-    console.log(`NETZA API listening on http://localhost:${config.port}`);
+    console.log(`TAJIRA API listening on http://localhost:${config.port}`);
   });
 }
 

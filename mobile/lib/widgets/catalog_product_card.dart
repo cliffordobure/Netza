@@ -60,7 +60,7 @@ class CatalogProductCard extends StatelessWidget {
                   Positioned.fill(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(10, 28, 10, 8),
-                      child: NetzaImage(_image),
+                      child: TajiraImage(_image),
                     ),
                   ),
                   if (_discount > 0)

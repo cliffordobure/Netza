@@ -402,7 +402,7 @@ export default function CustomerProfile() {
                 <button className="link-reset" type="button" onClick={() => setView("referrals")}>View All</button>
               </div>
               <p>Referral Code: <strong>{c.referralCode}</strong></p>
-              <p className="muted">Share this code so new customers can join NETZA Kenya and earn you points.</p>
+              <p className="muted">Share this code so new customers can join Tajira Kenya and earn you points.</p>
               <div className="cprof-ref-stats">
                 <span>Referred Customers: <b>{fmtNum(c.referredCount)}</b></span>
                 <span>Total Points Earned: <b>{fmtNum(c.referralPoints)}</b></span>

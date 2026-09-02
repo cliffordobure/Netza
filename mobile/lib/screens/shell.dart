@@ -10,7 +10,7 @@ class ShellScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: navigationShell,
-      bottomNavigationBar: NetzaBottomNav(
+      bottomNavigationBar: TajiraBottomNav(
         currentIndex: navigationShell.currentIndex,
         onTap: navigationShell.goBranch,
       ),

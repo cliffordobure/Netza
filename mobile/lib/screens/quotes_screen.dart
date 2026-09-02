@@ -435,7 +435,7 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
                                     : p['images'].first)
                                 : null;
                             return ListTile(
-                              leading: SizedBox(width: 44, height: 44, child: NetzaImage(img?.toString())),
+                              leading: SizedBox(width: 44, height: 44, child: TajiraImage(img?.toString())),
                               title: Text(p['name']?.toString() ?? '', maxLines: 1),
                               subtitle: Text(money(p['priceKes'])),
                               onTap: () {
@@ -518,7 +518,7 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
                           alignment: Alignment.centerLeft,
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(8),
-                            child: SizedBox(width: 72, height: 72, child: NetzaImage(imageUrl)),
+                            child: SizedBox(width: 72, height: 72, child: TajiraImage(imageUrl)),
                           ),
                         ),
                       if (!isCatalog)
@@ -632,7 +632,7 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
                     if (logoUrl.isNotEmpty)
                       ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: SizedBox(width: 56, height: 56, child: NetzaImage(logoUrl)),
+                        child: SizedBox(width: 56, height: 56, child: TajiraImage(logoUrl)),
                       ),
                     if (logoUrl.isNotEmpty) const SizedBox(width: 12),
                     OutlinedButton.icon(
@@ -655,7 +655,7 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
                     borderRadius: BorderRadius.circular(12),
                     child: ListTile(
                       onTap: () => _editItem(e.key),
-                      leading: SizedBox(width: 44, height: 44, child: NetzaImage(i['imageUrl']?.toString())),
+                      leading: SizedBox(width: 44, height: 44, child: TajiraImage(i['imageUrl']?.toString())),
                       title: Text(i['name']?.toString() ?? '', maxLines: 1),
                       subtitle: Text(
                         '${i['kind'] == 'catalog' ? 'Site' : 'Yours'} · ${money(i['unitPriceKes'])} × ${i['quantity']}',
@@ -768,7 +768,7 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
         await SharePlus.instance.share(
           ShareParams(
             text: text,
-            subject: 'Quote from ${quote!['companyName'] ?? 'NETZA'}',
+            subject: 'Quote from ${quote!['companyName'] ?? 'TAJIRA'}',
             sharePositionOrigin: box != null && box.hasSize ? box.localToGlobal(Offset.zero) & box.size : null,
           ),
         );
@@ -893,7 +893,7 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
                         alignment: Alignment.centerLeft,
                         child: SizedBox(
                           height: 48,
-                          child: NetzaImage(q!['logoUrl'].toString(), fit: BoxFit.contain),
+                          child: TajiraImage(q!['logoUrl'].toString(), fit: BoxFit.contain),
                         ),
                       ),
                     const SizedBox(height: 8),
@@ -915,7 +915,7 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            SizedBox(width: 52, height: 52, child: NetzaImage(i['imageUrl']?.toString())),
+                            SizedBox(width: 52, height: 52, child: TajiraImage(i['imageUrl']?.toString())),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(

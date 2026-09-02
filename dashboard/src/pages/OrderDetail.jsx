@@ -43,7 +43,7 @@ function printInvoice(order) {
     <style>body{font-family:Inter,Arial,sans-serif;padding:28px;color:#0B1F3A}h1{font-size:20px;margin:0}
     table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border-bottom:1px solid #e5e7eb;padding:8px;text-align:left;font-size:13px}
     .muted{color:#64748b}.total{text-align:right;font-weight:800;margin-top:12px}</style></head><body>
-    <h1>NETZA Kenya — Invoice</h1>
+    <h1>Tajira Kenya — Invoice</h1>
     <p class="muted">${order.orderNumber} · ${order.placedAt || ""}</p>
     <p><strong>${order.customer?.name || ""}</strong><br>${order.customer?.email || ""}<br>${order.customer?.phone || ""}</p>
     <table><thead><tr><th>Product</th><th>Price</th><th>Qty</th><th>Discount</th><th>Total</th></tr></thead><tbody>${rows}</tbody></table>

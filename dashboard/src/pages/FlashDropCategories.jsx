@@ -241,7 +241,7 @@ export default function FlashDropCategories() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "netza-flash-drop-categories.csv";
+    a.download = "tajira-flash-drop-categories.csv";
     a.click();
     URL.revokeObjectURL(url);
     setToast("Categories exported");

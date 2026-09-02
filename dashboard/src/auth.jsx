@@ -5,7 +5,7 @@ const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
-    const raw = localStorage.getItem("netza_user");
+    const raw = localStorage.getItem("tajira_user");
     return raw ? JSON.parse(raw) : null;
   });
 
@@ -21,7 +21,7 @@ export function AuthProvider({ children }) {
           throw new Error("This account cannot access the admin dashboard");
         }
         setTokens(data.accessToken, data.refreshToken);
-        localStorage.setItem("netza_user", JSON.stringify(data.user));
+        localStorage.setItem("tajira_user", JSON.stringify(data.user));
         setUser(data.user);
         return data.user;
       },

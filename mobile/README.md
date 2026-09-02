@@ -1,4 +1,4 @@
-# netza_mobile
+# tajira_mobile
 
 A new Flutter project.
 

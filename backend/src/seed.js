@@ -49,7 +49,7 @@ async function seed() {
       limit: "none",
       priority: 1,
       isActive: true,
-      description: "1 NETZA Point for every KSh 100 spent.",
+      description: "1 TAJIRA Point for every KSh 100 spent.",
       configJson: JSON.stringify({ kesPerPoint: 100 }),
     },
     {
@@ -75,7 +75,7 @@ async function seed() {
       redeemedCount: 12,
       priority: 3,
       isActive: true,
-      description: "KSh 500 off your next NETZA order.",
+      description: "KSh 500 off your next TAJIRA order.",
       imageUrl: img("photo-1556742049-0cfed4f6a45d", 71),
       configJson: JSON.stringify({ kind: "redeem", valueKes: 500 }),
     },
@@ -87,11 +87,11 @@ async function seed() {
   await User.create({
     firstName: "Francis",
     lastName: "Admin",
-    email: normalizeEmail("admin@netza.co.ke"),
+    email: normalizeEmail("admin@tajira.co.ke"),
     phone: normalizePhone("0700000000"),
     passwordHash,
     role: "SUPER_ADMIN",
-    referralCode: "NETZAADMIN",
+    referralCode: "TAJIRAADMIN",
     profileCompleted: true,
     membershipLevel: "PLATINUM",
   });
@@ -134,7 +134,7 @@ async function seed() {
     lastName: "Otieno",
     email: "amina@example.com",
     phone: "0712345678",
-    referral: "NETZAAMINA",
+    referral: "TAJIRAAMINA",
     level: "PLATINUM",
     points: 50,
     customerNumber: "CUST-00001",
@@ -176,9 +176,9 @@ async function seed() {
   });
 
   await PointsTransaction.insertMany([
-    { user: amina._id, type: "WELCOME", points: 50, description: "Welcome to NETZA Kenya", createdAt: new Date("2026-05-10T10:02:00.000Z") },
-    { user: brian._id, type: "ORDER", points: 120, description: "Points from order NETZA-2026-1001", reference: "NETZA-2026-1001", createdAt: new Date("2026-07-12T08:00:00.000Z") },
-    { user: faith._id, type: "WELCOME", points: 50, description: "Welcome to NETZA Kenya", createdAt: new Date("2026-06-01T09:00:00.000Z") },
+    { user: amina._id, type: "WELCOME", points: 50, description: "Welcome to Tajira Kenya", createdAt: new Date("2026-05-10T10:02:00.000Z") },
+    { user: brian._id, type: "ORDER", points: 120, description: "Points from order TAJIRA-2026-1001", reference: "TAJIRA-2026-1001", createdAt: new Date("2026-07-12T08:00:00.000Z") },
+    { user: faith._id, type: "WELCOME", points: 50, description: "Welcome to Tajira Kenya", createdAt: new Date("2026-06-01T09:00:00.000Z") },
   ]);
 
   const categories = await Category.insertMany([
@@ -265,7 +265,7 @@ async function seed() {
 
   const now = new Date();
   await FlashDrop.create({
-    name: "NETZA FLASH DROP",
+    name: "TAJIRA FLASH DROP",
     discountPercent: 50,
     startsAt: now,
     endsAt: new Date(now.getTime() + 18 * 60 * 60 * 1000),
@@ -308,7 +308,7 @@ async function seed() {
 
   const orderSeed = [
     {
-      n: "NETZA-2026-1001",
+      n: "TAJIRA-2026-1001",
       user: brian,
       items: linesFrom([["NET-AX55", 1], ["CCTV-HK2143", 1]]),
       status: "PROCESSING",
@@ -321,7 +321,7 @@ async function seed() {
       phone: brian.phone,
     },
     {
-      n: "NETZA-2026-1002",
+      n: "TAJIRA-2026-1002",
       user: faith,
       items: linesFrom([["AC-F18", 1]]),
       status: "PENDING_PAYMENT",
@@ -334,7 +334,7 @@ async function seed() {
       phone: faith.phone,
     },
     {
-      n: "NETZA-2026-1003",
+      n: "TAJIRA-2026-1003",
       user: amina,
       items: linesFrom([["CCTV-HK2143", 2]]),
       status: "DELIVERED",
@@ -391,7 +391,7 @@ async function seed() {
       code: "COMP-001",
       title: "Flash Tech Quiz",
       shortDescription: "Answer networking questions and win points.",
-      description: "A short NETZA quiz on networking and CCTV basics.",
+      description: "A short TAJIRA quiz on networking and CCTV basics.",
       type: "quiz",
       category: "Technology",
       status: "active",
@@ -412,7 +412,7 @@ async function seed() {
       code: "COMP-002",
       title: "Referral Sprint",
       shortDescription: "Invite friends and climb the board.",
-      description: "Earn entries when friends create NETZA accounts with your code.",
+      description: "Earn entries when friends create TAJIRA accounts with your code.",
       type: "referral",
       category: "Promotions",
       status: "upcoming",
@@ -431,8 +431,8 @@ async function seed() {
     },
   ]);
 
-  console.log("Seeded NETZA Kenya into MongoDB");
-  console.log("Admin:     admin@netza.co.ke / Admin@123");
+  console.log("Seeded Tajira Kenya into MongoDB");
+  console.log("Admin:     admin@tajira.co.ke / Admin@123");
   console.log("Customer:  0712345678 / Customer@123");
   console.log(`Products:  ${createdProducts.length}`);
   console.log("Customers: 3 · Orders: 3 · Competitions: 2");
@@ -446,11 +446,11 @@ async function seedAdminOnly() {
   const user = await User.create({
     firstName: "Francis",
     lastName: "Admin",
-    email: normalizeEmail("admin@netza.co.ke"),
+    email: normalizeEmail("admin@tajira.co.ke"),
     phone: normalizePhone("0700000000"),
     passwordHash,
     role: "SUPER_ADMIN",
-    referralCode: "NETZAADMIN",
+    referralCode: "TAJIRAADMIN",
     profileCompleted: true,
     membershipLevel: "PLATINUM",
     isActive: true,
@@ -470,7 +470,7 @@ async function seedAdminOnly() {
         limit: "none",
         priority: 1,
         isActive: true,
-        description: "1 NETZA Point for every KSh 100 spent.",
+        description: "1 TAJIRA Point for every KSh 100 spent.",
         configJson: JSON.stringify({ kesPerPoint: 100 }),
       },
       {

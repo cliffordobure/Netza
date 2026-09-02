@@ -59,6 +59,7 @@ class _ProductScreenState extends State<ProductScreen> {
   }
 
   Future<void> addToCart({bool buyNow = false}) async {
+    if (busy) return;
     final session = context.read<Session>();
     if (!session.isLoggedIn) {
       context.push('/login');
@@ -66,8 +67,7 @@ class _ProductScreenState extends State<ProductScreen> {
     }
     setState(() => busy = true);
     try {
-      await session.dio.post('/cart/items', data: {'productId': widget.id, 'quantity': qty});
-      await session.refreshCart();
+      await session.addCartItem(widget.id, quantity: qty, replace: buyNow);
       if (!mounted) return;
       if (buyNow) {
         context.push('/checkout');
@@ -162,7 +162,7 @@ class _ProductScreenState extends State<ProductScreen> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      bottomNavigationBar: const NetzaBottomNav(currentIndex: 1),
+      bottomNavigationBar: const TajiraBottomNav(currentIndex: 1),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.only(bottom: 20),
@@ -187,7 +187,7 @@ class _ProductScreenState extends State<ProductScreen> {
                         clipBehavior: Clip.antiAlias,
                         child: images.isEmpty
                             ? const Icon(Icons.devices_other, size: 72, color: navy)
-                            : NetzaImage(images[photo.clamp(0, images.length - 1)]),
+                            : TajiraImage(images[photo.clamp(0, images.length - 1)]),
                       ),
                     ),
                     if (_discount > 0)
@@ -238,7 +238,7 @@ class _ProductScreenState extends State<ProductScreen> {
                                 color: const Color(0xFFEEF1F5),
                                 child: Center(child: Text('+${images.length - 3}', style: inter(size: 14, weight: FontWeight.w800, color: muted))),
                               )
-                            : NetzaImage(images[i]),
+                            : TajiraImage(images[i]),
                       ),
                     );
                   },
@@ -268,7 +268,7 @@ class _ProductScreenState extends State<ProductScreen> {
                       children: [
                         const Icon(Icons.stars_rounded, size: 16, color: purple),
                         const SizedBox(width: 6),
-                        Text('Earn $totalPts Netza Points', style: T.earn.copyWith(fontSize: 12)),
+                        Text('Earn $totalPts Tajira Points', style: T.earn.copyWith(fontSize: 12)),
                       ],
                     ),
                   ),
@@ -296,7 +296,7 @@ class _ProductScreenState extends State<ProductScreen> {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      Text('Ships from Netza Warehouse', style: T.memberMeta),
+                      Text('Ships from Tajira Warehouse', style: T.memberMeta),
                       const SizedBox(width: 4),
                       const Icon(Icons.info_outline, size: 14, color: muted),
                     ],
@@ -527,14 +527,14 @@ class _ProductScreenState extends State<ProductScreen> {
                                 ? Stack(
                                     fit: StackFit.expand,
                                     children: [
-                                      NetzaImage(images[i.clamp(0, images.length - 1)]),
+                                      TajiraImage(images[i.clamp(0, images.length - 1)]),
                                       ColoredBox(
                                         color: const Color(0x99000000),
                                         child: Center(child: Text('+${(reviewCount - 3).clamp(1, 99)}', style: inter(size: 14, weight: FontWeight.w800, color: Colors.white))),
                                       ),
                                     ],
                                   )
-                                : NetzaImage(images[i.clamp(0, images.length - 1)]),
+                                : TajiraImage(images[i.clamp(0, images.length - 1)]),
                           );
                         },
                       ),

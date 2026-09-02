@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { api, mediaUrl } from "../api";
 import { Icon } from "../icons";
 
@@ -72,8 +72,19 @@ function Donut({ parts, total }) {
   );
 }
 
+function downloadCsv(filename, lines) {
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function Products() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [params] = useSearchParams();
   const fileRef = useRef(null);
   const [data, setData] = useState(null);
@@ -136,9 +147,51 @@ export default function Products() {
 
   useEffect(() => {
     if (!toast) return undefined;
-    const t = setTimeout(() => setToast(""), 2800);
+    const t = setTimeout(() => setToast(""), 5000);
     return () => clearTimeout(t);
   }, [toast]);
+
+  useEffect(() => {
+    const flash = location.state?.toast;
+    if (!flash) return;
+    setToast(flash);
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: {} });
+  }, [location, navigate]);
+
+  async function exportCsv() {
+    try {
+      const d = await api(`/admin/products-catalog?${queryString({ page: 1, limit: 200 })}`);
+      const rows = d.products || [];
+      const header = ["Name", "SKU", "Category", "Brand", "Price (KES)", "Stock", "Status"];
+      const lines = [header.join(",")];
+      for (const p of rows) {
+        const status = p.isActive === false ? "Inactive" : p.stockStatus === "out" ? "Out of Stock" : p.stockStatus === "low" ? "Low Stock" : "In Stock";
+        lines.push([
+          `"${String(p.name || "").replace(/"/g, '""')}"`,
+          p.sku || "",
+          `"${String(p.category || "").replace(/"/g, '""')}"`,
+          `"${String(p.brand || "").replace(/"/g, '""')}"`,
+          p.priceKes ?? 0,
+          p.stock ?? 0,
+          status,
+        ].join(","));
+      }
+      downloadCsv("tajira-products.csv", lines);
+      setToast(rows.length ? `Exported ${rows.length} products` : "No products to export");
+    } catch (err) {
+      setError(err.message || "Could not export products.");
+    }
+  }
+
+  useEffect(() => {
+    if (params.get("export") !== "1") return;
+    exportCsv();
+    const next = new URLSearchParams(params);
+    next.delete("export");
+    const search = next.toString();
+    navigate({ pathname: "/products", search: search ? `?${search}` : "" }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params]);
 
   useEffect(() => {
     function closeMenus() {
@@ -202,6 +255,7 @@ export default function Products() {
           <span>›</span>
           <strong>All Products</strong>
         </nav>
+        {toast && <p className="cust-toast">{toast}</p>}
         {error ? <p className="error">{error}</p> : <p className="muted">Loading products…</p>}
       </div>
     );
@@ -232,6 +286,9 @@ export default function Products() {
             onClick={() => fileRef.current?.click()}
           >
             <Icon name="upload" size={14} /> Import Products
+          </button>
+          <button className="btn btn-ghost btn-small" type="button" onClick={exportCsv}>
+            <Icon name="download" size={14} /> Export Products
           </button>
           <div className="dlvzon-dd-wrap">
             <button

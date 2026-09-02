@@ -115,7 +115,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      drawer: const NetzaDrawer(),
+      drawer: const TajiraDrawer(),
       body: SafeArea(
         bottom: false,
         child: RefreshIndicator(
@@ -200,7 +200,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           height: 50,
                           decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
                           clipBehavior: Clip.antiAlias,
-                          child: NetzaImage(c['imageUrl']?.toString(), fallback: categoryIcon(slug)),
+                          child: TajiraImage(c['imageUrl']?.toString(), fallback: categoryIcon(slug)),
                         ),
                         const SizedBox(height: 4),
                         Flexible(
@@ -258,7 +258,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               Expanded(
                                 child: Stack(
                                   children: [
-                                    Positioned.fill(child: NetzaImage(img)),
+                                    Positioned.fill(child: TajiraImage(img)),
                                     const Positioned(
                                       top: 8,
                                       right: 8,
@@ -325,7 +325,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               child: Stack(
                                 fit: StackFit.expand,
                                 children: [
-                                  NetzaImage(img),
+                                  TajiraImage(img),
                                   const Positioned(
                                     top: 8,
                                     right: 8,
@@ -528,7 +528,7 @@ class _FlashSlide extends StatelessWidget {
                   height: 60,
                   decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
                   clipBehavior: Clip.antiAlias,
-                  child: NetzaImage(url),
+                  child: TajiraImage(url),
                 );
               }),
             ),
@@ -596,7 +596,7 @@ class _BannerSlide extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                if (hasImage) NetzaImage(imageUrl, fit: BoxFit.cover),
+                if (hasImage) TajiraImage(imageUrl, fit: BoxFit.cover),
                 if (hasImage)
                   const DecoratedBox(
                     decoration: BoxDecoration(

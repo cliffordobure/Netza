@@ -186,7 +186,7 @@ export default function FlashDropAnalytics() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "netza-flash-drop-analytics.csv";
+    a.download = "tajira-flash-drop-analytics.csv";
     a.click();
     URL.revokeObjectURL(url);
     setToast("Analytics report exported");

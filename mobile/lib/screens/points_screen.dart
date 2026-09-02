@@ -83,7 +83,7 @@ class _PointsScreenState extends State<PointsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Redeem $title', style: inter(size: 16, weight: FontWeight.w800, color: navy)),
-        content: Text('This will use ${_pts(cost)} Netza Points.', style: T.memberMeta.copyWith(fontSize: 13)),
+        content: Text('This will use ${_pts(cost)} Tajira Points.', style: T.memberMeta.copyWith(fontSize: 13)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Redeem')),
@@ -170,7 +170,7 @@ class _PointsScreenState extends State<PointsScreen> {
                 children: [
                   const Icon(Icons.stars_rounded, color: purple, size: 48),
                   const SizedBox(height: 12),
-                  Text('NETZA Points & Rewards', style: inter(size: 18, weight: FontWeight.w800, color: navy)),
+                  Text('Tajira Points & Rewards', style: inter(size: 18, weight: FontWeight.w800, color: navy)),
                   const SizedBox(height: 8),
                   Text('Sign in to view your points, redeem rewards and track your streak.', textAlign: TextAlign.center, style: T.memberMeta),
                   const SizedBox(height: 16),
@@ -404,11 +404,11 @@ class _PointsHeader extends StatelessWidget {
     final cartCount = context.watch<Session>().cartCount;
     return Row(
       children: [
-        const NetzaLogo(),
+        const TajiraLogo(),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
-            'NETZA Points & Rewards',
+            'Tajira Points & Rewards',
             textAlign: TextAlign.center,
             maxLines: 2,
             style: inter(size: 13, weight: FontWeight.w800, color: navy, height: 1.15),
@@ -505,7 +505,7 @@ class _HeroCard extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Text('My NETZA Points Balance', style: inter(size: 11, weight: FontWeight.w500, color: Colors.white70)),
+                        Text('My Tajira Points Balance', style: inter(size: 11, weight: FontWeight.w500, color: Colors.white70)),
                         const SizedBox(width: 4),
                         const Icon(Icons.info_outline, size: 14, color: Colors.white70),
                       ],
@@ -742,7 +742,7 @@ const _rewards = [
   _Reward(key: 'OFF500', title: 'KSh 500 OFF', color: orange, minSpend: 'Min spend KSh 5,000', cost: 5000),
   _Reward(
     key: 'CAP',
-    title: 'NETZA Cap',
+    title: 'TAJIRA Cap',
     color: navy,
     minSpend: 'Official Merchandise',
     cost: 3000,
@@ -778,7 +778,7 @@ class _RewardCard extends StatelessWidget {
           else if (reward.image != null)
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: SizedBox(height: 44, width: double.infinity, child: NetzaImage(reward.image, fallback: Icons.checkroom)),
+              child: SizedBox(height: 44, width: double.infinity, child: TajiraImage(reward.image, fallback: Icons.checkroom)),
             )
           else
             const SizedBox(height: 18),
@@ -854,7 +854,7 @@ class _HistoryTile extends StatelessWidget {
     case 'FIRST_PURCHASE':
       return (icon: Icons.shopping_bag_outlined, color: purple, title: 'Order Completed', sub: description);
     case 'WELCOME':
-      return (icon: Icons.celebration_outlined, color: orange, title: 'Welcome Bonus', sub: description.isEmpty ? 'Thanks for joining NETZA!' : description);
+      return (icon: Icons.celebration_outlined, color: orange, title: 'Welcome Bonus', sub: description.isEmpty ? 'Thanks for joining TAJIRA!' : description);
     case 'REFERRAL':
       return (icon: Icons.groups_outlined, color: const Color(0xFF2563EB), title: 'Referral Bonus', sub: description.isEmpty ? 'Your friend placed their first order' : description);
     case 'REDEEM':

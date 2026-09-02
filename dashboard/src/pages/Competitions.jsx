@@ -286,7 +286,7 @@ export default function Competitions() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "netza-competitions.csv";
+    a.download = "tajira-competitions.csv";
     a.click();
     URL.revokeObjectURL(url);
   }

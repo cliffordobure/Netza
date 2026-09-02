@@ -9,6 +9,39 @@ const { pointsFromPurchase } = require("../../services/points.service");
 const router = Router();
 router.use(auth());
 
+function productKey(product) {
+  if (!product) return "";
+  if (typeof product === "string") return product;
+  if (product._id) return String(product._id);
+  if (product.id != null && typeof product.id !== "function") return String(product.id);
+  return String(product);
+}
+
+function findCartItem(cart, productId) {
+  const want = String(productId || "");
+  return cart.items.find((item) => productKey(item.product) === want);
+}
+
+function mergeDuplicateItems(cart) {
+  const first = new Map();
+  const extras = [];
+  for (const item of cart.items) {
+    const key = productKey(item.product);
+    if (!key) continue;
+    const seen = first.get(key);
+    if (seen) {
+      seen.quantity = (Number(seen.quantity) || 0) + (Number(item.quantity) || 0);
+      extras.push(item);
+    } else {
+      first.set(key, item);
+    }
+  }
+  for (const item of extras) {
+    if (typeof item.deleteOne === "function") item.deleteOne();
+  }
+  return extras.length > 0;
+}
+
 async function getOrCreateCart(userId) {
   let cart = await Cart.findOne({ user: userId }).populate({
     path: "items.product",
@@ -17,6 +50,7 @@ async function getOrCreateCart(userId) {
   if (!cart) {
     cart = await Cart.create({ user: userId, items: [] });
   }
+  if (mergeDuplicateItems(cart)) await cart.save();
   return cart;
 }
 
@@ -57,14 +91,21 @@ router.post(
   "/items",
   asyncHandler(async (req, res) => {
     const body = z
-      .object({ productId: z.string(), quantity: z.number().int().min(1).default(1) })
+      .object({
+        productId: z.string(),
+        quantity: z.number().int().min(1).default(1),
+        replace: z.boolean().optional(),
+      })
       .parse(req.body);
     const product = await Product.findById(body.productId);
     if (!product || !product.isActive) throw httpError(404, "Product not found");
-    if (product.stock < body.quantity) throw httpError(400, "Insufficient stock");
     const cart = await getOrCreateCart(req.user._id);
-    const existing = cart.items.find((i) => idOf(i.product) === body.productId);
-    if (existing) existing.quantity += body.quantity;
+    const existing = findCartItem(cart, body.productId);
+    const nextQty = existing
+      ? (body.replace ? body.quantity : Number(existing.quantity || 0) + body.quantity)
+      : body.quantity;
+    if (product.stock < nextQty) throw httpError(400, "Insufficient stock");
+    if (existing) existing.quantity = nextQty;
     else cart.items.push({ product: body.productId, quantity: body.quantity });
     await cart.save();
     res.status(201).json({ cart: await serializeCart(await getOrCreateCart(req.user._id)) });

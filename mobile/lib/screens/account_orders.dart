@@ -335,7 +335,7 @@ class _OrderCard extends StatelessWidget {
                       child: SizedBox(
                         width: 56,
                         height: 56,
-                        child: NetzaImage(image, fallback: Icons.inventory_2_outlined),
+                        child: TajiraImage(image, fallback: Icons.inventory_2_outlined),
                       ),
                     ),
                     const SizedBox(width: 12),

@@ -355,7 +355,7 @@ export default function FlashDrops() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "netza-flash-drops.csv";
+    a.download = "tajira-flash-drops.csv";
     a.click();
     URL.revokeObjectURL(url);
     setToast("Report exported");

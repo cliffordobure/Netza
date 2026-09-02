@@ -53,7 +53,7 @@ function flashWidgets() {
       { key: "social", label: "Social Media", count: 0, pct: 0 },
     ],
     activity: [
-      { kind: "join", title: "Brian Otieno joined the competition", detail: "Entered via the NETZA app", at: "2 mins ago" },
+      { kind: "join", title: "Brian Otieno joined the competition", detail: "Entered via the TAJIRA app", at: "2 mins ago" },
       { kind: "done", title: "Faith Wanjiku completed an entry", detail: "Score 920", at: "6 mins ago" },
       { kind: "points", title: "Daniel Mwangi achieved 890 points", detail: "Best score 18 / 20", at: "12 mins ago" },
     ],
@@ -619,7 +619,7 @@ function flashWinners() {
   const product = "TP-Link Archer C6 + 10,000 Points";
   const third = "KSh 5,000 Voucher + 2,000 Points";
   const consolation = "KSh 2,000 Voucher + 1,000 Points";
-  const participantPrize = "500 NETZA Points";
+  const participantPrize = "500 Tajira Points";
 
   const first = winRow(namedBy("Brian Otieno"), {
     id: "win-1",
@@ -785,20 +785,20 @@ function flashWinners() {
     prizeTypes: [
       { type: "Vouchers", total: 8, disbursed: 6, pending: 2, declined: 0, value: 180000 },
       { type: "Products", total: 1, disbursed: 0, pending: 1, declined: 0, value: 18000 },
-      { type: "NETZA Points", total: 20, disbursed: 15, pending: 5, declined: 0, value: 62000 },
+      { type: "Tajira Points", total: 20, disbursed: 15, pending: 5, declined: 0, value: 62000 },
     ],
     activity: [
       { kind: "done", title: "Brian Otieno awarded 1st Prize", detail: voucher, at: "27 May 2026 01:25 PM" },
       { kind: "done", title: "Mercy Wanjiku awarded 2nd Prize", detail: product, at: "27 May 2026 01:18 PM" },
       { kind: "done", title: "David Mwangi awarded 3rd Prize", detail: third, at: "27 May 2026 01:12 PM" },
       { kind: "points", title: "Consolation prizes issued", detail: "6 winners · KSh 2,000 voucher + 1,000 points", at: "27 May 2026 12:58 PM" },
-      { kind: "points", title: "Participant points issued", detail: "11 winners · 500 NETZA Points each", at: "27 May 2026 12:40 PM" },
+      { kind: "points", title: "Participant points issued", detail: "11 winners · 500 Tajira Points each", at: "27 May 2026 12:40 PM" },
     ],
     notes: [
       "Winners are automatically selected based on the highest scores and configured prize tiers.",
       "Prizes must be claimed within 14 days of announcement.",
       "Unclaimed prizes are re-drawn among eligible runners-up.",
-      "NETZA Points are credited immediately and appear on the winner's account.",
+      "Tajira Points are credited immediately and appear on the winner's account.",
     ],
     tiers,
     people,

@@ -1,14 +1,14 @@
 const TYPE_META = {
   voucher: { label: "Voucher", category: "Vouchers" },
   product: { label: "Product", category: "Networking" },
-  points: { label: "Points", category: "NETZA Points" },
+  points: { label: "Points", category: "Tajira Points" },
   cash: { label: "Cash", category: "Cash Rewards" },
 };
 
 const CORE = [
-  { name: "KSh 10,000 Voucher", type: "voucher", category: "Vouchers", value: 10000, qty: 50, available: 42, status: "active", description: "KSh 10,000 discount voucher for any NETZA order." },
+  { name: "KSh 10,000 Voucher", type: "voucher", category: "Vouchers", value: 10000, qty: 50, available: 42, status: "active", description: "KSh 10,000 discount voucher for any TAJIRA order." },
   { name: "TP-Link Archer C6 Router", type: "product", category: "Networking", value: 13000, qty: 20, available: 15, status: "active", description: "AC1200 dual-band Wi-Fi router for home and office." },
-  { name: "10,000 NETZA Points", type: "points", category: "NETZA Points", value: 10000, qty: null, available: null, status: "active", description: "10,000 NETZA Points credited to the winner's account." },
+  { name: "10,000 Tajira Points", type: "points", category: "Tajira Points", value: 10000, qty: null, available: null, status: "active", description: "10,000 Tajira Points credited to the winner's account." },
 ];
 
 const EXTRA_VOUCHERS = [];
@@ -56,7 +56,7 @@ function buildCatalog() {
       value,
       qty,
       available,
-      description: `${name} for NETZA checkout.`,
+      description: `${name} for TAJIRA checkout.`,
     }, rows.length, i < 6 ? "active" : "inactive"));
   });
   EXTRA_PRODUCTS.forEach(([name, category, value, qty, available], i) => {
@@ -71,11 +71,11 @@ function buildCatalog() {
     }, rows.length, i < 8 ? "active" : "inactive"));
   });
   EXTRA_POINTS.forEach(([points, value], i) => {
-    const name = `${Number(points).toLocaleString("en-KE")} NETZA Points`;
+    const name = `${Number(points).toLocaleString("en-KE")} Tajira Points`;
     rows.push(row({
       name,
       type: "points",
-      category: "NETZA Points",
+      category: "Tajira Points",
       value,
       qty: null,
       available: null,
@@ -119,13 +119,13 @@ function widgets() {
     types: [
       { key: "voucher", label: "Vouchers", count: statsOf(rows).voucher, icon: "gift" },
       { key: "product", label: "Products", count: statsOf(rows).physical, icon: "bag" },
-      { key: "points", label: "NETZA Points", count: statsOf(rows).points, icon: "star" },
+      { key: "points", label: "Tajira Points", count: statsOf(rows).points, icon: "star" },
       { key: "cash", label: "Cash Rewards", count: rows.filter((r) => r.type === "cash").length, icon: "receipt" },
     ],
     categories: [
       { name: "Vouchers", count: rows.filter((r) => r.category === "Vouchers").length },
       { name: "Networking", count: rows.filter((r) => r.category === "Networking").length },
-      { name: "NETZA Points", count: rows.filter((r) => r.category === "NETZA Points").length },
+      { name: "Tajira Points", count: rows.filter((r) => r.category === "Tajira Points").length },
     ],
     rules: [
       { title: "Stock tracking", detail: "Physical prizes are tracked by quantity and must be in stock before assignment." },
@@ -135,7 +135,7 @@ function widgets() {
     activity: [
       { title: "TP-Link Archer C6 Router", detail: "Quantity updated: 20 → 25", at: "25 May 2026 04:12 PM" },
       { title: "KSh 10,000 Voucher", detail: "Added to prize library", at: "24 May 2026 11:40 AM" },
-      { title: "10,000 NETZA Points", detail: "Status set to Active", at: "23 May 2026 02:18 PM" },
+      { title: "10,000 Tajira Points", detail: "Status set to Active", at: "23 May 2026 02:18 PM" },
     ],
     notes: [
       "Physical prizes are tracked by quantity.",

@@ -134,7 +134,7 @@ function serializeDrop(doc, index, orderStats) {
     soldPct: metrics.soldPct,
     revenue: metrics.revenue,
     image: imageUrl(doc),
-    description: json.description || `${displayName} flash drop on NETZA Kenya.`,
+    description: json.description || `${displayName} flash drop on Tajira Kenya.`,
     discountPercent: discount,
     isActive: json.isActive !== false,
     productId: p?.id || (p?._id ? String(p._id) : ""),

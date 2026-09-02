@@ -207,7 +207,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      bottomNavigationBar: const NetzaBottomNav(currentIndex: 1),
+      bottomNavigationBar: const TajiraBottomNav(currentIndex: 1),
       body: SafeArea(
         child: Column(
           children: [
@@ -353,7 +353,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
                                       child: Text.rich(
                                         TextSpan(children: [
                                           TextSpan(text: 'You will earn ', style: T.pointsBanner),
-                                          TextSpan(text: 'Netza Points', style: T.pointsBanner.copyWith(fontWeight: FontWeight.w700)),
+                                          TextSpan(text: 'Tajira Points', style: T.pointsBanner.copyWith(fontWeight: FontWeight.w700)),
                                           TextSpan(text: ' with every purchase. ', style: T.pointsBanner),
                                           TextSpan(text: '1 Point = KSh 10', style: T.pointsBanner.copyWith(fontWeight: FontWeight.w800)),
                                         ]),

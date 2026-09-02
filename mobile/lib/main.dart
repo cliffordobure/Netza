@@ -22,16 +22,16 @@ import 'widgets/offline_guard.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const NetzaApp());
+  runApp(const TajiraApp());
 }
 
-class NetzaApp extends StatefulWidget {
-  const NetzaApp({super.key});
+class TajiraApp extends StatefulWidget {
+  const TajiraApp({super.key});
   @override
-  State<NetzaApp> createState() => _NetzaAppState();
+  State<TajiraApp> createState() => _TajiraAppState();
 }
 
-class _NetzaAppState extends State<NetzaApp> {
+class _TajiraAppState extends State<TajiraApp> {
   late final Session session;
   late final GoRouter router;
 
@@ -105,9 +105,9 @@ class _NetzaAppState extends State<NetzaApp> {
     return ChangeNotifierProvider.value(
       value: session,
       child: MaterialApp.router(
-        title: 'NETZA Kenya',
+        title: 'Tajira Kenya',
         debugShowCheckedModeBanner: false,
-        theme: netzaTheme(),
+        theme: tajiraTheme(),
         routerConfig: router,
         builder: (context, child) {
           return ListenableBuilder(

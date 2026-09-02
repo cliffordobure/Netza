@@ -70,6 +70,7 @@ class _FlashDropProductScreenState extends State<FlashDropProductScreen> {
   }
 
   Future<void> addToCart({bool buyNow = false}) async {
+    if (busy) return;
     final session = context.read<Session>();
     if (!session.isLoggedIn) {
       context.push('/login');
@@ -77,8 +78,7 @@ class _FlashDropProductScreenState extends State<FlashDropProductScreen> {
     }
     setState(() => busy = true);
     try {
-      await session.dio.post('/cart/items', data: {'productId': widget.id, 'quantity': 1});
-      await session.refreshCart();
+      await session.addCartItem(widget.id, quantity: 1, replace: buyNow);
       if (!mounted) return;
       if (buyNow) {
         context.push('/checkout');
@@ -94,7 +94,7 @@ class _FlashDropProductScreenState extends State<FlashDropProductScreen> {
 
   void share() {
     final name = product?['name'] ?? 'Flash Drop deal';
-    Clipboard.setData(ClipboardData(text: 'Flash Drop on NETZA Kenya: $name — ${money(product?['priceKes'])} (50% OFF). Don’t miss it!'));
+    Clipboard.setData(ClipboardData(text: 'Flash Drop on Tajira Kenya: $name — ${money(product?['priceKes'])} (50% OFF). Don’t miss it!'));
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Link copied')));
   }
 
@@ -157,7 +157,7 @@ class _FlashDropProductScreenState extends State<FlashDropProductScreen> {
     final extras = [
       if (brandName.isNotEmpty) 'Official $brandName hardware',
       'Genuine product with ${(product?['warranty'] ?? '12 months')} warranty',
-      'Ships from the NETZA warehouse',
+      'Ships from the TAJIRA warehouse',
       'Built for Kenyan homes and offices',
     ];
     final out = [...parts];
@@ -170,7 +170,7 @@ class _FlashDropProductScreenState extends State<FlashDropProductScreen> {
 
   List<(String, String)> get specs {
     return [
-      ('Brand', brandName.isEmpty ? 'NETZA' : brandName),
+      ('Brand', brandName.isEmpty ? 'TAJIRA' : brandName),
       ('SKU', (product?['sku'] ?? '—').toString()),
       ('Category', categoryName),
       ('Warranty', (product?['warranty'] ?? '12 months').toString()),
@@ -198,7 +198,7 @@ class _FlashDropProductScreenState extends State<FlashDropProductScreen> {
     if (error != null) {
       return Scaffold(
         backgroundColor: Colors.white,
-        bottomNavigationBar: const NetzaBottomNav(currentIndex: 0),
+        bottomNavigationBar: const TajiraBottomNav(currentIndex: 0),
         body: SafeArea(
           child: Column(
             children: [
@@ -233,7 +233,7 @@ class _FlashDropProductScreenState extends State<FlashDropProductScreen> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      bottomNavigationBar: const NetzaBottomNav(currentIndex: 0),
+      bottomNavigationBar: const TajiraBottomNav(currentIndex: 0),
       body: SafeArea(
         child: Column(
           children: [
@@ -262,7 +262,7 @@ class _FlashDropProductScreenState extends State<FlashDropProductScreen> {
                                   clipBehavior: Clip.antiAlias,
                                   child: current == null
                                       ? const Icon(Icons.devices_other, size: 72, color: navy)
-                                      : NetzaImage(current),
+                                      : TajiraImage(current),
                                 ),
                               ),
                               Positioned(
@@ -325,14 +325,14 @@ class _FlashDropProductScreenState extends State<FlashDropProductScreen> {
                                         ? Stack(
                                             fit: StackFit.expand,
                                             children: [
-                                              NetzaImage(imgs[i]),
+                                              TajiraImage(imgs[i]),
                                               ColoredBox(
                                                 color: const Color(0x99000000),
                                                 child: Center(child: Text('+${imgs.length - 4}', style: inter(size: 13, weight: FontWeight.w800, color: Colors.white))),
                                               ),
                                             ],
                                           )
-                                        : NetzaImage(imgs[i]),
+                                        : TajiraImage(imgs[i]),
                                   ),
                                 );
                               },
@@ -493,7 +493,7 @@ class _Header extends StatelessWidget {
           constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
           icon: const Icon(Icons.arrow_back, color: navy, size: 22),
         ),
-        const NetzaLogo(),
+        const TajiraLogo(),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
@@ -630,7 +630,7 @@ class _FeatureRow extends StatelessWidget {
       (Icons.sell_outlined, '50% OFF', 'Automatically applied.'),
       (Icons.inventory_2_outlined, 'Limited Stock', 'First come, first served.'),
       (Icons.verified_user_outlined, 'Secure Payment', 'M-Pesa, Card, Pesapal & Points.'),
-      (Icons.emoji_events_outlined, 'Earn Points', 'You’ll earn Netza Points.'),
+      (Icons.emoji_events_outlined, 'Earn Points', 'You’ll earn Tajira Points.'),
     ];
     return Row(
       children: [
@@ -789,7 +789,7 @@ class _PointsCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Earn Points', style: inter(size: 13, weight: FontWeight.w800, color: navy)),
-                    Text('You’ll earn $pts Netza Points after purchase', style: T.memberMeta.copyWith(fontSize: 12, height: 1.3)),
+                    Text('You’ll earn $pts Tajira Points after purchase', style: T.memberMeta.copyWith(fontSize: 12, height: 1.3)),
                   ],
                 ),
               ),
@@ -1030,7 +1030,7 @@ class _Actions extends StatelessWidget {
               const SizedBox(width: 4),
               Flexible(
                 child: Text(
-                  'Safe & Secure Checkout | Pay with M-Pesa, Card, Pesapal or NETZA Points',
+                  'Safe & Secure Checkout | Pay with M-Pesa, Card, Pesapal or Tajira Points',
                   textAlign: TextAlign.center,
                   style: inter(size: 9, color: muted, height: 1.2),
                 ),

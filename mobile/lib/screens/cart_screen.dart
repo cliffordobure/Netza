@@ -178,8 +178,8 @@ class _CartScreenState extends State<CartScreen> {
     if (!session.isLoggedIn) {
       return Scaffold(
         backgroundColor: Colors.white,
-        drawer: const NetzaDrawer(),
-        bottomNavigationBar: const NetzaBottomNav(currentIndex: 1),
+        drawer: const TajiraDrawer(),
+        bottomNavigationBar: const TajiraBottomNav(currentIndex: 1),
         body: SafeArea(
           child: Column(
             children: [
@@ -218,8 +218,8 @@ class _CartScreenState extends State<CartScreen> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      drawer: const NetzaDrawer(),
-      bottomNavigationBar: const NetzaBottomNav(currentIndex: 1),
+      drawer: const TajiraDrawer(),
+      bottomNavigationBar: const TajiraBottomNav(currentIndex: 1),
       body: SafeArea(
         child: Column(
           children: [
@@ -332,7 +332,7 @@ class _CartScreenState extends State<CartScreen> {
                                           style: T.earn.copyWith(fontSize: 13, height: 1.3),
                                           children: [
                                             const TextSpan(text: 'You will earn '),
-                                            TextSpan(text: '$earnPts Netza Points', style: inter(size: 13, weight: FontWeight.w800, color: purple)),
+                                            TextSpan(text: '$earnPts Tajira Points', style: inter(size: 13, weight: FontWeight.w800, color: purple)),
                                           ],
                                         ),
                                       ),
@@ -375,9 +375,9 @@ class _CartScreenState extends State<CartScreen> {
                                   TextButton(
                                     onPressed: () {
                                       final code = promo.text.trim().toUpperCase();
-                                      setState(() => promoPercent = code == 'NETZA10' ? 10 : 0);
+                                      setState(() => promoPercent = code == 'TAJIRA10' ? 10 : 0);
                                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                        content: Text(code == 'NETZA10' ? 'NETZA10 applied — 10% off' : 'Invalid promo code'),
+                                        content: Text(code == 'TAJIRA10' ? 'TAJIRA10 applied — 10% off' : 'Invalid promo code'),
                                       ));
                                     },
                                     child: Text('Apply', style: inter(size: 14, weight: FontWeight.w800, color: orange)),
@@ -579,7 +579,7 @@ class _CartItemCard extends StatelessWidget {
               height: 72,
               decoration: BoxDecoration(color: const Color(0xFFF4F6F8), borderRadius: BorderRadius.circular(10)),
               clipBehavior: Clip.antiAlias,
-              child: NetzaImage(image),
+              child: TajiraImage(image),
             ),
           ),
           const SizedBox(width: 8),

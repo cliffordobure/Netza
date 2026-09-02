@@ -41,7 +41,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final daily = data['dailyLogin'];
       if (daily is Map && daily['awarded'] == true && (daily['points'] ?? 0) > 0) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Daily login +${daily['points']} NETZA points')),
+          SnackBar(content: Text('Daily login +${daily['points']} TAJIRA points')),
         );
       }
       context.go('/');
@@ -61,7 +61,15 @@ class _LoginScreenState extends State<LoginScreen> {
           padding: const EdgeInsets.all(24),
           children: [
             const SizedBox(height: 24),
-            const Text('NETZA', style: TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.w800)),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Image.asset('assets/branding/app_icon.png', width: 72, height: 72),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text('TAJIRA', style: TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.w800)),
             const Text('KENYA', style: TextStyle(color: orange, letterSpacing: 6, fontWeight: FontWeight.w700)),
             const SizedBox(height: 8),
             const Text('Networking · Security · Technology', style: TextStyle(color: Color(0xFFB9C7D6))),
@@ -205,7 +213,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               child: Text(error!, style: const TextStyle(color: Colors.red)),
             ),
           const SizedBox(height: 16),
-          FilledButton(onPressed: busy ? null : submit, child: Text(busy ? 'Creating…' : 'Join NETZA')),
+          FilledButton(onPressed: busy ? null : submit, child: Text(busy ? 'Creating…' : 'Join Tajira')),
           TextButton(onPressed: () => context.pop(), child: const Text('Already have an account? Sign in')),
         ],
       ),

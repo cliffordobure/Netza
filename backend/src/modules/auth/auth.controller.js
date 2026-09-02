@@ -117,14 +117,14 @@ exports.register = asyncHandler(async (req, res) => {
     phone,
     email: email || undefined,
     passwordHash: await bcrypt.hash(body.password, 10),
-    referralCode: randomCode("NETZA"),
+    referralCode: randomCode("TAJIRA"),
     referredBy,
   });
   await Cart.create({ user: user._id, items: [] });
 
   const welcome = await getRule("WELCOME");
   if (welcome) {
-    await creditPoints(user._id, "WELCOME", welcome.points, "Welcome to NETZA Kenya");
+    await creditPoints(user._id, "WELCOME", welcome.points, "Welcome to Tajira Kenya");
   }
   if (referredBy) {
     const refRule = await getRule("REFERRAL");

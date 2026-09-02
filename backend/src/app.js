@@ -49,7 +49,7 @@ function createApp() {
   );
 
   app.get("/health", (_req, res) => {
-    res.json({ ok: true, service: "netza-api", time: new Date().toISOString() });
+    res.json({ ok: true, service: "tajira-api", time: new Date().toISOString() });
   });
 
   app.use("/uploads", express.static(UPLOAD_ROOT));

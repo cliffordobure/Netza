@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-class NetzaBottomNav extends StatelessWidget {
-  const NetzaBottomNav({super.key, required this.currentIndex, this.onTap});
+class TajiraBottomNav extends StatelessWidget {
+  const TajiraBottomNav({super.key, required this.currentIndex, this.onTap});
   final int currentIndex;
   final ValueChanged<int>? onTap;
 

@@ -1,7 +1,7 @@
 const DEFAULTS = {
-  siteName: "NETZA Kenya",
+  siteName: "Tajira Kenya",
   siteTagline: "Networking, CCTV & Security Products",
-  siteEmail: "info@netza.co.ke",
+  siteEmail: "info@tajira.co.ke",
   sitePhone: "+254 700 000 000",
   siteCurrency: "KES",
   timezone: "GMT +03:00 East Africa Time",

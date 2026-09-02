@@ -12,7 +12,7 @@ const REWARDS = {
   OFF100: { points: 1000, description: "KSh 100 Discount Coupon" },
   OFF250: { points: 2500, description: "KSh 250 Discount Coupon" },
   OFF500: { points: 5000, description: "KSh 500 Discount Coupon" },
-  CAP: { points: 3000, description: "NETZA Cap merchandise" },
+  CAP: { points: 3000, description: "TAJIRA Cap merchandise" },
 };
 
 router.get(

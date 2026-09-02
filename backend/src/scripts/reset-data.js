@@ -30,7 +30,7 @@ const { normalizeEmail, normalizePhone } = require("../lib/identity");
 const ADMIN = {
   firstName: "Francis",
   lastName: "Admin",
-  email: "admin@netza.co.ke",
+  email: "admin@tajira.co.ke",
   phone: "0700000000",
   password: "Admin@123",
 };
@@ -67,7 +67,7 @@ async function createAdmin() {
     phone: normalizePhone(ADMIN.phone),
     passwordHash,
     role: "SUPER_ADMIN",
-    referralCode: "NETZAADMIN",
+    referralCode: "TAJIRAADMIN",
     profileCompleted: true,
     membershipLevel: "PLATINUM",
     isActive: true,
@@ -90,7 +90,7 @@ async function createAdmin() {
       limit: "none",
       priority: 1,
       isActive: true,
-      description: "1 NETZA Point for every KSh 100 spent.",
+      description: "1 TAJIRA Point for every KSh 100 spent.",
       configJson: JSON.stringify({ kesPerPoint: 100 }),
     },
     {

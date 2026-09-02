@@ -302,6 +302,13 @@ function emptyCatalog(page, limit) {
   };
 }
 
+function specValue(specs, names) {
+  const list = Array.isArray(specs) ? specs : [];
+  const wanted = names.map((n) => String(n).toLowerCase());
+  const found = list.find((s) => wanted.includes(String(s.name || "").toLowerCase()));
+  return found?.value || "";
+}
+
 function enrichProductDetail(product, sales = 0) {
   const json = typeof product.toJSON === "function" ? product.toJSON() : product;
   const images = (json.images || [])
@@ -310,6 +317,9 @@ function enrichProductDetail(product, sales = 0) {
     .map((i) => i.url)
     .filter(Boolean);
   const stockStatus = stockStatusOf(json);
+  const tags = Array.isArray(json.tags)
+    ? json.tags.map((t) => String(t || "").trim()).filter(Boolean)
+    : String(json.tags || "").split(",").map((t) => t.trim()).filter(Boolean);
   return {
     ...json,
     brandId: json.brand?.id || json.brandId || "",
@@ -334,6 +344,16 @@ function enrichProductDetail(product, sales = 0) {
     warrantyPeriod: json.warranty || "12 months",
     adminNotes: json.notes || "",
     isFeatured: Boolean(json.isTrending),
+    tags,
+    color: json.color || specValue(json.specs, ["color", "colour"]),
+    modelNumber: json.modelNumber || specValue(json.specs, ["model number", "model", "model no"]),
+    countryOfOrigin: json.countryOfOrigin || specValue(json.specs, ["country of origin", "origin", "country"]),
+    unit: json.unit || "Piece",
+    productType: json.productType || (json.variations?.length ? "Variable Product" : "Simple Product"),
+    allowReviews: json.allowReviews !== false,
+    variations: json.variations || [],
+    variants: json.variants || [],
+    hasVariations: Boolean((json.variations || []).some((v) => (v.options || []).length)),
     auditTrail: [],
   };
 }

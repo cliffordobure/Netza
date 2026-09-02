@@ -169,7 +169,7 @@ router.get(
 
     res.type("html").send(`<!DOCTYPE html>
 <html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Quote · ${escapeHtml(data.companyName || "NETZA")}</title>
+<title>Quote · ${escapeHtml(data.companyName || "TAJIRA")}</title>
 <style>
   body{font-family:system-ui,-apple-system,sans-serif;margin:0;background:#f7f8fa;color:#0b1f3a}
   .page{max-width:720px;margin:24px auto;background:#fff;padding:28px;border-radius:16px;box-shadow:0 2px 12px #0001}

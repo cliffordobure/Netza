@@ -166,7 +166,7 @@ const KPIS = [
   { key: "todaysSalesKes", label: "Total Sales Today", icon: "bag", tone: "purple", money: true, change: "salesChangePct" },
   { key: "ordersToday", label: "Orders Today", icon: "receipt", tone: "green", change: "ordersChangePct" },
   { key: "activeCustomers", label: "Active Customers", icon: "users", tone: "blue", change: "customersChangePct" },
-  { key: "pointsIssued", label: "NETZA Points Issued", icon: "star", tone: "orange", change: "pointsChangePct" },
+  { key: "pointsIssued", label: "Tajira Points Issued", icon: "star", tone: "orange", change: "pointsChangePct" },
   { key: "flashDropSalesKes", label: "Flash Drop Sales", icon: "bolt", tone: "red", money: true, change: "flashDropSalesChangePct" },
 ];
 
@@ -215,7 +215,7 @@ export default function Overview() {
             </span>
             Dashboard
           </h1>
-          <p>Welcome back, Admin. Here&apos;s what&apos;s happening with NETZA Kenya.</p>
+          <p>Welcome back, Admin. Here&apos;s what&apos;s happening with Tajira Kenya.</p>
         </div>
         <div className="dash-head-meta">
           <div className="time-pill">{clockLabel(now)}</div>
@@ -399,9 +399,9 @@ export default function Overview() {
       </section>
 
       <footer className="dash-foot">
-        <span>© 2026 NETZA Kenya. All rights reserved.</span>
+        <span>© 2026 Tajira Kenya. All rights reserved.</span>
         <span className="powered">
-          <Icon name="cart" size={14} /> Powered by NETZA E-Commerce Platform
+          <Icon name="cart" size={14} /> Powered by TAJIRA E-Commerce Platform
         </span>
       </footer>
     </div>

@@ -54,7 +54,7 @@ function catalogPayment(paymentStatus) {
 function paymentMethodLabel(method) {
   const m = String(method || "").toUpperCase();
   if (m === "MPESA") return "M-Pesa";
-  if (m === "POINTS") return "NETZA Points";
+  if (m === "POINTS") return "Tajira Points";
   if (m === "PESAPAL" || m === "CARD") return "Card";
   return method || "—";
 }

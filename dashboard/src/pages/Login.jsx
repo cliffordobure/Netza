@@ -5,7 +5,7 @@ import { useAuth } from "../auth";
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [identifier, setIdentifier] = useState("admin@netza.co.ke");
+  const [identifier, setIdentifier] = useState("admin@tajira.co.ke");
   const [password, setPassword] = useState("Admin@123");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -28,8 +28,9 @@ export default function Login() {
     <div className="login-wrap">
       <section className="login-brand">
         <div>
+          <img className="login-mark" src="/tajira-logo.png" alt="Tajira" />
           <div className="eyebrow">Kenya operations</div>
-          <h1>NETZA Kenya</h1>
+          <h1>Tajira Kenya</h1>
           <p>Admin control for catalog, inventory, Flash Drops, loyalty points and orders across networking, CCTV and security products.</p>
         </div>
         <p>Today’s sales · pending orders · low stock · live promotions</p>
@@ -37,7 +38,7 @@ export default function Login() {
       <form className="login-card" onSubmit={onSubmit}>
         <div className="eyebrow">Staff access</div>
         <h2>Sign in</h2>
-        <p className="sub">Use your NETZA admin credentials. Customer accounts cannot enter this dashboard.</p>
+        <p className="sub">Use your Tajira admin credentials. Customer accounts cannot enter this dashboard.</p>
         <label>Email or phone</label>
         <input value={identifier} onChange={(e) => setIdentifier(e.target.value)} />
         <label>Password</label>

@@ -232,7 +232,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     if (!session.isLoggedIn) {
       return Scaffold(
         backgroundColor: Colors.white,
-        bottomNavigationBar: const NetzaBottomNav(currentIndex: 1),
+        bottomNavigationBar: const TajiraBottomNav(currentIndex: 1),
         body: SafeArea(
           child: Column(
             children: [
@@ -253,7 +253,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       },
       child: Scaffold(
         backgroundColor: Colors.white,
-        bottomNavigationBar: const NetzaBottomNav(currentIndex: 1),
+        bottomNavigationBar: const TajiraBottomNav(currentIndex: 1),
         body: SafeArea(
           child: Column(
             children: [
@@ -482,7 +482,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       const Icon(Icons.monetization_on, color: purple, size: 18),
                       const SizedBox(width: 6),
                       Expanded(
-                        child: Text('You will earn $earnPts Netza Points', style: T.earn.copyWith(fontSize: 11, fontWeight: FontWeight.w800, height: 1.25)),
+                        child: Text('You will earn $earnPts Tajira Points', style: T.earn.copyWith(fontSize: 11, fontWeight: FontWeight.w800, height: 1.25)),
                       ),
                     ],
                   ),

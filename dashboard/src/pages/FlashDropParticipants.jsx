@@ -239,7 +239,7 @@ export default function FlashDropParticipants() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "netza-flash-drop-participants.csv";
+    a.download = "tajira-flash-drop-participants.csv";
     a.click();
     URL.revokeObjectURL(url);
     setToast("Participants exported");

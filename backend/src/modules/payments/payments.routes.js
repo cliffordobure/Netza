@@ -7,6 +7,7 @@ const { awardPurchasePoints } = require("../../services/points.service");
 const { randomCode } = require("../../lib/utils");
 const config = require("../../config");
 const pesapal = require("../../lib/pesapal");
+const { notifyOrderEventSafe } = require("../../services/sms.service");
 
 const router = Router();
 
@@ -42,6 +43,7 @@ async function markPaid(orderId) {
   const points = await awardPurchasePoints(order.user, order);
   order.pointsEarned = points;
   await order.save();
+  notifyOrderEventSafe(order, "paid");
   return order;
 }
 
@@ -75,15 +77,24 @@ router.post(
     }
 
     const user = await User.findById(req.user._id);
-    const result = await pesapal.submitOrder(order, user, { channel: body.channel });
+    let result;
+    try {
+      result = await pesapal.submitOrder(order, user, {
+        channel: body.channel,
+        publicBase: pesapal.resolvePublicBase(req),
+      });
+    } catch (err) {
+      throw httpError(err.status || 502, err.message || "Could not start Pesapal checkout");
+    }
     const pay = order.payments[0];
+    const payload = {
+      channel: body.channel,
+      orderTrackingId: result.orderTrackingId,
+      merchantReference: result.merchantReference,
+    };
     if (pay) {
       pay.reference = result.orderTrackingId || pay.reference;
-      pay.rawPayload = JSON.stringify({
-        channel: body.channel,
-        orderTrackingId: result.orderTrackingId,
-        merchantReference: result.merchantReference,
-      });
+      pay.rawPayload = JSON.stringify(payload);
       pay.status = "PENDING";
     } else {
       order.payments.push({
@@ -91,11 +102,7 @@ router.post(
         reference: result.orderTrackingId || randomCode("PAY"),
         amountKes: order.totalKes,
         status: "PENDING",
-        rawPayload: JSON.stringify({
-          channel: body.channel,
-          orderTrackingId: result.orderTrackingId,
-          merchantReference: result.merchantReference,
-        }),
+        rawPayload: JSON.stringify(payload),
       });
     }
     await order.save();
@@ -137,6 +144,7 @@ router.get(
           order.paymentStatus = "FAILED";
           if (order.payments[0]) order.payments[0].status = "FAILED";
           await order.save();
+          notifyOrderEventSafe(order, "payment_failed");
         }
         return res.json({ order, pesapalStatus: status });
       } catch {
@@ -148,44 +156,110 @@ router.get(
   })
 );
 
-router.get(
-  "/pesapal/ipn",
-  asyncHandler(async (req, res) => {
-    const trackingId = req.query.OrderTrackingId || req.query.orderTrackingId;
-    if (!trackingId) throw httpError(400, "Missing OrderTrackingId");
+function escapeRe(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
-    const order = await Order.findOne({
-      $or: [{ "payments.reference": String(trackingId) }, { "payments.rawPayload": new RegExp(String(trackingId).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) }],
-    });
-    if (!order) {
-      return res.status(200).json({ ok: true, message: "Order not found locally" });
+async function findOrderForPesapal({ trackingId, merchantReference, orderId }) {
+  const clauses = [];
+  if (orderId && require("../../models").isOid(orderId)) clauses.push({ _id: orderId });
+  if (trackingId) {
+    clauses.push({ "payments.reference": String(trackingId) });
+    clauses.push({ "payments.rawPayload": new RegExp(escapeRe(trackingId)) });
+  }
+  if (merchantReference) {
+    clauses.push({ "payments.rawPayload": new RegExp(escapeRe(merchantReference)) });
+    const orderNumber = String(merchantReference).split("-")[0];
+    if (orderNumber) clauses.push({ orderNumber });
+  }
+  if (!clauses.length) return null;
+  return Order.findOne({ $or: clauses });
+}
+
+async function applyPesapalStatus(order, trackingId) {
+  if (!order || !trackingId || order.paymentStatus === "COMPLETED") return order;
+  const status = await pesapal.getTransactionStatus(String(trackingId));
+  if (pesapal.isPaidStatus(status)) {
+    return markPaid(order.id);
+  }
+  if (pesapal.isFailedStatus(status)) {
+    order.paymentStatus = "FAILED";
+    if (order.payments[0]) {
+      order.payments[0].status = "FAILED";
+      order.payments[0].rawPayload = JSON.stringify({
+        ...(() => {
+          try { return JSON.parse(order.payments[0].rawPayload || "{}"); } catch { return {}; }
+        })(),
+        pesapalStatus: status,
+      });
     }
+    await order.save();
+    notifyOrderEventSafe(order, "payment_failed");
+  }
+  return order;
+}
 
-    if (order.paymentStatus !== "COMPLETED") {
-      const status = await pesapal.getTransactionStatus(String(trackingId));
-      if (pesapal.isPaidStatus(status)) {
-        await markPaid(order.id);
-      } else if (pesapal.isFailedStatus(status)) {
-        order.paymentStatus = "FAILED";
-        if (order.payments[0]) {
-          order.payments[0].status = "FAILED";
-          order.payments[0].rawPayload = JSON.stringify(status);
-        }
-        await order.save();
-      }
-    }
+function ipnAck(req, extra = {}) {
+  const trackingId = req.query.OrderTrackingId || req.query.orderTrackingId || req.body?.OrderTrackingId;
+  const merchantReference = req.query.OrderMerchantReference || req.body?.OrderMerchantReference;
+  return {
+    orderNotificationType: req.query.OrderNotificationType || req.body?.OrderNotificationType || "IPNCHANGE",
+    orderTrackingId: trackingId || "",
+    orderMerchantReference: merchantReference || "",
+    status: 200,
+    ...extra,
+  };
+}
 
-    res.status(200).json({ ok: true });
-  })
-);
+async function handleIpn(req, res) {
+  const trackingId = req.query.OrderTrackingId || req.query.orderTrackingId || req.body?.OrderTrackingId;
+  const merchantReference = req.query.OrderMerchantReference || req.body?.OrderMerchantReference;
+  if (!trackingId) throw httpError(400, "Missing OrderTrackingId");
+
+  const order = await findOrderForPesapal({ trackingId, merchantReference });
+  if (!order) {
+    return res.status(200).json(ipnAck(req, { ok: true, message: "Order not found locally" }));
+  }
+  await applyPesapalStatus(order, trackingId);
+  res.status(200).json(ipnAck(req, { ok: true }));
+}
+
+router.get("/pesapal/ipn", asyncHandler(handleIpn));
+router.post("/pesapal/ipn", asyncHandler(handleIpn));
 
 router.get(
   "/pesapal/return",
   asyncHandler(async (req, res) => {
     const orderId = req.query.orderId;
+    const trackingId = req.query.OrderTrackingId || req.query.orderTrackingId;
+    const merchantReference = req.query.OrderMerchantReference;
+    const cancelled = String(req.query.cancelled || "") === "1";
+    let heading = "Return to the Tajira app";
+    let copy = "You can close this page and open the Tajira Kenya app to see your order status.";
+    try {
+      const order = await findOrderForPesapal({ trackingId, merchantReference, orderId });
+      if (order && trackingId && !cancelled) {
+        const next = await applyPesapalStatus(order, trackingId);
+        if (next?.paymentStatus === "COMPLETED") {
+          heading = "Payment received";
+          copy = "Thank you. Your Tajira order is paid. Return to the app to track delivery.";
+        } else if (next?.paymentStatus === "FAILED") {
+          heading = "Payment did not complete";
+          copy = "No charge was confirmed. Open the app and try checkout again.";
+        } else {
+          heading = "Payment is processing";
+          copy = "Pesapal is confirming the payment. The app will update as soon as it clears.";
+        }
+      } else if (cancelled) {
+        heading = "Payment cancelled";
+        copy = "No payment was taken. Return to the app to try again.";
+      }
+    } catch {
+      heading = "Payment is processing";
+    }
     res.type("html").send(`<!DOCTYPE html>
 <html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Payment · NETZA</title>
+<title>Payment · Tajira Kenya</title>
 <style>
   body{font-family:system-ui,sans-serif;margin:0;background:#f7f8fa;color:#0b1f3a;display:grid;place-items:center;min-height:100vh;padding:24px}
   .card{max-width:420px;background:#fff;border-radius:16px;padding:28px;text-align:center;box-shadow:0 2px 12px #0001}
@@ -193,9 +267,8 @@ router.get(
   p{color:#64748b;line-height:1.5}
 </style></head><body>
 <div class="card">
-  <h1>Payment received</h1>
-  <p>Thank you. You can close this page and return to the NETZA app to view your order status.</p>
-  ${orderId ? `<p style="font-size:13px">Order reference saved.</p>` : ""}
+  <h1>${heading}</h1>
+  <p>${copy}</p>
 </div></body></html>`);
   })
 );
@@ -275,6 +348,7 @@ router.post(
     });
     order.paymentStatus = "FAILED";
     await order.save();
+    notifyOrderEventSafe(order, "payment_failed");
     res.json({ ok: true, status: "FAILED" });
   })
 );

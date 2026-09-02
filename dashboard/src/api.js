@@ -2,20 +2,20 @@ const API = import.meta.env.VITE_API_URL || "https://netza.onrender.com/api/v1";
 
 export function getTokens() {
   return {
-    access: localStorage.getItem("netza_access"),
-    refresh: localStorage.getItem("netza_refresh"),
+    access: localStorage.getItem("tajira_access"),
+    refresh: localStorage.getItem("tajira_refresh"),
   };
 }
 
 export function setTokens(access, refresh) {
-  if (access) localStorage.setItem("netza_access", access);
-  if (refresh) localStorage.setItem("netza_refresh", refresh);
+  if (access) localStorage.setItem("tajira_access", access);
+  if (refresh) localStorage.setItem("tajira_refresh", refresh);
 }
 
 export function clearTokens() {
-  localStorage.removeItem("netza_access");
-  localStorage.removeItem("netza_refresh");
-  localStorage.removeItem("netza_user");
+  localStorage.removeItem("tajira_access");
+  localStorage.removeItem("tajira_refresh");
+  localStorage.removeItem("tajira_user");
 }
 
 async function refreshAccess() {

@@ -147,15 +147,15 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
   }
 
   void invite() {
-    final code = context.read<Session>().user?['referralCode']?.toString() ?? 'NETZA';
-    final name = comp?.name ?? 'NETZA challenge';
-    Clipboard.setData(ClipboardData(text: 'Join me on NETZA Kenya — $name! Use code $code'));
+    final code = context.read<Session>().user?['referralCode']?.toString() ?? 'TAJIRA';
+    final name = comp?.name ?? 'TAJIRA challenge';
+    Clipboard.setData(ClipboardData(text: 'Join me on Tajira Kenya — $name! Use code $code'));
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Invite copied. Share it with a friend.')));
   }
 
   void share() {
-    final name = comp?.name ?? 'NETZA Kenya';
-    Clipboard.setData(ClipboardData(text: 'Join $name on NETZA Kenya. Compete, earn points, win big!'));
+    final name = comp?.name ?? 'Tajira Kenya';
+    Clipboard.setData(ClipboardData(text: 'Join $name on Tajira Kenya. Compete, earn points, win big!'));
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Challenge link copied')));
   }
 
@@ -192,7 +192,7 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FA),
-      bottomNavigationBar: const NetzaBottomNav(currentIndex: 3),
+      bottomNavigationBar: const TajiraBottomNav(currentIndex: 3),
       body: SafeArea(
         child: Column(
           children: [
@@ -513,7 +513,7 @@ class _Header extends StatelessWidget {
           },
           icon: const Icon(Icons.arrow_back, color: navy, size: 22),
         ),
-        const NetzaLogo(),
+        const TajiraLogo(),
         const SizedBox(width: 8),
         Expanded(
           child: Text('Challenge Details', textAlign: TextAlign.center, style: inter(size: 13, weight: FontWeight.w800, color: navy)),
@@ -569,7 +569,7 @@ class _Hero extends StatelessWidget {
             top: 10,
             bottom: 10,
             width: 150,
-            child: Opacity(opacity: 0.35, child: NetzaImage(image)),
+            child: Opacity(opacity: 0.35, child: TajiraImage(image)),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
@@ -931,7 +931,7 @@ class _BoardRow extends StatelessWidget {
           ),
           const SizedBox(width: 6),
           ClipOval(
-            child: SizedBox(width: 28, height: 28, child: NetzaImage(p.image, fallback: Icons.person)),
+            child: SizedBox(width: 28, height: 28, child: TajiraImage(p.image, fallback: Icons.person)),
           ),
           const SizedBox(width: 8),
           Expanded(child: Text(p.name, style: inter(size: 13, weight: FontWeight.w600, color: navy))),

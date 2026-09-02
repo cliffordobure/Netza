@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -21,11 +22,23 @@ class OrderSuccessScreen extends StatefulWidget {
 class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
   Map? order;
   String? error;
+  Timer? _poll;
+
+  String get _payStatus => (order?['paymentStatus'] ?? '').toString().toUpperCase();
+
+  bool get _awaitingPay => order != null && _payStatus != 'COMPLETED' && _payStatus != 'FAILED';
 
   @override
   void initState() {
     super.initState();
     load();
+    _poll = Timer.periodic(const Duration(seconds: 4), (_) => refreshPayment());
+  }
+
+  @override
+  void dispose() {
+    _poll?.cancel();
+    super.dispose();
   }
 
   Future<void> load() async {
@@ -35,6 +48,20 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
     } catch (e) {
       setState(() => error = apiMessage(e));
     }
+  }
+
+  Future<void> refreshPayment() async {
+    if (!mounted || !_awaitingPay) {
+      if (_payStatus == 'COMPLETED' || _payStatus == 'FAILED') _poll?.cancel();
+      return;
+    }
+    try {
+      final res = await context.read<Session>().dio.get('/payments/pesapal/status/${widget.id}');
+      final next = res.data['order'];
+      if (next is Map && mounted) {
+        setState(() => order = Map<String, dynamic>.from(next));
+      }
+    } catch (_) {}
   }
 
   List get items => (order?['items'] as List?) ?? [];
@@ -140,7 +167,7 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
     if (error != null) {
       return Scaffold(
         backgroundColor: Colors.white,
-        bottomNavigationBar: const NetzaBottomNav(currentIndex: 2),
+        bottomNavigationBar: const TajiraBottomNav(currentIndex: 2),
         body: Center(child: Text(error!, style: const TextStyle(color: Colors.red))),
       );
     }
@@ -159,7 +186,7 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      bottomNavigationBar: const NetzaBottomNav(currentIndex: 2),
+      bottomNavigationBar: const TajiraBottomNav(currentIndex: 2),
       body: SafeArea(
         child: Column(
           children: [
@@ -174,13 +201,29 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
                   const _SuccessMark(),
                   const SizedBox(height: 12),
                   Text(
-                    'Order Placed Successfully!',
+                    _payStatus == 'FAILED'
+                        ? 'Payment did not complete'
+                        : _awaitingPay
+                            ? 'Waiting for Pesapal payment'
+                            : 'Order Placed Successfully!',
                     textAlign: TextAlign.center,
-                    style: inter(size: 20, weight: FontWeight.w800, color: const Color(0xFF16A34A)),
+                    style: inter(
+                      size: 20,
+                      weight: FontWeight.w800,
+                      color: _payStatus == 'FAILED'
+                          ? const Color(0xFFDC2626)
+                          : _awaitingPay
+                              ? const Color(0xFFEA580C)
+                              : const Color(0xFF16A34A),
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Thank you for shopping with NETZA Kenya. Your order has been received.',
+                    _payStatus == 'FAILED'
+                        ? 'Pesapal did not confirm this payment. Try checkout again.'
+                        : _awaitingPay
+                            ? 'Finish payment on the Pesapal page. This screen updates automatically.'
+                            : 'Thank you for shopping with Tajira Kenya. Your order has been received.',
                     textAlign: TextAlign.center,
                     style: T.memberMeta.copyWith(fontSize: 13, height: 1.35),
                   ),
@@ -229,7 +272,7 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
                                     style: inter(size: 12, color: navy, height: 1.35),
                                     children: [
                                       const TextSpan(text: 'You will earn '),
-                                      TextSpan(text: '$points Netza Points', style: inter(size: 12, weight: FontWeight.w800, color: purple)),
+                                      TextSpan(text: '$points Tajira Points', style: inter(size: 12, weight: FontWeight.w800, color: purple)),
                                       const TextSpan(text: ' once your order is delivered.'),
                                     ],
                                   ),
@@ -429,7 +472,7 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> {
                       SizedBox(width: 8),
                       Expanded(child: _NextItem(Icons.local_shipping_outlined, orange, 'Shipping', "Your order will be shipped. You'll get tracking details.")),
                       SizedBox(width: 8),
-                      Expanded(child: _NextItem(Icons.home, Color(0xFF16A34A), 'Enjoy', 'Enjoy your purchase. Thank you for choosing NETZA!')),
+                      Expanded(child: _NextItem(Icons.home, Color(0xFF16A34A), 'Enjoy', 'Enjoy your purchase. Thank you for choosing TAJIRA!')),
                     ],
                   ),
                   const SizedBox(height: 14),

@@ -1869,7 +1869,7 @@ export default function CompetitionDetail() {
             {modal === "congrats" && <p>Send congratulations to {openWinner?.grouped ? `${openWinner.winnerCount} winners` : (openWinner?.name || "all winners")} by email and SMS?</p>}
             {modal === "certificate" && (
               <div className="cd-cert">
-                <p>NETZA Kenya · {c.title}</p>
+                <p>Tajira Kenya · {c.title}</p>
                 <h3>{openWinner?.grouped ? openWinner.name : (openWinner?.name || wPeople[0]?.name || "Winner")}</h3>
                 <p>{openWinner?.rankLabel || wPeople[0]?.rankLabel} · {openWinner?.prize || wPeople[0]?.prize}</p>
               </div>

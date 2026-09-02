@@ -1,11 +1,11 @@
 {
-    "name": "netza_mobile",
-    "short_name": "netza_mobile",
+    "name": "Tajira Kenya",
+    "short_name": "Tajira",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0B1F3A",
+    "theme_color": "#FF7A00",
+    "description": "Tajira Kenya shopping app.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

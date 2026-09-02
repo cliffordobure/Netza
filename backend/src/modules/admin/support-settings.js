@@ -6,7 +6,7 @@ const TICKETS = [
   { subject: "M-PESA payment deducted twice", customer: "Peter Okello", email: "peter.okello@email.com", channel: "email", priority: "high", status: "pending", statusLabel: "Pending", assignee: "James O.", updated: "26 May 2026 · 03:55 PM", created: "26 May 2026 · 01:20 PM" },
   { subject: "How do I track my Flash Drop order?", customer: "Amina Hassan", email: "amina.hassan@email.com", channel: "chat", priority: "low", status: "resolved", statusLabel: "Resolved", assignee: "Faith A.", updated: "25 May 2026 · 11:00 AM", created: "25 May 2026 · 10:15 AM" },
   { subject: "Account locked after failed login", customer: "Daniel Kamau", email: "daniel.kamau@email.com", channel: "app", priority: "high", status: "open", statusLabel: "Open", assignee: "Unassigned", updated: "27 May 2026 · 07:50 AM", created: "27 May 2026 · 07:48 AM" },
-  { subject: "Coupon NETZA500 not applying", customer: "Samuel Kiprop", email: "samuel.kiprop@email.com", channel: "email", priority: "medium", status: "closed", statusLabel: "Closed", assignee: "James O.", updated: "24 May 2026 · 05:30 PM", created: "23 May 2026 · 09:00 AM" },
+  { subject: "Coupon TAJIRA500 not applying", customer: "Samuel Kiprop", email: "samuel.kiprop@email.com", channel: "email", priority: "medium", status: "closed", statusLabel: "Closed", assignee: "James O.", updated: "24 May 2026 · 05:30 PM", created: "23 May 2026 · 09:00 AM" },
 ];
 
 const ARTICLES = [
@@ -86,9 +86,9 @@ function getSupport(query = {}) {
 }
 
 const DEFAULT_SETTINGS = {
-  storeName: "NETZA Kenya",
+  storeName: "Tajira Kenya",
   storeTagline: "Shop smarter across Kenya",
-  storeEmail: "support@netzakenya.com",
+  storeEmail: "support@tajira.co.ke",
   storePhone: "+254 700 000 000",
   currency: "KES",
   timezone: "Africa/Nairobi",
@@ -124,22 +124,62 @@ const DEFAULT_SETTINGS = {
   apiKeyMasked: "nz_live_••••••••9f2a",
   googleAnalyticsId: "",
   metaPixelId: "",
-  smsSenderId: "NETZA",
-  emailFromName: "NETZA Kenya",
-  emailFromAddress: "noreply@netzakenya.com",
+  smsSenderId: "TAJIRA",
+  smsAdminPhones: "",
+  smsSalesPhones: "",
+  smsSupportPhone: "",
+  emailFromName: "Tajira Kenya",
+  emailFromAddress: "noreply@tajira.co.ke",
 };
+
+const SMS_SETTING_KEYS = ["smsAdminPhones", "smsSalesPhones", "smsSupportPhone"];
+
+async function loadSmsPhones() {
+  const { Setting } = require("../../models");
+  const docs = await Setting.find({ key: { $in: SMS_SETTING_KEYS } }).lean();
+  const stored = Object.fromEntries(docs.map((d) => [d.key, d.value || ""]));
+  return {
+    smsAdminPhones: stored.smsAdminPhones ?? process.env.SMS_ADMIN_PHONES ?? "",
+    smsSalesPhones: stored.smsSalesPhones ?? process.env.SMS_SALES_PHONES ?? "",
+    smsSupportPhone: stored.smsSupportPhone ?? process.env.SMS_SUPPORT_PHONE ?? "",
+  };
+}
+
+async function persistSmsPhones(values = {}) {
+  const { Setting } = require("../../models");
+  await Promise.all(
+    SMS_SETTING_KEYS.map((key) =>
+      Setting.findOneAndUpdate(
+        { key },
+        { value: String(values[key] ?? SETTINGS[key] ?? "") },
+        { upsert: true }
+      )
+    )
+  );
+}
 
 let SETTINGS = { ...DEFAULT_SETTINGS };
 
 let TEAM = [
-  { id: "usr1", name: "Faith Achieng", email: "faith@netzakenya.com", role: "Super Admin", status: "active", lastActive: "Just now" },
-  { id: "usr2", name: "James Otieno", email: "james@netzakenya.com", role: "Support Agent", status: "active", lastActive: "12 min ago" },
-  { id: "usr3", name: "Helen Mwangi", email: "helen@netzakenya.com", role: "Operations", status: "active", lastActive: "1h ago" },
-  { id: "usr4", name: "Brian Kircho", email: "brian@netzakenya.com", role: "Marketing", status: "invited", lastActive: "—" },
+  { id: "usr1", name: "Faith Achieng", email: "faith@tajira.co.ke", role: "Super Admin", status: "active", lastActive: "Just now" },
+  { id: "usr2", name: "James Otieno", email: "james@tajira.co.ke", role: "Support Agent", status: "active", lastActive: "12 min ago" },
+  { id: "usr3", name: "Helen Mwangi", email: "helen@tajira.co.ke", role: "Operations", status: "active", lastActive: "1h ago" },
+  { id: "usr4", name: "Brian Kircho", email: "brian@tajira.co.ke", role: "Marketing", status: "invited", lastActive: "—" },
 ];
 
-function getSettings() {
+async function getSettings() {
+  const phones = await loadSmsPhones();
+  SETTINGS = { ...SETTINGS, ...phones };
+  const pesapal = require("../../lib/pesapal");
+  const { parsePhoneList } = require("../../lib/phone");
+  const sms = require("../../lib/beem").statusSnapshot();
   return {
+    pesapal: pesapal.statusSnapshot(),
+    sms: {
+      ...sms,
+      adminCount: parsePhoneList(SETTINGS.smsAdminPhones).length,
+      salesCount: parsePhoneList(SETTINGS.smsSalesPhones).length,
+    },
     settings: { ...SETTINGS },
     defaults: { ...DEFAULT_SETTINGS },
     team: TEAM.map((m, i) => ({ ...m, n: i + 1 })),
@@ -179,9 +219,10 @@ function getSettings() {
   };
 }
 
-function saveSettings(body = {}) {
+async function saveSettings(body = {}) {
   const { team, invite, memberUpdate, ...rest } = body;
   SETTINGS = { ...SETTINGS, ...rest };
+  await persistSmsPhones(SETTINGS);
   if (invite?.email) {
     TEAM = [
       ...TEAM,
@@ -198,12 +239,23 @@ function saveSettings(body = {}) {
   if (memberUpdate?.id) {
     TEAM = TEAM.map((m) => (m.id === memberUpdate.id ? { ...m, ...memberUpdate } : m));
   }
-  return { ...getSettings(), ok: true, message: "Settings saved." };
+  return { ...(await getSettings()), ok: true, message: "Settings saved." };
 }
 
-function resetSettings() {
+async function resetSettings() {
   SETTINGS = { ...DEFAULT_SETTINGS };
-  return { ...getSettings(), ok: true, message: "Settings reset to defaults." };
+  await persistSmsPhones(SETTINGS);
+  return { ...(await getSettings()), ok: true, message: "Settings reset to defaults." };
+}
+
+async function getSmsRecipients() {
+  const phones = await loadSmsPhones();
+  const { parsePhoneList, normalizePhone } = require("../../lib/phone");
+  return {
+    admin: parsePhoneList(phones.smsAdminPhones),
+    sales: parsePhoneList(phones.smsSalesPhones),
+    support: normalizePhone(phones.smsSupportPhone),
+  };
 }
 
 const UNITS = [
@@ -279,6 +331,7 @@ module.exports = {
   getSettings,
   saveSettings,
   resetSettings,
+  getSmsRecipients,
   getProductUnits,
   getProductImport,
 };

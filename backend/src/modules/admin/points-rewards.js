@@ -6,7 +6,7 @@ const STATUSES = ["active", "upcoming", "inactive"];
 const REWARD_SEED = [
   { name: "KSh 500 Discount Voucher", category: "Discount", pointsCost: 5000, rewardType: "Voucher", availableFor: "All Tiers", limit: "1 per member", redeemed: 2, status: "active", statusLabel: "Active", icon: "tag", color: "green" },
   { name: "Free Delivery Pass", category: "Delivery", pointsCost: 1500, rewardType: "Benefit", availableFor: "All Tiers", limit: "2 per month", redeemed: 1, status: "active", statusLabel: "Active", icon: "truck", color: "blue" },
-  { name: "NETZA Branded Cap", category: "Merchandise", pointsCost: 3500, rewardType: "Physical", availableFor: "Gold & Above", limit: "1 per member", redeemed: 1, status: "upcoming", statusLabel: "Upcoming", icon: "bag", color: "purple" },
+  { name: "TAJIRA Branded Cap", category: "Merchandise", pointsCost: 3500, rewardType: "Physical", availableFor: "Gold & Above", limit: "1 per member", redeemed: 1, status: "upcoming", statusLabel: "Upcoming", icon: "bag", color: "purple" },
 ];
 
 function buildRows() {
@@ -81,7 +81,7 @@ function getPointsRewards(query = {}) {
     topRedeemed: [
       { name: "KSh 500 Discount Voucher", redeemed: 2, icon: "tag", color: "green" },
       { name: "Free Delivery Pass", redeemed: 1, icon: "truck", color: "blue" },
-      { name: "NETZA Branded Cap", redeemed: 1, icon: "bag", color: "purple" },
+      { name: "TAJIRA Branded Cap", redeemed: 1, icon: "bag", color: "purple" },
     ],
     statusBreakdown: [
       { key: "active", name: "Active Rewards", value: 2, pct: 66.7, color: "#22c55e" },

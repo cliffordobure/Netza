@@ -155,7 +155,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      bottomNavigationBar: const NetzaBottomNav(currentIndex: 3),
+      bottomNavigationBar: const TajiraBottomNav(currentIndex: 3),
       body: SafeArea(
         child: Column(
           children: [
@@ -343,7 +343,7 @@ class _ChallengesHeader extends StatelessWidget {
           constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
           icon: const Icon(Icons.arrow_back, color: navy, size: 22),
         ),
-        const NetzaLogo(),
+        const TajiraLogo(),
         const SizedBox(width: 8),
         Expanded(
           child: Column(
@@ -552,7 +552,7 @@ class _ActiveCard extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                NetzaImage(comp.image),
+                TajiraImage(comp.image),
                 Positioned(
                   left: 8,
                   top: 8,
@@ -645,7 +645,7 @@ class _UpcomingTile extends StatelessWidget {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
-            child: SizedBox(width: 56, height: 56, child: NetzaImage(comp.image)),
+            child: SizedBox(width: 56, height: 56, child: TajiraImage(comp.image)),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -762,7 +762,7 @@ class _PlaceAvatar extends StatelessWidget {
                 border: Border.all(color: crown, width: 2),
               ),
               clipBehavior: Clip.antiAlias,
-              child: NetzaImage(person.image, fallback: Icons.person),
+              child: TajiraImage(person.image, fallback: Icons.person),
             ),
             Positioned(
               top: -4,

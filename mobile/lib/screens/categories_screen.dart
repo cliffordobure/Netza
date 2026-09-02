@@ -89,7 +89,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      drawer: const NetzaDrawer(),
+      drawer: const TajiraDrawer(),
       body: SafeArea(
         bottom: false,
         child: RefreshIndicator(
@@ -154,7 +154,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                             ),
                             clipBehavior: Clip.antiAlias,
                             padding: const EdgeInsets.all(8),
-                            child: NetzaImage(
+                            child: TajiraImage(
                               c['imageUrl']?.toString(),
                               fallback: categoryIcon(slug),
                               fit: BoxFit.contain,

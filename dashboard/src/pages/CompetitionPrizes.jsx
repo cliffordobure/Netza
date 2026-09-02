@@ -18,7 +18,7 @@ const TYPE_OPTS = [
   { id: "cash", label: "Cash" },
 ];
 
-const CATS = ["Vouchers", "Networking", "CCTV", "Wearables", "NETZA Points", "Access Control", "Cabling", "Power", "General"];
+const CATS = ["Vouchers", "Networking", "CCTV", "Wearables", "Tajira Points", "Access Control", "Cabling", "Power", "General"];
 
 const EMPTY = {
   name: "",
@@ -125,13 +125,13 @@ export default function CompetitionPrizes({ competition, onToast, onError, tabBa
         if (value === "points") {
           next.unlimited = true;
           next.trackStock = false;
-          next.category = "NETZA Points";
+          next.category = "Tajira Points";
         } else if (value === "voucher") {
           next.category = "Vouchers";
           next.unlimited = false;
           next.trackStock = true;
         } else if (value === "product") {
-          next.category = next.category === "Vouchers" || next.category === "NETZA Points" ? "Networking" : next.category;
+          next.category = next.category === "Vouchers" || next.category === "Tajira Points" ? "Networking" : next.category;
           next.unlimited = false;
           next.trackStock = true;
         }
@@ -320,7 +320,7 @@ export default function CompetitionPrizes({ competition, onToast, onError, tabBa
           <div>
             <div className="muted">Points Prizes</div>
             <div className="prod-stat-n purple">{fmtNum(stats.points)}</div>
-            <div className="cat-stat-hint">NETZA Points</div>
+            <div className="cat-stat-hint">Tajira Points</div>
           </div>
           <div className="prod-stat-icon purple"><Icon name="star" size={16} /></div>
         </article>

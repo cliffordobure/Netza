@@ -162,7 +162,7 @@ class _AccountScreenState extends State<AccountScreen> {
           _PayRow(Icons.phone_android, 'M-Pesa', 'Pay with your Safaricom number'),
           _PayRow(Icons.credit_card, 'Card', 'Visa, Mastercard'),
           _PayRow(Icons.account_balance_wallet_outlined, 'Pesapal', 'Card & mobile money'),
-          _PayRow(Icons.stars_rounded, 'NETZA Points', 'Redeem at checkout'),
+          _PayRow(Icons.stars_rounded, 'Tajira Points', 'Redeem at checkout'),
         ],
       ),
     );
@@ -282,7 +282,7 @@ class _AccountScreenState extends State<AccountScreen> {
   void showPrivacy() {
     sheet(
       title: 'Privacy & Security',
-      child: Text('Your orders, addresses and points stay on your NETZA Kenya account. We never share your phone number with other shoppers.', style: T.memberMeta.copyWith(fontSize: 13, height: 1.35)),
+      child: Text('Your orders, addresses and points stay on your Tajira Kenya account. We never share your phone number with other shoppers.', style: T.memberMeta.copyWith(fontSize: 13, height: 1.35)),
     );
   }
 
@@ -313,8 +313,8 @@ class _AccountScreenState extends State<AccountScreen> {
   }
 
   void invite() {
-    final code = context.read<Session>().user?['referralCode']?.toString() ?? 'NETZA';
-    Clipboard.setData(ClipboardData(text: 'Join me on NETZA Kenya! Use my code $code and we both earn points.'));
+    final code = context.read<Session>().user?['referralCode']?.toString() ?? 'TAJIRA';
+    Clipboard.setData(ClipboardData(text: 'Join me on Tajira Kenya! Use my code $code and we both earn points.'));
     toast('Invite copied. Share it with a friend.');
   }
 
@@ -499,7 +499,7 @@ class _AccountHeader extends StatelessWidget {
     final cartCount = context.watch<Session>().cartCount;
     return Row(
       children: [
-        const NetzaLogo(),
+        const TajiraLogo(),
         const SizedBox(width: 8),
         Expanded(
           child: Text('My Account', textAlign: TextAlign.center, style: inter(size: 14, weight: FontWeight.w800, color: navy)),
@@ -629,7 +629,7 @@ class _ProfileCard extends StatelessWidget {
               child: Column(
                 children: [
                   const Icon(Icons.star, color: orange, size: 18),
-                  Text('NETZA Points', style: inter(size: 9, color: const Color(0xFFE9D5FF))),
+                  Text('Tajira Points', style: inter(size: 9, color: const Color(0xFFE9D5FF))),
                   Text(
                     '${_pts(balance)} Points',
                     textAlign: TextAlign.center,
@@ -935,7 +935,7 @@ class _OrderRow extends StatelessWidget {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: SizedBox(width: 48, height: 48, child: NetzaImage(image, fallback: Icons.inventory_2_outlined)),
+              child: SizedBox(width: 48, height: 48, child: TajiraImage(image, fallback: Icons.inventory_2_outlined)),
             ),
             const SizedBox(width: 10),
             Expanded(

@@ -6,7 +6,7 @@
 require("dotenv").config();
 
 const API = (process.env.API_URL || "https://netza.onrender.com/api/v1").replace(/\/$/, "");
-const EMAIL = process.env.ADMIN_EMAIL || "admin@netza.co.ke";
+const EMAIL = process.env.ADMIN_EMAIL || "admin@tajira.co.ke";
 const PASSWORD = process.env.ADMIN_PASSWORD || "Admin@123";
 
 async function main() {
@@ -25,7 +25,7 @@ async function main() {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ confirm: "RESET NETZA" }),
+    body: JSON.stringify({ confirm: "RESET TAJIRA" }),
   });
   const reset = await resetRes.json();
   if (!resetRes.ok) throw new Error(reset.message || JSON.stringify(reset));

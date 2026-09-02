@@ -63,7 +63,54 @@ const EMPTY = {
   seoDescription: "",
   deliveryInfo: "Nairobi 1-2 days • Nationwide 2-5 days",
   warranty: "12 months",
+  variations: [],
+  variants: [],
 };
+
+function normalizeTags(raw) {
+  if (Array.isArray(raw)) return raw.map((t) => String(t || "").trim()).filter(Boolean);
+  if (typeof raw === "string") return raw.split(",").map((t) => t.trim()).filter(Boolean);
+  return [];
+}
+
+function specValue(specs, names) {
+  const list = Array.isArray(specs) ? specs : [];
+  const wanted = names.map((n) => n.toLowerCase());
+  const found = list.find((s) => wanted.includes(String(s.name || "").toLowerCase()));
+  return found?.value || "";
+}
+
+function comboKey(options) {
+  return (options || []).map((o) => `${o.name}:${o.value}`).join("|");
+}
+
+function buildCombinations(variations) {
+  const attrs = (variations || []).filter((v) => v.name.trim() && v.options.length);
+  if (!attrs.length) return [];
+  return attrs.reduce((acc, attr) => {
+    if (!acc.length) return attr.options.map((opt) => [{ name: attr.name.trim(), value: opt }]);
+    return acc.flatMap((combo) => attr.options.map((opt) => [...combo, { name: attr.name.trim(), value: opt }]));
+  }, []);
+}
+
+function mergeVariants(variations, existing, baseSku, basePrice) {
+  const combos = buildCombinations(variations);
+  const prev = new Map((existing || []).map((v) => [comboKey(v.options), v]));
+  return combos.map((options, i) => {
+    const key = comboKey(options);
+    const found = prev.get(key);
+    const label = options.map((o) => o.value).join(" / ");
+    const skuSuffix = options.map((o) => String(o.value).replace(/\s+/g, "").slice(0, 6).toUpperCase()).join("-");
+    return {
+      sku: found?.sku || (baseSku ? `${baseSku}-${skuSuffix}` : skuSuffix || `VAR-${i + 1}`),
+      label: found?.label || label,
+      options,
+      priceKes: found?.priceKes ?? basePrice ?? 0,
+      stock: found?.stock ?? 0,
+      barcode: found?.barcode || "",
+    };
+  });
+}
 
 function Switch({ on, onClick }) {
   return (
@@ -112,15 +159,17 @@ function mapProduct(p) {
     categoryId: p.categoryId || p.category?.id || "",
     unit: p.unit || "Piece",
     productType: p.productType || "Simple Product",
-    tags: p.tags || [],
+    tags: normalizeTags(p.tags),
     isActive: p.isActive !== false,
     isFeatured: Boolean(p.isFeatured ?? p.isTrending),
     allowReviews: p.allowReviews !== false,
-    hasVariations: Boolean(p.hasVariations),
+    hasVariations: Boolean(p.hasVariations || (p.variations || []).length),
     warrantyPeriod: p.warrantyPeriod || p.warranty || "12 Months",
-    color: p.color || "",
-    modelNumber: p.modelNumber || "",
-    countryOfOrigin: p.countryOfOrigin || "",
+    color: p.color || specValue(p.specs, ["color", "colour"]),
+    modelNumber: p.modelNumber || specValue(p.specs, ["model number", "model", "model no"]),
+    countryOfOrigin: p.countryOfOrigin || specValue(p.specs, ["country of origin", "origin", "country"]),
+    variations: (p.variations || []).map((v) => ({ name: v.name || "", options: v.options || [] })),
+    variants: p.variants || [],
     priceKes: p.priceKes || 0,
     compareAtKes: p.compareAtKes || "",
     stock: p.stock ?? 0,
@@ -158,7 +207,9 @@ export default function ProductForm() {
   const isNew = !id;
   const [tab, setTab] = useState("general");
   const [form, setForm] = useState(EMPTY);
+  const [ready, setReady] = useState(isNew);
   const [tagDraft, setTagDraft] = useState("");
+  const [optionDraft, setOptionDraft] = useState({});
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [busy, setBusy] = useState(false);
@@ -183,16 +234,24 @@ export default function ProductForm() {
   }, []);
 
   useEffect(() => {
-    if (isNew) return;
+    if (isNew) {
+      setReady(true);
+      return;
+    }
+    setReady(false);
     api(`/admin/products/${id}`)
       .then(({ product: p }) => {
         const next = mapProduct(p);
         setForm(next);
+        setReady(true);
         requestAnimationFrame(() => {
           if (editorRef.current) editorRef.current.innerText = next.description || "";
         });
       })
-      .catch((e) => setError(e.message || "Could not load product."));
+      .catch((e) => {
+        setError(e.message || "Could not load product.");
+        setReady(true);
+      });
   }, [id, isNew]);
 
   useEffect(() => {
@@ -202,10 +261,83 @@ export default function ProductForm() {
   }, [toast]);
 
   function addTag(raw) {
-    const t = raw.trim().toLowerCase();
-    if (!t || form.tags.includes(t)) return;
-    set("tags", [...form.tags, t]);
+    const t = raw.trim();
+    if (!t || (form.tags || []).includes(t)) return;
+    set("tags", [...(form.tags || []), t]);
     setTagDraft("");
+  }
+
+  function addVariation() {
+    setForm((f) => {
+      const variations = [...(f.variations || []), { name: f.variations?.length ? "" : "Color", options: [] }];
+      return {
+        ...f,
+        hasVariations: true,
+        productType: "Variable Product",
+        variations,
+        variants: mergeVariants(variations, f.variants, f.sku, Number(f.priceKes) || 0),
+      };
+    });
+  }
+
+  function updateVariation(index, patch) {
+    setForm((f) => {
+      const variations = (f.variations || []).map((v, i) => (i === index ? { ...v, ...patch } : v));
+      return {
+        ...f,
+        variations,
+        variants: mergeVariants(variations, f.variants, f.sku, Number(f.priceKes) || 0),
+      };
+    });
+  }
+
+  function removeVariation(index) {
+    setForm((f) => {
+      const variations = (f.variations || []).filter((_, i) => i !== index);
+      return {
+        ...f,
+        variations,
+        hasVariations: variations.length > 0,
+        productType: variations.length ? "Variable Product" : "Simple Product",
+        variants: mergeVariants(variations, f.variants, f.sku, Number(f.priceKes) || 0),
+      };
+    });
+  }
+
+  function addVariationOption(index, raw) {
+    const opt = raw.trim();
+    if (!opt) return;
+    setOptionDraft((d) => ({ ...d, [index]: "" }));
+    setForm((f) => {
+      const current = f.variations?.[index];
+      if (!current || current.options.includes(opt)) return f;
+      const variations = f.variations.map((v, i) => (i === index ? { ...v, options: [...v.options, opt] } : v));
+      return {
+        ...f,
+        variations,
+        variants: mergeVariants(variations, f.variants, f.sku, Number(f.priceKes) || 0),
+      };
+    });
+  }
+
+  function removeVariationOption(index, opt) {
+    setForm((f) => {
+      const variations = (f.variations || []).map((v, i) => (
+        i === index ? { ...v, options: v.options.filter((o) => o !== opt) } : v
+      ));
+      return {
+        ...f,
+        variations,
+        variants: mergeVariants(variations, f.variants, f.sku, Number(f.priceKes) || 0),
+      };
+    });
+  }
+
+  function updateVariant(index, key, value) {
+    setForm((f) => ({
+      ...f,
+      variants: (f.variants || []).map((v, i) => (i === index ? { ...v, [key]: value } : v)),
+    }));
   }
 
   function cmd(command, value = null) {
@@ -266,10 +398,21 @@ export default function ProductForm() {
       categoryId: form.categoryId || undefined,
       brandName: form.brandName || undefined,
       categoryPath: form.categoryPath || undefined,
+      variations: form.variations || [],
+      variants: form.variants || [],
+      specs: [
+        form.color && { name: "Color", value: form.color },
+        form.modelNumber && { name: "Model Number", value: form.modelNumber },
+        form.countryOfOrigin && { name: "Country of Origin", value: form.countryOfOrigin },
+      ].filter(Boolean),
     };
   }
 
   async function save() {
+    if (!(form.name || "").trim()) {
+      setError("Product name is required.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -278,8 +421,9 @@ export default function ProductForm() {
       } else {
         await api(`/admin/products/${id}`, { method: "PATCH", body: JSON.stringify(payload()) });
       }
-      setToast("Changes saved successfully");
-      setTimeout(() => navigate("/products"), 900);
+      const message = isNew ? "Product added successfully" : "Product updated successfully";
+      setToast(message);
+      navigate("/products", { state: { toast: message } });
     } catch (err) {
       setError(err.message || "Could not save product.");
     } finally {
@@ -332,7 +476,7 @@ export default function ProductForm() {
 
   const gallery = form.images.length ? form.images : form.primaryImage ? [form.primaryImage] : [];
 
-  if (!isNew && !form.name && !error) {
+  if (!isNew && !ready && !error) {
     return (
       <div className="pfe-page">
         <p className="muted">Loading product…</p>
@@ -392,8 +536,8 @@ export default function ProductForm() {
               <h2><Icon name="file" size={14} /> Basic Information</h2>
               <label className="pfe-field">
                 <span>Product Name</span>
-                <input value={form.name} maxLength={255} onChange={(e) => set("name", e.target.value)} />
-                <em>{form.name.length}/255 characters</em>
+                <input value={form.name || ""} maxLength={255} onChange={(e) => set("name", e.target.value)} />
+                <em>{(form.name || "").length}/255 characters</em>
               </label>
               <label className="pfe-field">
                 <span>SKU</span>
@@ -489,21 +633,22 @@ export default function ProductForm() {
               <label className="pfe-field">
                 <span>Tags</span>
                 <div className="pf-tags">
-                  {form.tags.map((t) => (
-                    <button type="button" key={t} className="pf-chip" onClick={() => set("tags", form.tags.filter((x) => x !== t))}>
+                  {(form.tags || []).map((t) => (
+                    <button type="button" key={t} className="pf-chip" onClick={() => set("tags", (form.tags || []).filter((x) => x !== t))}>
                       {t} ×
                     </button>
                   ))}
                   <input
                     value={tagDraft}
                     onChange={(e) => setTagDraft(e.target.value)}
+                    onBlur={() => { if (tagDraft.trim()) addTag(tagDraft); }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === ",") {
                         e.preventDefault();
                         addTag(tagDraft.replace(",", ""));
                       }
                     }}
-                    placeholder="Add tag"
+                    placeholder="Type a tag and press Enter"
                   />
                 </div>
               </label>
@@ -527,10 +672,83 @@ export default function ProductForm() {
 
             <section className="card pf-card">
               <h2><Icon name="layers" size={14} /> Variations</h2>
-              <p className="muted pfe-var-note">This is a simple product with no variations.</p>
-              <button className="btn btn-ghost btn-small" type="button" onClick={() => setToast("Variations editor coming soon")}>
-                <Icon name="plus" size={14} /> Add Variation
-              </button>
+              {!(form.variations || []).length ? (
+                <>
+                  <p className="muted pfe-var-note">This is a simple product with no variations. Add attributes such as colour or size to create SKUs.</p>
+                  <button className="btn btn-ghost btn-small" type="button" onClick={addVariation}>
+                    <Icon name="plus" size={14} /> Add Variation
+                  </button>
+                </>
+              ) : (
+                <div className="pfe-var-editor">
+                  {(form.variations || []).map((v, i) => (
+                    <div key={`var-${i}`} className="pfe-var-row">
+                      <div className="pfe-var-head">
+                        <label className="pfe-field">
+                          <span>Attribute</span>
+                          <input
+                            value={v.name}
+                            placeholder="e.g. Color, Size, Length"
+                            onChange={(e) => updateVariation(i, { name: e.target.value })}
+                          />
+                        </label>
+                        <button className="btn btn-ghost btn-small" type="button" onClick={() => removeVariation(i)}>
+                          Remove
+                        </button>
+                      </div>
+                      <label className="pfe-field">
+                        <span>Options</span>
+                        <div className="pf-tags">
+                          {v.options.map((opt) => (
+                            <button type="button" key={opt} className="pf-chip" onClick={() => removeVariationOption(i, opt)}>
+                              {opt} ×
+                            </button>
+                          ))}
+                          <input
+                            value={optionDraft[i] || ""}
+                            onChange={(e) => setOptionDraft((d) => ({ ...d, [i]: e.target.value }))}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === ",") {
+                                e.preventDefault();
+                                addVariationOption(i, (optionDraft[i] || "").replace(",", ""));
+                              }
+                            }}
+                            placeholder="Type an option and press Enter"
+                          />
+                        </div>
+                      </label>
+                    </div>
+                  ))}
+                  <button className="btn btn-ghost btn-small" type="button" onClick={addVariation}>
+                    <Icon name="plus" size={14} /> Add another attribute
+                  </button>
+                  {(form.variants || []).length > 0 && (
+                    <div className="pfe-var-table-wrap">
+                      <p className="muted pfe-var-note">Each combination gets its own SKU, price and stock.</p>
+                      <table className="pfe-var-table">
+                        <thead>
+                          <tr>
+                            <th>Combination</th>
+                            <th>SKU</th>
+                            <th>Price (KSh)</th>
+                            <th>Stock</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(form.variants || []).map((row, i) => (
+                            <tr key={comboKey(row.options) || i}>
+                              <td>{row.label || row.options.map((o) => o.value).join(" / ")}</td>
+                              <td><input value={row.sku || ""} onChange={(e) => updateVariant(i, "sku", e.target.value)} /></td>
+                              <td><input type="number" min="0" value={row.priceKes ?? 0} onChange={(e) => updateVariant(i, "priceKes", e.target.value)} /></td>
+                              <td><input type="number" min="0" value={row.stock ?? 0} onChange={(e) => updateVariant(i, "stock", e.target.value)} /></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
             </section>
 
             <section className="card pf-card">

@@ -6,6 +6,7 @@ const { asyncHandler, httpError } = require("../../middleware/error");
 const { randomCode } = require("../../lib/utils");
 const { resolveUnitPrice } = require("../../services/pricing.service");
 const { pointsFromPurchase } = require("../../services/points.service");
+const { notifyOrderEventSafe } = require("../../services/sms.service");
 
 const router = Router();
 router.use(auth());
@@ -137,6 +138,11 @@ router.post(
         },
       ],
     });
+
+    notifyOrderEventSafe(
+      { ...order.toJSON(), user: { firstName: req.user.firstName, lastName: req.user.lastName, phone: req.user.phone, email: req.user.email } },
+      "placed"
+    );
 
     res.status(201).json({
       order: await serializeOrder(order),

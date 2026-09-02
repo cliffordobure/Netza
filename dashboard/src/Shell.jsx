@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate, Link } from "react-router-dom";
-import { api } from "./api";
+import { api, kes, mediaUrl } from "./api";
 import { useAuth } from "./auth";
 import { Icon } from "./icons";
 
@@ -134,6 +134,39 @@ function prettyRole(role) {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function classifySearch(raw) {
+  const q = String(raw || "").trim();
+  if (!q) return "empty";
+  const compact = q.replace(/[\s()-]/g, "");
+  if (
+    /^(tajira|netza)\b/i.test(q) ||
+    /^#?(TAJIRA|NETZA|ORD)[-_]/i.test(q) ||
+    /^#?ord(er)?[-_\s]?\d/i.test(q) ||
+    /^#?NZ[A-Z0-9]{5,}$/i.test(q)
+  ) {
+    return "order";
+  }
+  if (/@/.test(q) || /^(?:\+?254|0)\d{8,}$/.test(compact) || /^#?cust\b/i.test(q)) {
+    return "customer";
+  }
+  return "product";
+}
+
+function searchPathFor(raw, pathname = "") {
+  const q = String(raw || "").trim().replace(/^#/, "");
+  const kind = classifySearch(raw);
+  const encoded = encodeURIComponent(q);
+  if (kind === "order") return `/orders?q=${encoded}`;
+  if (kind === "customer") return `/customers?q=${encoded}`;
+  if (pathname.startsWith("/customers")) return `/customers?q=${encoded}`;
+  if (pathname.startsWith("/orders")) return `/orders?q=${encoded}`;
+  return `/products?q=${encoded}`;
+}
+
+function customerLabel(c) {
+  return `${c.firstName || ""} ${c.lastName || ""}`.trim() || c.email || c.phone || "Customer";
+}
+
 export default function Shell() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -143,7 +176,13 @@ export default function Shell() {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState({});
   const [badges, setBadges] = useState({ orders: 0, alerts: 0, mail: 0 });
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchBusy, setSearchBusy] = useState(false);
+  const [hits, setHits] = useState({ products: [], productTotal: 0, orders: [], orderTotal: 0, customers: [], customerTotal: 0 });
+  const [activeHit, setActiveHit] = useState(-1);
   const searchRef = useRef(null);
+  const searchBoxRef = useRef(null);
+  const searchToken = useRef(0);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 960px)");
@@ -195,22 +234,85 @@ export default function Shell() {
   );
   const initials = `${(user?.firstName || "A")[0]}${(user?.lastName || "U")[0]}`.toUpperCase();
 
+  const hitItems = useMemo(() => {
+    const items = [];
+    hits.products.forEach((p) => items.push({ kind: "product", id: p.id, to: `/products/${p.id}` }));
+    hits.orders.forEach((o) => items.push({ kind: "order", id: o.id, to: `/orders/${o.id}` }));
+    hits.customers.forEach((c) => items.push({ kind: "customer", id: c.id, to: `/customers/${c.id}` }));
+    return items;
+  }, [hits]);
+
+  function goSearch(path) {
+    setSearchOpen(false);
+    setActiveHit(-1);
+    navigate(path);
+  }
+
   function search(e) {
     e.preventDefault();
     const q = query.trim();
     if (!q) return;
-    if (/^netza/i.test(q) || /^#?NETZA-/i.test(q)) {
-      navigate(`/orders?q=${encodeURIComponent(q.replace(/^#/, ""))}`);
-    } else if (/@/.test(q) || /^0\d{8,}/.test(q) || /^#?cust/i.test(q) || /^[a-z][a-z\s']+$/i.test(q)) {
-      navigate(`/customers?q=${encodeURIComponent(q.replace(/^#/, ""))}`);
-    } else navigate(`/products?q=${encodeURIComponent(q)}`);
+    if (activeHit >= 0 && hitItems[activeHit]) {
+      goSearch(hitItems[activeHit].to);
+      return;
+    }
+    goSearch(searchPathFor(q, location.pathname));
   }
+
+  useEffect(() => {
+    const q = query.trim();
+    if (!q || q.length < 2) {
+      searchToken.current += 1;
+      setHits({ products: [], productTotal: 0, orders: [], orderTotal: 0, customers: [], customerTotal: 0 });
+      setSearchBusy(false);
+      return undefined;
+    }
+    const token = ++searchToken.current;
+    setSearchBusy(true);
+    const timer = setTimeout(async () => {
+      const enc = encodeURIComponent(q);
+      const [products, orders, customers] = await Promise.allSettled([
+        api(`/admin/products-catalog?q=${enc}&page=1&limit=5`),
+        api(`/admin/orders?q=${enc}&page=1&limit=5`),
+        api(`/admin/customers?q=${enc}&page=1&limit=5&tab=all`),
+      ]);
+      if (token !== searchToken.current) return;
+      setHits({
+        products: products.status === "fulfilled" ? (products.value.products || []).slice(0, 5) : [],
+        productTotal: products.status === "fulfilled" ? products.value.total || 0 : 0,
+        orders: orders.status === "fulfilled" ? (orders.value.orders || []).slice(0, 5) : [],
+        orderTotal: orders.status === "fulfilled" ? orders.value.total || 0 : 0,
+        customers: customers.status === "fulfilled" ? (customers.value.customers || []).slice(0, 5) : [],
+        customerTotal: customers.status === "fulfilled" ? customers.value.total || 0 : 0,
+      });
+      setActiveHit(-1);
+      setSearchBusy(false);
+    }, 280);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  useEffect(() => {
+    const fromUrl = new URLSearchParams(location.search).get("q") || "";
+    if (fromUrl) setQuery(fromUrl);
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    function onDoc(e) {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target)) {
+        setSearchOpen(false);
+        setActiveHit(-1);
+      }
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
 
   useEffect(() => {
     function onKey(e) {
       if ((e.ctrlKey || e.metaKey) && (e.key === "/" || e.key.toLowerCase() === "k")) {
         e.preventDefault();
         searchRef.current?.focus();
+        setSearchOpen(true);
       }
     }
     window.addEventListener("keydown", onKey);
@@ -242,11 +344,9 @@ export default function Shell() {
       )}
       <aside className="sb">
         <div className="sb-brand">
-          <span className="sb-cart">
-            <Icon name="cart" size={18} />
-          </span>
+          <img className="sb-mark" src="/tajira-logo.png" alt="Tajira" />
           <div>
-            <div className="sb-logo">NETZA</div>
+            <div className="sb-logo">TAJIRA</div>
             <div className="sb-kenya">KENYA</div>
           </div>
         </div>
@@ -446,7 +546,7 @@ export default function Shell() {
               <button className="sb-act blue" type="button" onClick={() => navigate("/products/import")}>
                 <Icon name="upload" size={14} /> Import Products
               </button>
-              <button className="sb-act green" type="button" onClick={() => navigate("/products")}>
+              <button className="sb-act green" type="button" onClick={() => navigate("/products?export=1")}>
                 <Icon name="download" size={14} /> Export Products
               </button>
             </>
@@ -573,46 +673,139 @@ export default function Shell() {
           <button className="icon-btn menu-toggle" type="button" onClick={toggleSidebar} aria-label="Toggle menu" aria-expanded={sidebarOpen}>
             <Icon name="menu" />
           </button>
+          <div className="top-search-wrap" ref={searchBoxRef}>
           <form className="top-search" onSubmit={search}>
             <Icon name="search" size={16} />
             <input
               ref={searchRef}
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={
-                /^\/customers\/[^/]+$/.test(location.pathname)
-                  ? "Search customers, orders, products..."
-                  : location.pathname.startsWith("/customers")
-                    ? "Search customers, email, phone, orders..."
-                    : location.pathname.startsWith("/orders")
-                      ? "Search orders, order ID, customer, phone..."
-                      : location.pathname.startsWith("/points")
-                        ? (new URLSearchParams(location.search).get("tab") === "members"
-                          ? "Search members, email, phone..."
-                          : new URLSearchParams(location.search).get("tab") === "transactions"
-                            ? "Search transactions, member, order ID..."
-                            : new URLSearchParams(location.search).get("tab") === "redeem"
-                              ? "Search rewards, points cost, category..."
-                              : new URLSearchParams(location.search).get("tab") === "tiers"
-                                ? "Search tiers, benefits, points limits..."
-                                : new URLSearchParams(location.search).get("tab") === "settings"
-                                  ? "Search anything..."
-                                  : "Search customers, points, rewards...")
-                        : location.pathname.startsWith("/delivery")
-                        ? "Search orders, customers, products..."
-                        : location.pathname.startsWith("/reports")
-                        ? "Search orders, customers, products..."
-                        : location.pathname.startsWith("/marketing")
-                        ? "Search campaigns, emails, discounts..."
-                        : location.pathname.startsWith("/competitions") || location.pathname.startsWith("/flash-drops")
-                        ? "Search orders, customers, products..."
-                        : location.pathname.startsWith("/products")
-                        ? "Search products, SKU, barcode..."
-                        : "Search products, SKU, orders..."
-              }
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setSearchOpen(true);
+              }}
+              onFocus={() => setSearchOpen(true)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setSearchOpen(false);
+                  setActiveHit(-1);
+                  searchRef.current?.blur();
+                  return;
+                }
+                if (e.key === "ArrowDown" && hitItems.length) {
+                  e.preventDefault();
+                  setSearchOpen(true);
+                  setActiveHit((i) => (i + 1) % hitItems.length);
+                }
+                if (e.key === "ArrowUp" && hitItems.length) {
+                  e.preventDefault();
+                  setSearchOpen(true);
+                  setActiveHit((i) => (i <= 0 ? hitItems.length - 1 : i - 1));
+                }
+              }}
+              placeholder="Search products, SKU, orders..."
+              aria-label="Search products, SKU, and orders"
+              autoComplete="off"
             />
             <kbd className="search-kbd">Ctrl + K</kbd>
           </form>
+          {searchOpen && query.trim().length >= 2 && (
+            <div className="top-search-panel" role="listbox">
+              {searchBusy && !hits.products.length && !hits.orders.length && !hits.customers.length ? (
+                <div className="top-search-empty">Searching products, SKUs and orders…</div>
+              ) : (
+                <>
+                  <section>
+                    <header>
+                      <span>Products &amp; SKUs</span>
+                      {hits.productTotal > 0 && <em>{hits.productTotal}</em>}
+                    </header>
+                    {hits.products.length === 0 ? (
+                      <p className="top-search-empty">No matching products or SKUs</p>
+                    ) : hits.products.map((p) => {
+                      const idx = hitItems.findIndex((h) => h.kind === "product" && h.id === p.id);
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          className={`top-search-hit ${idx === activeHit ? "is-active" : ""}`}
+                          onMouseEnter={() => setActiveHit(idx)}
+                          onClick={() => goSearch(`/products/${p.id}`)}
+                        >
+                          {p.image ? <img src={mediaUrl(p.image)} alt="" /> : <span className="top-search-ph"><Icon name="box" size={14} /></span>}
+                          <span>
+                            <strong>{p.name}</strong>
+                            <small>{[p.sku, p.category].filter(Boolean).join(" · ")}</small>
+                          </span>
+                          <b>{kes(p.priceKes)}</b>
+                        </button>
+                      );
+                    })}
+                    <button type="button" className="top-search-more" onClick={() => goSearch(`/products?q=${encodeURIComponent(query.trim())}`)}>
+                      View all product results
+                    </button>
+                  </section>
+                  <section>
+                    <header>
+                      <span>Orders</span>
+                      {hits.orderTotal > 0 && <em>{hits.orderTotal}</em>}
+                    </header>
+                    {hits.orders.length === 0 ? (
+                      <p className="top-search-empty">No matching orders</p>
+                    ) : hits.orders.map((o) => {
+                      const idx = hitItems.findIndex((h) => h.kind === "order" && h.id === o.id);
+                      const name = `${o.user?.firstName || ""} ${o.user?.lastName || ""}`.trim() || "Guest";
+                      return (
+                        <button
+                          key={o.id}
+                          type="button"
+                          className={`top-search-hit ${idx === activeHit ? "is-active" : ""}`}
+                          onMouseEnter={() => setActiveHit(idx)}
+                          onClick={() => goSearch(`/orders/${o.id}`)}
+                        >
+                          <span className="top-search-ph"><Icon name="receipt" size={14} /></span>
+                          <span>
+                            <strong>{o.orderNumber || o.id}</strong>
+                            <small>{name}</small>
+                          </span>
+                          <b>{kes(o.totalKes)}</b>
+                        </button>
+                      );
+                    })}
+                    <button type="button" className="top-search-more" onClick={() => goSearch(`/orders?q=${encodeURIComponent(query.trim())}`)}>
+                      View all order results
+                    </button>
+                  </section>
+                  {hits.customers.length > 0 && (
+                    <section>
+                      <header>
+                        <span>Customers</span>
+                        {hits.customerTotal > 0 && <em>{hits.customerTotal}</em>}
+                      </header>
+                      {hits.customers.map((c) => {
+                        const idx = hitItems.findIndex((h) => h.kind === "customer" && h.id === c.id);
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            className={`top-search-hit ${idx === activeHit ? "is-active" : ""}`}
+                            onMouseEnter={() => setActiveHit(idx)}
+                            onClick={() => goSearch(`/customers/${c.id}`)}
+                          >
+                            <span className="top-search-ph"><Icon name="users" size={14} /></span>
+                            <span>
+                              <strong>{customerLabel(c)}</strong>
+                              <small>{c.phone || c.email || c.customerNumber}</small>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </section>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+          </div>
           <div className="top-actions">
             <button className="icon-btn" type="button" title="Notifications" onClick={() => navigate("/orders")}>
               <Icon name="bell" />
@@ -622,7 +815,7 @@ export default function Shell() {
               <Icon name="mail" />
               {badges.mail > 0 && <span className="dot-badge">{badges.mail}</span>}
             </button>
-            <button className="icon-btn" type="button" title="Help" onClick={() => window.alert("Need help with the catalog? Email support@netza.co.ke")}>
+            <button className="icon-btn" type="button" title="Help" onClick={() => window.alert("Need help with the catalog? Email support@tajira.co.ke")}>
               <Icon name="help" />
             </button>
             <div className="top-user">

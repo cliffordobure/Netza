@@ -33,7 +33,7 @@ const { listFlashDropLogs } = require("./flash-drop-logs");
 const { getFlashDropReports } = require("./flash-drop-reports");
 const { getFlashDropSystemSettings, saveFlashDropSystemSettings } = require("./flash-drop-system-settings");
 const { getProductsCatalog, enrichProductDetail } = require("./products-catalog");
-const { getInventoryAdjustments } = require("./inventory-adjustments");
+const { getInventoryAdjustments, createAdjustment, reverseAdjustment } = require("./inventory-adjustments");
 const { getOrdersCatalog } = require("./orders-catalog");
 const { getOrderDetail } = require("./order-detail");
 const { getPointsOverview } = require("./points-overview");
@@ -520,7 +520,31 @@ router.get(
 router.get(
   "/inventory-adjustments",
   asyncHandler(async (req, res) => {
-    res.json(getInventoryAdjustments(req.query));
+    res.json(await getInventoryAdjustments(req.query));
+  })
+);
+
+router.post(
+  "/inventory-adjustments",
+  asyncHandler(async (req, res) => {
+    const body = z.object({
+      productId: z.string().min(1),
+      type: z.enum(["addition", "deduction", "correction", "return"]),
+      reason: z.string().min(1),
+      location: z.string().optional(),
+      qty: z.coerce.number(),
+      notes: z.string().optional(),
+    }).parse(req.body);
+    const row = await createAdjustment(body, req.user);
+    res.status(201).json({ adjustment: row });
+  })
+);
+
+router.post(
+  "/inventory-adjustments/:id/reverse",
+  asyncHandler(async (req, res) => {
+    const row = await reverseAdjustment(req.params.id, req.user);
+    res.status(201).json({ adjustment: row });
   })
 );
 
@@ -625,6 +649,22 @@ const productSchema = z.object({
   unit: z.string().optional(),
   productType: z.string().optional(),
   allowReviews: z.boolean().optional(),
+  variations: z
+    .array(z.object({
+      name: z.string(),
+      options: z.array(z.string()),
+    }))
+    .optional(),
+  variants: z
+    .array(z.object({
+      sku: z.string().optional(),
+      label: z.string().optional(),
+      options: z.array(z.object({ name: z.string(), value: z.string() })),
+      priceKes: z.coerce.number().optional(),
+      stock: z.coerce.number().optional(),
+      barcode: z.string().optional(),
+    }))
+    .optional(),
 });
 
 async function resolveBrandId(body) {
@@ -705,6 +745,14 @@ router.post(
       specs: src.specs,
       notes: src.notes,
       images: src.images,
+      color: src.color,
+      modelNumber: src.modelNumber,
+      countryOfOrigin: src.countryOfOrigin,
+      unit: src.unit,
+      productType: src.productType,
+      allowReviews: src.allowReviews,
+      variations: src.variations,
+      variants: src.variants,
     });
     await product.populate("brand category");
     res.status(201).json({ product: enrichProductDetail(product, 0) });
@@ -740,9 +788,21 @@ router.post(
       isNewArrival: Boolean(body.isNewArrival),
       seoTitle: body.seoTitle || "",
       seoDescription: body.seoDescription || "",
-      specs: body.specs || [],
+      specs: body.specs || [
+        body.color && { name: "Color", value: body.color },
+        body.modelNumber && { name: "Model Number", value: body.modelNumber },
+        body.countryOfOrigin && { name: "Country of Origin", value: body.countryOfOrigin },
+      ].filter(Boolean),
       notes: body.notes || "",
       images: (body.images || []).map((url, i) => ({ url, sortOrder: i })),
+      color: body.color || "",
+      modelNumber: body.modelNumber || "",
+      countryOfOrigin: body.countryOfOrigin || "",
+      unit: body.unit || "Piece",
+      productType: body.productType || "Simple Product",
+      allowReviews: body.allowReviews !== false,
+      variations: body.variations || [],
+      variants: body.variants || [],
     });
     await product.populate("brand category");
     res.status(201).json({ product: enrichProductDetail(product, 0) });
@@ -768,6 +828,18 @@ router.patch(
     Object.assign(product, assign);
     if (body.images) {
       product.images = body.images.map((url, i) => ({ url, sortOrder: i }));
+    }
+    if (body.color != null || body.modelNumber != null || body.countryOfOrigin != null) {
+      const keep = (product.specs || []).filter((s) => {
+        const n = String(s.name || "").toLowerCase();
+        return !["color", "colour", "model number", "model", "model no", "country of origin", "origin", "country"].includes(n);
+      });
+      product.specs = [
+        ...keep,
+        (body.color || product.color) && { name: "Color", value: body.color || product.color },
+        (body.modelNumber || product.modelNumber) && { name: "Model Number", value: body.modelNumber || product.modelNumber },
+        (body.countryOfOrigin || product.countryOfOrigin) && { name: "Country of Origin", value: body.countryOfOrigin || product.countryOfOrigin },
+      ].filter(Boolean);
     }
     await product.save();
     await product.populate("brand category");
@@ -1048,21 +1120,21 @@ router.get(
 router.get(
   "/settings",
   asyncHandler(async (_req, res) => {
-    res.json(getSettings());
+    res.json(await getSettings());
   })
 );
 
 router.put(
   "/settings",
   asyncHandler(async (req, res) => {
-    res.json(saveSettings(req.body || {}));
+    res.json(await saveSettings(req.body || {}));
   })
 );
 
 router.post(
   "/settings/reset",
   asyncHandler(async (_req, res) => {
-    res.json(resetSettings());
+    res.json(await resetSettings());
   })
 );
 
@@ -1194,7 +1266,7 @@ router.post(
     const totalKes = subtotal + deliveryKes + vatKes;
     const seq = (await Order.countDocuments()) + 1;
     const order = await Order.create({
-      orderNumber: `NETZA-2026-${String(1200 + seq).padStart(4, "0")}`,
+      orderNumber: `TAJIRA-2026-${String(1200 + seq).padStart(4, "0")}`,
       user: user._id,
       address: {
         label: address?.label || "Delivery",
@@ -1224,6 +1296,8 @@ router.post(
       ],
     });
     await order.populate("user", "firstName lastName phone email");
+    const { notifyOrderEventSafe } = require("../../services/sms.service");
+    notifyOrderEventSafe(order, paymentStatus === "COMPLETED" ? "paid" : "placed");
     res.status(201).json({ order: serializeAdminOrder(order) });
   })
 );
@@ -1249,6 +1323,8 @@ router.patch(
       .parse(req.body);
     const order = await Order.findById(req.params.id);
     if (!order) throw httpError(404, "Order not found");
+    const prevStatus = order.status;
+    const prevPay = order.paymentStatus;
     if (body.status) order.status = body.status;
     if (body.paymentStatus) {
       order.paymentStatus = body.paymentStatus;
@@ -1257,6 +1333,14 @@ router.patch(
     if (body.returnStatus) order.returnStatus = body.returnStatus;
     await order.save();
     await order.populate("user", "firstName lastName phone email");
+    const { notifyOrderEventSafe, eventFromOrderStatus } = require("../../services/sms.service");
+    if (body.paymentStatus && body.paymentStatus !== prevPay) {
+      if (body.paymentStatus === "COMPLETED") notifyOrderEventSafe(order, "paid");
+      else if (body.paymentStatus === "FAILED") notifyOrderEventSafe(order, "payment_failed");
+    } else if (body.status && body.status !== prevStatus) {
+      const event = eventFromOrderStatus(body.status);
+      if (event && event !== "placed") notifyOrderEventSafe(order, event);
+    }
     res.json({ order: serializeAdminOrder(order) });
   })
 );
@@ -1637,7 +1721,7 @@ router.post(
       phone,
       passwordHash,
       role: "CUSTOMER",
-      referralCode: randomCode("NETZA"),
+      referralCode: randomCode("TAJIRA"),
       profileCompleted: true,
       membershipLevel: body.membershipLevel || "BRONZE",
       customerNumber: `CUST-${String(n).padStart(5, "0")}`,
@@ -1689,7 +1773,7 @@ router.post(
       if (await User.findOne({ phone })) continue;
       const parts = String(row.name || `${row.firstName || ""} ${row.lastName || ""}`).trim().split(/\s+/);
       const firstName = row.firstName || parts[0] || "Customer";
-      const lastName = row.lastName || parts.slice(1).join(" ") || "NETZA";
+      const lastName = row.lastName || parts.slice(1).join(" ") || "TAJIRA";
       const n = (await User.countDocuments({ role: "CUSTOMER" })) + 1;
       await User.create({
         firstName,
@@ -1698,7 +1782,7 @@ router.post(
         phone,
         passwordHash: await bcrypt.hash("Customer@123", 10),
         role: "CUSTOMER",
-        referralCode: randomCode("NETZA"),
+        referralCode: randomCode("TAJIRA"),
         membershipLevel: String(row.group || "BRONZE").toUpperCase(),
         customerNumber: `CUST-${String(n).padStart(5, "0")}`,
         profileCompleted: true,
@@ -1783,7 +1867,7 @@ router.get(
       {
         id: "join",
         type: "join",
-        text: "Joined NETZA Kenya",
+        text: "Joined Tajira Kenya",
         at: user.createdAt,
         badge: "New Member",
         tone: "join",
@@ -1885,7 +1969,7 @@ router.post(
     user.sentMessages = user.sentMessages || [];
     user.sentMessages.unshift({ body: body.body, at: new Date() });
     await user.save();
-    res.json({ ok: true, to: user.email || user.phone, subject: body.subject || "NETZA Kenya" });
+    res.json({ ok: true, to: user.email || user.phone, subject: body.subject || "Tajira Kenya" });
   })
 );
 
@@ -3268,10 +3352,6 @@ function competitionOverview(doc) {
   };
 }
 
-function monthShort(date) {
-  return new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" }).format(date);
-}
-
 function competitionStats(rows) {
   const participants = rows.reduce((s, c) => s + (c.participantCount || 0), 0);
   const pointsAwarded = rows.reduce((s, c) => s + (c.pointsAwarded || 0), 0);
@@ -3289,13 +3369,31 @@ function competitionStats(rows) {
 }
 
 function competitionAnalytics(rows) {
-  const windowStart = new Date("2026-02-01T00:00:00.000Z");
-  const windowEnd = new Date("2026-08-01T00:00:00.000Z");
-  const inWindow = rows.filter((c) => c.startsAt && c.startsAt >= windowStart && c.startsAt < windowEnd);
-  const months = ["Feb", "Mar", "Apr", "May", "Jun", "Jul"];
-  const byMonth = Object.fromEntries(months.map((m) => [m, 0]));
+  const now = new Date();
+  const windowEnd = new Date(now);
+  windowEnd.setHours(23, 59, 59, 999);
+  const windowStart = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+  windowStart.setHours(0, 0, 0, 0);
+  const inWindow = rows.filter((c) => {
+    const stamp = c.startsAt || c.createdAt;
+    if (!stamp) return true;
+    const t = new Date(stamp);
+    return t >= windowStart && t <= windowEnd;
+  });
+  const months = [];
+  for (let i = 5; i >= 0; i -= 1) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({
+      key: `${d.getFullYear()}-${d.getMonth()}`,
+      label: new Intl.DateTimeFormat("en-US", { month: "short" }).format(d),
+    });
+  }
+  const byMonth = Object.fromEntries(months.map((m) => [m.key, 0]));
   for (const c of inWindow) {
-    const key = monthShort(c.startsAt);
+    const stamp = c.startsAt || c.createdAt;
+    if (!stamp) continue;
+    const d = new Date(stamp);
+    const key = `${d.getFullYear()}-${d.getMonth()}`;
     if (byMonth[key] != null) byMonth[key] += c.participantCount || 0;
   }
   const max = Math.max(...Object.values(byMonth), 1);
@@ -3303,15 +3401,15 @@ function competitionAnalytics(rows) {
   const winners = inWindow.reduce((s, c) => s + (c.winnerCount || 0), 0);
   const pointsAwarded = inWindow.reduce((s, c) => s + (c.pointsAwarded || 0), 0);
   return {
-    total: inWindow.length,
+    total: rows.length,
     participants,
     winners,
     pointsAwarded,
     avgParticipants: inWindow.length ? Math.round(participants / inWindow.length) : 0,
-    trend: months.map((label) => {
-      const value = byMonth[label];
+    trend: months.map((m) => {
+      const value = byMonth[m.key];
       return {
-        label,
+        label: m.label,
         participants: value,
         display: value >= 1000 ? `${(Math.floor(value / 100) / 10).toFixed(1)}k` : String(value),
         pct: Math.round((value / max) * 100),
@@ -3436,9 +3534,8 @@ router.get(
 
 router.get(
   "/competitions/analytics",
-  asyncHandler(async (_req, res) => {
-    const competitions = await Competition.find().select("title code").lean();
-    res.json(getCompetitionAnalytics(competitions));
+  asyncHandler(async (req, res) => {
+    res.json(await getCompetitionAnalytics(req.query));
   })
 );
 
@@ -3621,7 +3718,7 @@ router.post(
   "/system/reset-database",
   requireRoles("SUPER_ADMIN"),
   asyncHandler(async (req, res) => {
-    const body = z.object({ confirm: z.literal("RESET NETZA") }).parse(req.body);
+    const body = z.object({ confirm: z.literal("RESET TAJIRA") }).parse(req.body);
     const admin = await resetToAdminOnly();
     res.json({
       ok: true,

@@ -14,6 +14,10 @@ function configured() {
   return Boolean(config.pesapal.consumerKey && config.pesapal.consumerSecret);
 }
 
+function isLive() {
+  return config.pesapal.env === "live";
+}
+
 function normalizePhone(phone) {
   const digits = String(phone || "").replace(/\D/g, "");
   if (!digits) return "";
@@ -23,9 +27,58 @@ function normalizePhone(phone) {
   return digits;
 }
 
-function pesapalOrderId(order) {
-  const raw = String(order.orderNumber || order.id || "").replace(/[^a-zA-Z0-9:._-]/g, "-");
-  return raw.slice(0, 50) || `NZ-${Date.now()}`;
+function pesapalMerchantRef(order) {
+  const attempt = Date.now().toString(36);
+  const raw = `${order.orderNumber || "TJ"}-${attempt}`.replace(/[^a-zA-Z0-9:._-]/g, "-");
+  return raw.slice(0, 50);
+}
+
+function pesapalErrorMessage(data, fallback) {
+  return (
+    data?.error?.message ||
+    data?.error?.error_msg ||
+    data?.message ||
+    fallback
+  );
+}
+
+function resolvePublicBase(req) {
+  if (config.publicBaseUrl) return config.publicBaseUrl;
+  if (!req) return "";
+  const proto = String(req.headers["x-forwarded-proto"] || req.protocol || "https")
+    .split(",")[0]
+    .trim();
+  const host = req.get?.("host") || req.headers?.host;
+  return host ? `${proto}://${host}`.replace(/\/+$/, "") : "";
+}
+
+function assertPublicBase(publicBase) {
+  if (!publicBase) {
+    throw new Error("Set PUBLIC_BASE_URL to your live API origin (https://your-api.onrender.com).");
+  }
+  if (isLive() && !/^https:\/\//i.test(publicBase)) {
+    throw new Error("Pesapal live requires PUBLIC_BASE_URL to be https, not localhost.");
+  }
+  if (isLive() && /localhost|127\.0\.0\.1/i.test(publicBase)) {
+    throw new Error("Pesapal live cannot reach localhost. Set PUBLIC_BASE_URL to the deployed API.");
+  }
+  return publicBase.replace(/\/+$/, "");
+}
+
+function statusSnapshot() {
+  const publicBase = config.publicBaseUrl;
+  return {
+    configured: configured(),
+    env: config.pesapal.env,
+    ipnConfigured: Boolean(cachedIpnId || config.pesapal.ipnId),
+    publicBaseUrl: publicBase || "",
+    liveReady:
+      configured() &&
+      isLive() &&
+      Boolean(publicBase) &&
+      /^https:\/\//i.test(publicBase) &&
+      !/localhost|127\.0\.0\.1/i.test(publicBase),
+  };
 }
 
 async function api(path, { method = "GET", body, token } = {}) {
@@ -45,8 +98,10 @@ async function api(path, { method = "GET", body, token } = {}) {
   } catch {
     data = { message: text };
   }
-  if (!res.ok) {
-    const msg = data.message || data.error?.message || `Pesapal request failed (${res.status})`;
+  const pesapalStatus = Number(data.status || res.status);
+  const hasError = Boolean(data.error && (data.error.message || data.error.code));
+  if (!res.ok || hasError || (pesapalStatus && pesapalStatus >= 400)) {
+    const msg = pesapalErrorMessage(data, `Pesapal request failed (${res.status})`);
     const err = new Error(msg);
     err.status = res.status;
     err.payload = data;
@@ -56,7 +111,9 @@ async function api(path, { method = "GET", body, token } = {}) {
 }
 
 async function getToken() {
-  if (!configured()) throw new Error("Pesapal is not configured. Set PESAPAL_CONSUMER_KEY and PESAPAL_CONSUMER_SECRET.");
+  if (!configured()) {
+    throw new Error("Pesapal is not configured. Set PESAPAL_CONSUMER_KEY and PESAPAL_CONSUMER_SECRET from your live merchant account.");
+  }
   if (cachedToken && Date.now() < tokenExpiresAt - 15000) return cachedToken;
 
   const data = await api("Auth/RequestToken", {
@@ -68,13 +125,29 @@ async function getToken() {
   });
   cachedToken = data.token;
   tokenExpiresAt = data.expiryDate ? new Date(data.expiryDate).getTime() : Date.now() + 4 * 60 * 1000;
-  if (!cachedToken) throw new Error(data.message || "Could not obtain Pesapal access token");
+  if (!cachedToken) throw new Error(pesapalErrorMessage(data, "Could not obtain Pesapal access token"));
   return cachedToken;
 }
 
-async function ensureIpnId(token) {
+async function listIpns(token) {
+  try {
+    const data = await api("URLSetup/GetIpnList", { token });
+    return Array.isArray(data) ? data : data?.ipns || [];
+  } catch {
+    return [];
+  }
+}
+
+async function ensureIpnId(token, publicBase) {
   if (cachedIpnId) return cachedIpnId;
-  const ipnUrl = `${config.publicBaseUrl}/api/v1/payments/pesapal/ipn`;
+  const ipnUrl = `${assertPublicBase(publicBase)}/api/v1/payments/pesapal/ipn`;
+  const existing = await listIpns(token);
+  const match = existing.find((row) => String(row.url || "").replace(/\/+$/, "") === ipnUrl.replace(/\/+$/, ""));
+  if (match?.ipn_id || match?.ipnId) {
+    cachedIpnId = match.ipn_id || match.ipnId;
+    return cachedIpnId;
+  }
+
   const data = await api("URLSetup/RegisterIPN", {
     method: "POST",
     token,
@@ -84,37 +157,44 @@ async function ensureIpnId(token) {
     },
   });
   cachedIpnId = data.ipn_id || data.ipnId;
-  if (!cachedIpnId) throw new Error(data.message || "Could not register Pesapal IPN URL");
+  if (!cachedIpnId) throw new Error(pesapalErrorMessage(data, "Could not register Pesapal IPN URL"));
   return cachedIpnId;
 }
 
-async function submitOrder(order, user, { channel = "MPESA" } = {}) {
+async function submitOrder(order, user, { channel = "MPESA", publicBase } = {}) {
+  const origin = assertPublicBase(publicBase || config.publicBaseUrl);
   const token = await getToken();
-  const notificationId = await ensureIpnId(token);
+  const notificationId = await ensureIpnId(token, origin);
   const addr = order.address || {};
   const phone = normalizePhone(addr.phone || user.phone);
-  const email = user.email || `customer+${order.orderNumber}@netza.co.ke`;
-  const callbackUrl = `${config.publicBaseUrl}/api/v1/payments/pesapal/return?orderId=${order.id}`;
+  const email = user.email || "";
+  if (!phone && !email) {
+    throw new Error("Customer phone or email is required for Pesapal checkout.");
+  }
+  const callbackUrl = `${origin}/api/v1/payments/pesapal/return?orderId=${order.id}`;
+  const merchantReference = pesapalMerchantRef(order);
 
   const payload = {
-    id: pesapalOrderId(order),
+    id: merchantReference,
     currency: "KES",
-    amount: Number(order.totalKes),
-    description: `NETZA order ${order.orderNumber}`.slice(0, 100),
+    amount: Number(Number(order.totalKes).toFixed(2)),
+    description: `Tajira Kenya order ${order.orderNumber}`.slice(0, 100),
     callback_url: callbackUrl,
+    cancellation_url: `${callbackUrl}&cancelled=1`,
     notification_id: notificationId,
     redirect_mode: "TOP_WINDOW",
+    branch: "Tajira Kenya",
     billing_address: {
-      email_address: email,
-      phone_number: phone || "254700000000",
+      email_address: email || undefined,
+      phone_number: phone || undefined,
       country_code: "KE",
-      first_name: user.firstName || "NETZA",
+      first_name: user.firstName || "Tajira",
       middle_name: "",
       last_name: user.lastName || "Customer",
       line_1: addr.street || "Nairobi",
       line_2: "",
       city: addr.city || addr.county || "Nairobi",
-      state: addr.county || "Nairobi",
+      state: "",
       postal_code: "",
       zip_code: "",
     },
@@ -127,13 +207,13 @@ async function submitOrder(order, user, { channel = "MPESA" } = {}) {
   });
 
   if (!data.redirect_url) {
-    throw new Error(data.message || "Pesapal did not return a payment URL");
+    throw new Error(pesapalErrorMessage(data, "Pesapal did not return a payment URL"));
   }
 
   return {
     redirectUrl: data.redirect_url,
     orderTrackingId: data.order_tracking_id,
-    merchantReference: payload.id,
+    merchantReference,
     channel,
     raw: data,
   };
@@ -153,14 +233,20 @@ function isPaidStatus(status) {
 function isFailedStatus(status) {
   const code = Number(status?.status_code ?? status?.payment_status_code);
   const desc = String(status?.payment_status_description || status?.message || "").toUpperCase();
-  return code === 2 || (code === 0 && desc.includes("FAILED")) || desc.includes("INVALID");
+  return code === 2 || code === 3 || desc.includes("FAILED") || desc.includes("INVALID") || desc.includes("REVERSED");
 }
 
 module.exports = {
   configured,
+  isLive,
+  statusSnapshot,
+  resolvePublicBase,
   submitOrder,
   getTransactionStatus,
   isPaidStatus,
   isFailedStatus,
   normalizePhone,
+  getToken,
+  ensureIpnId,
+  listIpns,
 };

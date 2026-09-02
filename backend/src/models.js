@@ -151,6 +151,28 @@ const productSchema = new mongoose.Schema(
     seoDescription: { type: String, default: "" },
     specs: [{ name: String, value: String }],
     notes: { type: String, default: "" },
+    color: { type: String, default: "" },
+    modelNumber: { type: String, default: "" },
+    countryOfOrigin: { type: String, default: "" },
+    unit: { type: String, default: "Piece" },
+    productType: { type: String, default: "Simple Product" },
+    allowReviews: { type: Boolean, default: true },
+    variations: [
+      {
+        name: { type: String, default: "" },
+        options: [{ type: String }],
+      },
+    ],
+    variants: [
+      {
+        sku: { type: String, default: "" },
+        label: { type: String, default: "" },
+        options: [{ name: String, value: String }],
+        priceKes: { type: Number, default: 0 },
+        stock: { type: Number, default: 0 },
+        barcode: { type: String, default: "" },
+      },
+    ],
     ratingAvg: { type: Number, default: 0 },
     ratingCount: { type: Number, default: 0 },
     images: [{ url: String, sortOrder: { type: Number, default: 0 } }],
@@ -391,6 +413,29 @@ const bannerSchema = new mongoose.Schema(
 );
 jsonId(bannerSchema);
 
+const inventoryAdjustmentSchema = new mongoose.Schema(
+  {
+    reference: { type: String, unique: true },
+    product: { type: mongoose.Schema.Types.ObjectId, ref: "Product", default: null },
+    productName: { type: String, default: "" },
+    productSku: { type: String, default: "" },
+    productImage: { type: String, default: "" },
+    type: { type: String, enum: ["addition", "deduction", "correction", "return"], default: "addition" },
+    typeLabel: { type: String, default: "Addition" },
+    reason: { type: String, default: "" },
+    location: { type: String, default: "Main Warehouse" },
+    qtyChange: { type: Number, default: 0 },
+    valueKes: { type: Number, default: 0 },
+    notes: { type: String, default: "" },
+    userName: { type: String, default: "Admin User" },
+    userRole: { type: String, default: "Administrator" },
+    roleKey: { type: String, default: "admin" },
+    reversed: { type: Boolean, default: false },
+  },
+  { timestamps: true }
+);
+jsonId(inventoryAdjustmentSchema);
+
 const User = mongoose.model("User", userSchema);
 const RefreshToken = mongoose.model("RefreshToken", refreshTokenSchema);
 const Address = mongoose.model("Address", addressSchema);
@@ -409,6 +454,7 @@ const Setting = mongoose.model("Setting", settingSchema);
 const Competition = mongoose.model("Competition", competitionSchema);
 const Quote = mongoose.model("Quote", quoteSchema);
 const Banner = mongoose.model("Banner", bannerSchema);
+const InventoryAdjustment = mongoose.model("InventoryAdjustment", inventoryAdjustmentSchema);
 
 function isOid(id) {
   return mongoose.isValidObjectId(id);
@@ -440,6 +486,7 @@ module.exports = {
   Competition,
   Quote,
   Banner,
+  InventoryAdjustment,
   isOid,
   idOf,
 };

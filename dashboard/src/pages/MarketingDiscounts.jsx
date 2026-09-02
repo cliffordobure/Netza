@@ -186,7 +186,7 @@ export default function MarketingDiscounts() {
               <button className="btn btn-ghost btn-small" type="button" onClick={() => setFormOpen(false)}><Icon name="x" size={14} /></button>
             </div>
             <div className="form-grid">
-              <label>Code<input value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="NETZA10" required /></label>
+              <label>Code<input value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="TAJIRA10" required /></label>
               <label>Type
                 <select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}>
                   <option value="percent">Percent</option>

@@ -435,7 +435,7 @@ export default function Points() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "netza-points-report.csv";
+    a.download = "tajira-points-report.csv";
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -593,7 +593,7 @@ export default function Points() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "netza-earn-rules.csv";
+    a.download = "tajira-earn-rules.csv";
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -706,7 +706,7 @@ export default function Points() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "netza-redeem-rewards.csv";
+    a.download = "tajira-redeem-rewards.csv";
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -835,7 +835,7 @@ export default function Points() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "netza-points-expiry.csv";
+    a.download = "tajira-points-expiry.csv";
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -977,7 +977,7 @@ export default function Points() {
                 <span className="prod-title-icon"><Icon name="gift" size={18} /></span>
                 Redeem Rewards
               </h1>
-              <p>Manage rewards that customers can redeem using their NETZA Points.</p>
+              <p>Manage rewards that customers can redeem using their Tajira Points.</p>
             </div>
             <div className="prod-actions">
               <button className="btn btn-ghost btn-small" type="button" onClick={exportRewards}>
@@ -1029,7 +1029,7 @@ export default function Points() {
                 <span className="prod-title-icon solid"><Icon name="trophy" size={18} /></span>
                 Points & Rewards
               </h1>
-              <p>Manage NETZA Points, earn rules and customer rewards.</p>
+              <p>Manage Tajira Points, earn rules and customer rewards.</p>
             </div>
             <div className="prod-actions">
               <button className="btn btn-ghost btn-small" type="button" onClick={exportCsv}>
@@ -1303,7 +1303,7 @@ export default function Points() {
                         <td>{t.description || "—"}</td>
                         <td>
                           {t.reference ? (
-                            String(t.reference).startsWith("NETZA-") ? (
+                            /^(TAJIRA|NETZA)-/.test(String(t.reference)) ? (
                               <Link className="pts-ref" to={`/orders?q=${encodeURIComponent(t.reference)}`}>{t.reference}</Link>
                             ) : (
                               <span className="pts-ref">{t.reference}</span>
@@ -2336,7 +2336,7 @@ export default function Points() {
               <span className="rule-how-ico purple"><Icon name="gift" size={16} /></span>
               <div>
                 <strong>How Redeem Rewards Work</strong>
-                <p>Customers spend NETZA Points on a reward. Stock is deducted and delivery is issued automatically.</p>
+                <p>Customers spend Tajira Points on a reward. Stock is deducted and delivery is issued automatically.</p>
               </div>
             </article>
             <article>

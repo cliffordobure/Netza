@@ -34,7 +34,7 @@ function ensureConfigured() {
 }
 
 function resolveFolder(subfolder) {
-  const base = (config.cloudinary.folder || "netza").replace(/\/+$/, "");
+  const base = (config.cloudinary.folder || "tajira").replace(/\/+$/, "");
   const key = String(subfolder || "misc").toLowerCase();
   if (!FOLDERS.has(key)) {
     throw httpError(400, `Invalid upload folder. Use one of: ${[...FOLDERS].join(", ")}`);

@@ -28,7 +28,7 @@ function payLabel(status) {
 function methodLabel(method) {
   const m = String(method || "").toUpperCase();
   if (m === "MPESA") return "M-Pesa";
-  if (m === "POINTS") return "NETZA Points";
+  if (m === "POINTS") return "Tajira Points";
   if (m === "PESAPAL" || m === "CARD") return "Card (Pesapal)";
   return method || "—";
 }
@@ -103,7 +103,7 @@ function printOrder(order) {
       th,td{border-bottom:1px solid #e5e7eb;padding:8px;text-align:left;font-size:13px}
       .muted{color:#64748b}
     </style></head><body>
-    <h1>NETZA Kenya</h1>
+    <h1>Tajira Kenya</h1>
     <div class="muted">Order ${order.orderNumber}</div>
     <p>${customerName(order)}<br>${order.user?.email || ""}<br>${order.user?.phone || order.address?.phone || ""}</p>
     <table><thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
@@ -286,7 +286,7 @@ export default function Orders() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "netza-orders.csv";
+    a.download = "tajira-orders.csv";
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -722,7 +722,7 @@ export default function Orders() {
                 <select value={form.paymentMethod} onChange={(e) => setForm((f) => ({ ...f, paymentMethod: e.target.value }))}>
                   <option value="MPESA">M-Pesa</option>
                   <option value="PESAPAL">Card (Pesapal)</option>
-                  <option value="POINTS">NETZA Points</option>
+                  <option value="POINTS">Tajira Points</option>
                 </select>
               </div>
               <div>

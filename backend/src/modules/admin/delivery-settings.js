@@ -4,9 +4,9 @@ function defaults() {
   return {
     // General
     enabled: true,
-    companyName: "NETZA Kenya Delivery",
+    companyName: "Tajira Kenya Delivery",
     supportPhone: "+254 700 000 000",
-    supportEmail: "delivery@netzakenya.com",
+    supportEmail: "delivery@tajira.co.ke",
     timezone: "Africa/Nairobi",
     defaultCourier: "g4s",
     workingDays: "mon_sat",

@@ -1,4 +1,4 @@
-package ke.netza.netza_mobile
+package ke.tajira.tajira_mobile
 
 import io.flutter.embedding.android.FlutterActivity
 

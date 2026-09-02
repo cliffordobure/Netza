@@ -1,8 +1,8 @@
 {
-  "name": "netza-backend",
+  "name": "tajira-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "NETZA Kenya e-commerce API",
+  "description": "Tajira Kenya e-commerce API",
   "main": "src/index.js",
   "scripts": {
     "dev": "node --watch src/index.js",
@@ -12,6 +12,7 @@
     "db:reset:remote": "node src/scripts/reset-via-api.js",
     "db:clear-orders": "node src/scripts/clear-orders.js",
     "db:clear-orders:remote": "node src/scripts/clear-orders-via-api.js",
+    "pesapal:setup": "node src/scripts/setup-pesapal.js",
     "setup": "npm install && node src/seed.js"
   },
   "dependencies": {

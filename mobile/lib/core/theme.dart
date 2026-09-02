@@ -10,7 +10,7 @@ const gold = Color(0xFFE6B325);
 const muted = Color(0xFF6B7A8C);
 const purple = Color(0xFF6D28D9);
 
-ThemeData netzaTheme() {
+ThemeData tajiraTheme() {
   final base = ThemeData(
     useMaterial3: true,
     colorScheme: ColorScheme.fromSeed(

@@ -58,7 +58,7 @@ function uiPayment(paymentStatus) {
 function paymentMethodLabel(method) {
   const m = String(method || "").toUpperCase();
   if (m === "MPESA") return "M-PESA";
-  if (m === "POINTS") return "NETZA Points";
+  if (m === "POINTS") return "Tajira Points";
   if (m === "PESAPAL" || m === "CARD") return "Card (Pesapal)";
   return method || "—";
 }
@@ -139,7 +139,7 @@ function buildOrderDetail(order) {
     orderDate: fmtDate(json.createdAt),
     orderTime: fmtTime(json.createdAt),
     orderType: "Online Order",
-    salesChannel: "NETZA App",
+    salesChannel: "TAJIRA App",
     placedBy: name,
     ipAddress: "",
     device: "",

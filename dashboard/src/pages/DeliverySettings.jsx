@@ -231,7 +231,7 @@ export default function DeliverySettings() {
         <div className="ptsset-main">
           {tab === "general" && (
             <form className="ptsset-form" onSubmit={save}>
-              <Section icon="truck" title="General Configuration" subtitle="Core delivery service settings for NETZA Kenya.">
+              <Section icon="truck" title="General Configuration" subtitle="Core delivery service settings for Tajira Kenya.">
                 <div className="ptsset-row">
                   <span className="ptsset-label">
                     Enable Delivery Module

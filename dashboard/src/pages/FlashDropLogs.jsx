@@ -180,7 +180,7 @@ export default function FlashDropLogs() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "netza-flash-drop-logs.csv";
+    a.download = "tajira-flash-drop-logs.csv";
     a.click();
     URL.revokeObjectURL(url);
     setToast("Activity logs exported");

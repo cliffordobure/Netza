@@ -22,7 +22,7 @@ export default function CatalogMeta({ type }) {
       <div className="prod-head">
         <div>
           <h1>{title}</h1>
-          <p>Catalog {title.toLowerCase()} used across the NETZA Kenya store.</p>
+          <p>Catalog {title.toLowerCase()} used across the Tajira Kenya store.</p>
         </div>
         <Link className="btn btn-purple btn-small" style={{ width: "auto", marginTop: 0 }} to="/products">
           All Products

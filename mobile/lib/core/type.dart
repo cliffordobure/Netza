@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'theme.dart';
 
-/// Inter type scale taken from the NETZA Kenya home and categories mockups.
+/// Inter type scale taken from the Tajira Kenya home and categories mockups.
 TextStyle inter({
   double size = 14,
   FontWeight weight = FontWeight.w400,
@@ -20,7 +20,7 @@ TextStyle inter({
 }
 
 class T {
-  static TextStyle get logoNetza => inter(size: 21, weight: FontWeight.w800, color: navy, height: 1.0, spacing: 0.3);
+  static TextStyle get logoTajira => inter(size: 21, weight: FontWeight.w800, color: navy, height: 1.0, spacing: 0.3);
   static TextStyle get logoKenya => inter(size: 8.5, weight: FontWeight.w800, color: orange, height: 1.25, spacing: 4.0);
   static TextStyle get headerAction => inter(size: 9, weight: FontWeight.w500, color: const Color(0xFF8A97A6), height: 1.1);
   static TextStyle get searchHint => inter(size: 13, weight: FontWeight.w400, color: const Color(0xFF9AA3AE));

@@ -180,25 +180,28 @@ function Gauge({ pct }) {
 export default function CompetitionAnalytics() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
-  const [from, setFrom] = useState("2026-05-01");
-  const [to, setTo] = useState("2026-05-27");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [modal, setModal] = useState(null);
   const [statusF, setStatusF] = useState("");
   const [typeF, setTypeF] = useState("");
-  const [schedule, setSchedule] = useState({ email: "admin@netza.co.ke", frequency: "weekly" });
+  const [schedule, setSchedule] = useState({ email: "admin@tajira.co.ke", frequency: "weekly" });
 
   useEffect(() => {
-    api("/admin/competitions/analytics")
+    const qs = new URLSearchParams();
+    if (from) qs.set("from", from);
+    if (to) qs.set("to", to);
+    api(`/admin/competitions/analytics${qs.toString() ? `?${qs}` : ""}`)
       .then((d) => {
         setData(d);
-        setFrom(d.from || "2026-05-01");
-        setTo(d.to || "2026-05-27");
+        setFrom((cur) => cur || d.from || "");
+        setTo((cur) => cur || d.to || "");
         setError("");
       })
       .catch((err) => setError(err.message || "Could not load analytics."));
-  }, []);
+  }, [from, to]);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -224,7 +227,7 @@ export default function CompetitionAnalytics() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "competition-analytics-may-2026.csv";
+    a.download = `tajira-competition-analytics-${from || "all"}-${to || "all"}.csv`;
     a.click();
     URL.revokeObjectURL(url);
     setToast("Analytics report exported");
@@ -308,7 +311,7 @@ export default function CompetitionAnalytics() {
         </section>
         <section className="card pf-card">
           <h2>Entries by Competition</h2>
-          <Donut parts={entriesDonut} total={45672} sub="Total Entries" />
+          <Donut parts={entriesDonut} total={data?.entriesTotal ?? entriesDonut.reduce((s, p) => s + (p.count || 0), 0)} sub="Total Entries" />
         </section>
       </div>
 
@@ -326,7 +329,7 @@ export default function CompetitionAnalytics() {
             </thead>
             <tbody>
               {(data?.topCompetitions || []).map((r) => (
-                <tr key={r.name}>
+                <tr key={r.id || r.name}>
                   <td>
                     {r.id ? <Link to={`/competitions/${r.id}`}>{r.name}</Link> : <strong>{r.name}</strong>}
                   </td>
@@ -335,12 +338,15 @@ export default function CompetitionAnalytics() {
                   <td>{fmtNum(r.points)}</td>
                 </tr>
               ))}
+              {(data?.topCompetitions || []).length === 0 && (
+                <tr><td colSpan="4" className="muted">No competitions in this period.</td></tr>
+              )}
             </tbody>
           </table>
         </section>
         <section className="card pf-card">
           <h2>Participation by Channel</h2>
-          <Donut parts={channels} total={12458} sub="Participants" />
+          <Donut parts={channels} total={data?.channelTotal ?? data?.participantsTotal ?? channels.reduce((s, p) => s + (p.count || 0), 0)} sub="Participants" />
         </section>
         <section className="card pf-card">
           <h2>Participant Demographics</h2>
@@ -391,6 +397,9 @@ export default function CompetitionAnalytics() {
                   <b>{fmtNum(p.points)} pts</b>
                 </li>
               ))}
+              {(data?.topParticipants || []).length === 0 && (
+                <li className="muted">No participant records yet.</li>
+              )}
             </ul>
           </section>
         </div>
@@ -499,13 +508,13 @@ export default function CompetitionAnalytics() {
               <h2>Compare periods</h2>
               <button className="icon-btn" type="button" onClick={() => setModal(null)}><Icon name="x" size={16} /></button>
             </div>
-            <p className="muted">April 2026 vs 01 May 2026 – 27 May 2026</p>
+            <p className="muted">{data?.compareLabel || "Prior period"} vs {data?.rangeLabel || "Current period"}</p>
             <table className="cd-table">
               <thead>
                 <tr>
                   <th>Metric</th>
-                  <th>Apr 2026</th>
-                  <th>May 2026</th>
+                  <th>Prior period</th>
+                  <th>Current period</th>
                   <th>Change</th>
                 </tr>
               </thead>

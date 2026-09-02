@@ -294,7 +294,7 @@ export default function Customers() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "netza-customers.csv";
+    a.download = "tajira-customers.csv";
     a.click();
     URL.revokeObjectURL(url);
   }

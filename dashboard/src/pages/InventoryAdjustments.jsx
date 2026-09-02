@@ -2,6 +2,23 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, kes } from "../api";
 import { Icon } from "../icons";
+import { DeliveryDetailModal, DeliveryRowMenu, DetailMeta } from "../DeliveryRowMenu";
+
+const EMPTY_FORM = {
+  productId: "",
+  type: "addition",
+  reason: "Stock Received",
+  location: "Main Warehouse",
+  qty: 1,
+  notes: "",
+};
+
+const REASON_FOR = {
+  addition: "Stock Received",
+  deduction: "Damaged",
+  correction: "Stock Correction",
+  return: "Return to Stock",
+};
 
 function fmtNum(n) {
   return new Intl.NumberFormat("en-KE").format(n || 0);
@@ -110,6 +127,13 @@ export default function InventoryAdjustments() {
   const [limit, setLimit] = useState(10);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
+  const [menu, setMenu] = useState(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+  const [viewing, setViewing] = useState(null);
+  const [products, setProducts] = useState([]);
+  const [newOpen, setNewOpen] = useState(false);
 
   function queryString(next = {}) {
     const p = new URLSearchParams();
@@ -147,10 +171,25 @@ export default function InventoryAdjustments() {
   }, [page, limit, typeF, reasonF, locationF, userF]);
 
   useEffect(() => {
+    api("/admin/products-catalog?limit=200")
+      .then((d) => setProducts(d.products || []))
+      .catch(() => setProducts([]));
+  }, []);
+
+  useEffect(() => {
     if (!toast) return undefined;
     const t = setTimeout(() => setToast(""), 2800);
     return () => clearTimeout(t);
   }, [toast]);
+
+  useEffect(() => {
+    function close() {
+      setMenu(null);
+      setNewOpen(false);
+    }
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, []);
 
   function search(e) {
     e.preventDefault();
@@ -194,7 +233,7 @@ export default function InventoryAdjustments() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "netza-inventory-adjustments.csv";
+    a.download = "tajira-inventory-adjustments.csv";
     a.click();
     URL.revokeObjectURL(url);
     setToast("Adjustments exported");
@@ -214,6 +253,68 @@ export default function InventoryAdjustments() {
     let start = Math.max(1, Math.min(page - 2, pages - max + 1));
     for (let i = 0; i < max; i += 1) btns.push(start + i);
     return btns;
+  }
+
+  function openForm(type = "addition") {
+    setForm({ ...EMPTY_FORM, type, reason: REASON_FOR[type] || "Stock Received" });
+    setFormOpen(true);
+    setError("");
+  }
+
+  function setField(key, value) {
+    setForm((f) => {
+      if (key === "type") return { ...f, type: value, reason: REASON_FOR[value] || f.reason };
+      return { ...f, [key]: value };
+    });
+  }
+
+  async function submitForm(e) {
+    e?.preventDefault?.();
+    if (!form.productId) {
+      setError("Select a product to adjust.");
+      return;
+    }
+    if (!Number(form.qty)) {
+      setError("Enter a quantity other than zero.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await api("/admin/inventory-adjustments", {
+        method: "POST",
+        body: JSON.stringify({
+          productId: form.productId,
+          type: form.type,
+          reason: form.reason,
+          location: form.location,
+          qty: Number(form.qty),
+          notes: form.notes,
+        }),
+      });
+      setFormOpen(false);
+      setForm(EMPTY_FORM);
+      setToast("Inventory adjustment saved");
+      load({ page: 1 });
+      setPage(1);
+    } catch (err) {
+      setError(err.message || "Could not save adjustment.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function reverseRow(row) {
+    if (!confirm(`Reverse ${row.reference}? This creates an opposite stock movement.`)) return;
+    setMenu(null);
+    try {
+      await api(`/admin/inventory-adjustments/${row.id}/reverse`, { method: "POST" });
+      setToast(`Reversed ${row.reference}`);
+      setViewing(null);
+      load();
+    } catch (err) {
+      setError(err.message || "Could not reverse adjustment.");
+    }
   }
 
   if (!data) {
@@ -253,10 +354,40 @@ export default function InventoryAdjustments() {
           <button className="btn btn-ghost btn-small" type="button" onClick={exportCsv}>
             <Icon name="download" size={14} /> Export Adjustments
           </button>
-          <button className="btn btn-purple btn-small pia-new-dd" type="button" onClick={() => setToast("New adjustment form coming soon")}>
-            <Icon name="plus" size={14} /> New Adjustment
-            <Icon name="chevron" size={14} />
-          </button>
+          <div className="dlvzon-dd-wrap">
+            <button
+              className="btn btn-purple btn-small pia-new-dd"
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setNewOpen((v) => !v);
+              }}
+            >
+              <Icon name="plus" size={14} /> New Adjustment
+              <Icon name="chevron" size={14} />
+            </button>
+            {newOpen && (
+              <div className="dlvzon-dd" onClick={(e) => e.stopPropagation()}>
+                {[
+                  { id: "addition", label: "Stock Addition" },
+                  { id: "deduction", label: "Stock Deduction" },
+                  { id: "correction", label: "Stock Correction" },
+                  { id: "return", label: "Return to Stock" },
+                ].map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => {
+                      setNewOpen(false);
+                      openForm(opt.id);
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -357,7 +488,8 @@ export default function InventoryAdjustments() {
             </form>
           </section>
 
-          <section className="card prod-table-wrap">
+          <section className="card prod-table-wrap pia-table-card">
+            <div className="pia-table-scroll">
             <table className="table prod-table pia-table">
               <thead>
                 <tr>
@@ -379,8 +511,8 @@ export default function InventoryAdjustments() {
                   <tr key={r.id}>
                     <td>{r.n}</td>
                     <td className="pia-when">{r.atLabel}</td>
-                    <td className="mono">{r.reference}</td>
-                    <td>
+                    <td className="mono pia-ref">{r.reference}</td>
+                    <td className="pia-product-cell">
                       <div className="prod-cell">
                         {r.productImage ? <img src={r.productImage} alt="" /> : <div className="prod-ph" />}
                         <div>
@@ -389,8 +521,8 @@ export default function InventoryAdjustments() {
                         </div>
                       </div>
                     </td>
-                    <td><span className={`pia-type ${typeCls(r.type)}`}>{r.typeLabel}</span></td>
-                    <td>{r.reason}</td>
+                    <td className="pia-type-cell"><span className={`pia-type ${typeCls(r.type)}`}>{r.typeLabel}</span></td>
+                    <td className="pia-reason-cell">{r.reason}</td>
                     <td>{r.location}</td>
                     <td className={r.qtyChange >= 0 ? "pia-pos" : "pia-neg"}>{fmtSigned(r.qtyChange)}</td>
                     <td className={r.valueKes >= 0 ? "pia-pos" : "pia-neg"}>{fmtMoney(r.valueKes)}</td>
@@ -402,10 +534,31 @@ export default function InventoryAdjustments() {
                         </span>
                       </div>
                     </td>
-                    <td>
+                    <td className="pia-acts">
                       <div className="prod-row-acts">
-                        <button type="button" title="View" onClick={() => setToast(`Viewing ${r.reference}`)}><Icon name="eye" size={14} /></button>
-                        <button type="button" title="More"><Icon name="more" size={14} /></button>
+                        <button type="button" title="View" onClick={() => { setViewing(r); setMenu(null); }}>
+                          <Icon name="eye" size={14} />
+                        </button>
+                        <DeliveryRowMenu id={r.id} menu={menu} setMenu={setMenu} up={r.n >= rows.length - 1}>
+                          <button type="button" onClick={() => { setViewing(r); setMenu(null); }}>View details</button>
+                          <button
+                            type="button"
+                            disabled={r.reversed}
+                            onClick={() => reverseRow(r)}
+                          >
+                            {r.reversed ? "Already reversed" : "Reverse adjustment"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (navigator.clipboard?.writeText) navigator.clipboard.writeText(r.reference).catch(() => {});
+                              setMenu(null);
+                              setToast(`Copied ${r.reference}`);
+                            }}
+                          >
+                            Copy reference
+                          </button>
+                        </DeliveryRowMenu>
                       </div>
                     </td>
                   </tr>
@@ -415,6 +568,7 @@ export default function InventoryAdjustments() {
                 )}
               </tbody>
             </table>
+            </div>
             <footer className="prod-pager">
               <span>Showing {fromN} to {toN} of {fmtNum(total)} adjustments</span>
               <div className="pager-btns">
@@ -481,6 +635,109 @@ export default function InventoryAdjustments() {
           Inventory adjustments are recorded in real-time and reflected in product stock immediately. All adjustments are logged for audit and reporting purposes.
         </p>
       </footer>
+
+      {formOpen && (
+        <div className="prod-modal" onClick={() => !saving && setFormOpen(false)}>
+          <form className="card prod-modal-card is-wide pia-form" onClick={(e) => e.stopPropagation()} onSubmit={submitForm}>
+            <div className="ord-drawer-head">
+              <div>
+                <h2>New Inventory Adjustment</h2>
+                <p className="muted">Record a stock addition, deduction, correction or return.</p>
+              </div>
+              <button className="btn btn-ghost btn-small" type="button" onClick={() => setFormOpen(false)}>
+                <Icon name="x" size={14} />
+              </button>
+            </div>
+            <label className="pfe-field">
+              <span>Product</span>
+              <select value={form.productId} onChange={(e) => setField("productId", e.target.value)} required>
+                <option value="">Select a product</option>
+                {products.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} {p.sku ? `(${p.sku})` : ""} · stock {p.stock}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="pf-2">
+              <label className="pfe-field">
+                <span>Adjustment type</span>
+                <select value={form.type} onChange={(e) => setField("type", e.target.value)}>
+                  <option value="addition">Addition</option>
+                  <option value="deduction">Deduction</option>
+                  <option value="correction">Stock Correction</option>
+                  <option value="return">Return to Stock</option>
+                </select>
+              </label>
+              <label className="pfe-field">
+                <span>{form.type === "correction" ? "Quantity (+ add / − deduct)" : "Quantity"}</span>
+                <input
+                  type="number"
+                  min={form.type === "correction" ? undefined : 1}
+                  value={form.qty}
+                  onChange={(e) => setField("qty", e.target.value)}
+                  required
+                />
+              </label>
+            </div>
+            <div className="pf-2">
+              <label className="pfe-field">
+                <span>Reason</span>
+                <select value={form.reason} onChange={(e) => setField("reason", e.target.value)}>
+                  {(filters.reasons || []).map((r) => (
+                    <option key={r.id} value={r.label}>{r.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="pfe-field">
+                <span>Location</span>
+                <select value={form.location} onChange={(e) => setField("location", e.target.value)}>
+                  {(filters.locations || ["Main Warehouse", "Nairobi DC", "Store Front"]).map((loc) => (
+                    <option key={loc} value={loc}>{loc}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <label className="pfe-field">
+              <span>Notes (optional)</span>
+              <textarea rows={3} value={form.notes} onChange={(e) => setField("notes", e.target.value)} placeholder="Internal note for this adjustment" />
+            </label>
+            <div className="prod-actions rule-drawer-acts">
+              <button className="btn btn-ghost btn-small" type="button" onClick={() => setFormOpen(false)}>Cancel</button>
+              <button className="btn btn-purple btn-small" type="submit" disabled={saving}>
+                {saving ? "Saving…" : "Save Adjustment"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {viewing && (
+        <DeliveryDetailModal
+          title={viewing.reference}
+          subtitle={viewing.productName}
+          statusNode={<span className={`pia-type ${typeCls(viewing.type)}`}>{viewing.typeLabel}</span>}
+          onClose={() => setViewing(null)}
+          actions={!viewing.reversed && (
+            <button className="btn btn-ghost btn-small" type="button" onClick={() => reverseRow(viewing)}>
+              Reverse
+            </button>
+          )}
+        >
+          <DetailMeta
+            rows={[
+              { label: "Date & time", value: viewing.atLabel },
+              { label: "SKU", value: viewing.productSku || "—" },
+              { label: "Reason", value: viewing.reason },
+              { label: "Location", value: viewing.location },
+              { label: "Qty change", value: fmtSigned(viewing.qtyChange) },
+              { label: "Value", value: fmtMoney(viewing.valueKes) },
+              { label: "Adjusted by", value: `${viewing.userName} · ${viewing.userRole}` },
+              { label: "Notes", value: viewing.notes || "—" },
+            ]}
+          />
+        </DeliveryDetailModal>
+      )}
     </div>
   );
 }

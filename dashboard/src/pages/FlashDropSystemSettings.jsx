@@ -510,7 +510,7 @@ export default function FlashDropSystemSettings() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "netza-flash-drop-settings-backup.json";
+    a.download = "tajira-flash-drop-settings-backup.json";
     a.click();
     URL.revokeObjectURL(url);
     setToast("Backup downloaded");

@@ -9,16 +9,28 @@ import '../core/theme.dart';
 import '../core/type.dart';
 import '../state/session.dart';
 
-class NetzaLogo extends StatelessWidget {
-  const NetzaLogo({super.key});
+class TajiraLogo extends StatelessWidget {
+  const TajiraLogo({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text('NETZA', style: T.logoNetza),
-        Text('KENYA', style: T.logoKenya),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.asset('assets/branding/app_icon.png', width: 34, height: 34),
+        ),
+        const SizedBox(width: 8),
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('TAJIRA', style: T.logoTajira),
+            Text('KENYA', style: T.logoKenya),
+          ],
+        ),
       ],
     );
   }
@@ -62,7 +74,7 @@ class StorefrontHeader extends StatelessWidget {
           constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
           icon: Icon(leading == HeaderLeading.back ? Icons.arrow_back : Icons.menu, color: navy, size: 24),
         ),
-        const Expanded(child: NetzaLogo()),
+        const Expanded(child: TajiraLogo()),
         if (showSearch)
           IconButton(
             onPressed: () => context.push('/catalog'),
@@ -230,7 +242,7 @@ class LoyaltyCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('My Netza Points', style: T.pointsCaption),
+                      Text('My Tajira Points', style: T.pointsCaption),
                       const SizedBox(height: 6),
                       Row(
                         children: [
@@ -306,7 +318,7 @@ class ChallengeStrip extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('NETZA CHALLENGE', style: T.challengeTitle),
+                Text('TAJIRA CHALLENGE', style: T.challengeTitle),
                 Text('Answer daily & win 500 Points!', style: T.challengeSub),
               ],
             ),
@@ -327,8 +339,8 @@ class ChallengeStrip extends StatelessWidget {
   }
 }
 
-class NetzaDrawer extends StatelessWidget {
-  const NetzaDrawer({super.key});
+class TajiraDrawer extends StatelessWidget {
+  const TajiraDrawer({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -341,12 +353,21 @@ class NetzaDrawer extends StatelessWidget {
               decoration: const BoxDecoration(color: navy),
               child: Align(
                 alignment: Alignment.bottomLeft,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
-                    Text('NETZA', style: inter(size: 22, weight: FontWeight.w800, color: Colors.white)),
-                    Text('KENYA', style: inter(size: 10, weight: FontWeight.w800, color: orange, spacing: 4)),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.asset('assets/branding/app_icon.png', width: 44, height: 44),
+                    ),
+                    const SizedBox(width: 10),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('TAJIRA', style: inter(size: 22, weight: FontWeight.w800, color: Colors.white)),
+                        Text('KENYA', style: inter(size: 10, weight: FontWeight.w800, color: orange, spacing: 4)),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -364,8 +385,8 @@ class NetzaDrawer extends StatelessWidget {
   }
 }
 
-class NetzaImage extends StatelessWidget {
-  const NetzaImage(this.url, {super.key, this.fallback = Icons.devices_other, this.fit = BoxFit.cover});
+class TajiraImage extends StatelessWidget {
+  const TajiraImage(this.url, {super.key, this.fallback = Icons.devices_other, this.fit = BoxFit.cover});
   final String? url;
   final IconData fallback;
   final BoxFit fit;

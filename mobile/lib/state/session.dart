@@ -128,6 +128,33 @@ class Session extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// Adds [quantity] of [productId]. Buy Now should pass [replace] so an
+  /// existing line is set to that quantity instead of incremented again.
+  Future<void> addCartItem(String productId, {int quantity = 1, bool replace = false}) async {
+    if (replace) {
+      final res = await dio.get('/cart');
+      final items = (res.data['cart']?['items'] as List?) ?? [];
+      for (final raw in items) {
+        final item = raw as Map;
+        final product = item['product'];
+        final id = product is Map ? product['id']?.toString() : product?.toString();
+        if (id != productId) continue;
+        final current = (item['quantity'] as num?)?.toInt() ?? 1;
+        if (quantity > current) {
+          await dio.patch('/cart/items/${item['id']}', data: {'quantity': quantity});
+        }
+        await refreshCart();
+        return;
+      }
+    }
+    await dio.post('/cart/items', data: {
+      'productId': productId,
+      'quantity': quantity,
+      if (replace) 'replace': true,
+    });
+    await refreshCart();
+  }
+
   Future<void> refreshWallet() async {
     if (!isLoggedIn) return;
     try {

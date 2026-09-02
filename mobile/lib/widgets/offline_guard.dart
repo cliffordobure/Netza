@@ -97,7 +97,7 @@ class _OfflineGuardState extends State<OfflineGuard> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'NETZA needs a connection to load deals and products. Check your network, then try again.',
+                        'TAJIRA needs a connection to load deals and products. Check your network, then try again.',
                         textAlign: TextAlign.center,
                         style: inter(size: 13, weight: FontWeight.w400, color: muted, height: 1.45),
                       ),

@@ -45,7 +45,7 @@ async function printOrder(order) {
       th,td{border-bottom:1px solid #e5e7eb;padding:8px;text-align:left;font-size:13px}
       .muted{color:#64748b}
     </style></head><body>
-    <h1>NETZA Kenya</h1>
+    <h1>Tajira Kenya</h1>
     <div class="muted">Order ${full.orderNumber}</div>
     <p>${full.customer?.name || order.customerName || ""}<br>${full.customer?.email || ""}<br>${full.customer?.phone || order.customerPhone || ""}</p>
     <table><thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
@@ -229,7 +229,7 @@ export default function OrdersCatalog() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "netza-orders.csv";
+    a.download = "tajira-orders.csv";
     a.click();
     URL.revokeObjectURL(url);
     setToast("Orders exported");

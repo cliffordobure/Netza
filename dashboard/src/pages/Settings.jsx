@@ -236,7 +236,7 @@ export default function Settings() {
         <div className="ptsset-main">
           {tab === "general" && (
             <form className="ptsset-form" onSubmit={(e) => { e.preventDefault(); save(); }}>
-              <Section icon="gear" title="General Configuration" subtitle="Brand identity and regional defaults for NETZA Kenya.">
+              <Section icon="gear" title="General Configuration" subtitle="Brand identity and regional defaults for Tajira Kenya.">
                 <div className="ptsset-grid-2">
                   <Field label="Store name"><input value={form.storeName} onChange={(e) => set("storeName", e.target.value)} /></Field>
                   <Field label="Tagline"><input value={form.storeTagline} onChange={(e) => set("storeTagline", e.target.value)} /></Field>
@@ -316,6 +316,27 @@ export default function Settings() {
 
           {tab === "payments" && (
             <form className="ptsset-form" onSubmit={(e) => { e.preventDefault(); save(); }}>
+              <Section icon="card" title="Pesapal (live checkout)" subtitle="Customers pay M-Pesa, Airtel Money or card into your Pesapal merchant account.">
+                <div className="ptsset-row">
+                  <span className="ptsset-label">
+                    Status
+                    <span className="muted">
+                      {data?.pesapal?.liveReady
+                        ? "Live payments are configured"
+                        : data?.pesapal?.configured
+                          ? `Keys loaded · ${data.pesapal.env} mode`
+                          : "Add PESAPAL_CONSUMER_KEY and PESAPAL_CONSUMER_SECRET on the API"}
+                    </span>
+                  </span>
+                  <span className={`st-pill ${data?.pesapal?.liveReady ? "sup-st-resolved" : "sup-st-pending"}`}>
+                    {data?.pesapal?.liveReady ? "Live" : data?.pesapal?.configured ? data.pesapal.env : "Not configured"}
+                  </span>
+                </div>
+                <p className="muted">
+                  Set <code>PESAPAL_ENV=live</code>, live merchant keys, and <code>PUBLIC_BASE_URL</code> on the API host,
+                  then run <code>npm run pesapal:setup</code> in <code>backend</code> to register the IPN.
+                </p>
+              </Section>
               <Section icon="card" title="Payment Methods" subtitle="Enable checkout payment options for customers.">
                 <div className="ptsset-row">
                   <span className="ptsset-label">M-PESA<span className="muted">Lipa Na M-PESA STK push</span></span>
@@ -396,10 +417,10 @@ export default function Settings() {
             <form className="ptsset-form" onSubmit={(e) => { e.preventDefault(); save(); }}>
               <Section icon="bell" title="Admin Notifications" subtitle="Choose which events alert your team.">
                 {[
-                  ["notifyNewOrder", "New order placed", "Email + in-app when a customer checks out"],
+                  ["notifyNewOrder", "New order placed", "SMS to admin, sales and the customer"],
                   ["notifyLowStock", "Low stock alerts", "When inventory hits the threshold"],
                   ["notifyTicket", "New support ticket", "Open tickets from customers"],
-                  ["notifyPaymentFail", "Failed payments", "STK / card failures"],
+                  ["notifyPaymentFail", "Failed payments", "SMS when Pesapal payment fails"],
                   ["notifyFlashDrop", "Flash Drop events", "Start, end and sell-out alerts"],
                   ["notifyDailyDigest", "Daily digest", "Summary email every morning at 8:00 AM"],
                 ].map(([key, label, hint]) => (
@@ -412,7 +433,47 @@ export default function Settings() {
                   </div>
                 ))}
               </Section>
-              <Section icon="mail" title="Email Sender" subtitle="Default from-name used in transactional mail.">
+              <Section icon="mail" title="Beem Africa SMS" subtitle="SMS is the main channel for order updates to customers, admin and sales.">
+                <div className="ptsset-row">
+                  <span className="ptsset-label">
+                    Gateway
+                    <span className="muted">
+                      {data?.sms?.configured
+                        ? `Sender ID ${data.sms.senderId} · ${data.sms.adminCount} admin, ${data.sms.salesCount} sales numbers`
+                        : "Add BEEM_API_KEY and BEEM_SECRET_KEY on the API"}
+                    </span>
+                  </span>
+                  <span className={`st-pill ${data?.sms?.configured ? "sup-st-resolved" : "sup-st-pending"}`}>
+                    {data?.sms?.configured ? "Live" : "Not configured"}
+                  </span>
+                </div>
+                <Field label="Admin phones" hint="Who gets new-order and payment alerts. Comma-separated, e.g. 254712345678, 0712345678">
+                  <input
+                    value={form.smsAdminPhones || ""}
+                    onChange={(e) => set("smsAdminPhones", e.target.value)}
+                    placeholder="2547XXXXXXXX"
+                  />
+                </Field>
+                <Field label="Sales team phones" hint="Who gets packing, shipping and delivery alerts. Comma-separated.">
+                  <input
+                    value={form.smsSalesPhones || ""}
+                    onChange={(e) => set("smsSalesPhones", e.target.value)}
+                    placeholder="2547XXXXXXXX, 2547XXXXXXXX"
+                  />
+                </Field>
+                <Field label="Support phone" hint="Shown to the customer on cancelled-order SMS.">
+                  <input
+                    value={form.smsSupportPhone || ""}
+                    onChange={(e) => set("smsSupportPhone", e.target.value)}
+                    placeholder="2547XXXXXXXX"
+                  />
+                </Field>
+                <p className="muted">
+                  Beem API keys stay on the server (<code>BEEM_API_KEY</code> / <code>BEEM_SECRET_KEY</code>).
+                  These numbers are saved here and used for every order SMS.
+                </p>
+              </Section>
+              <Section icon="mail" title="Email Sender" subtitle="Optional fallback for non-order mail.">
                 <div className="ptsset-grid-2">
                   <Field label="From name"><input value={form.emailFromName} onChange={(e) => set("emailFromName", e.target.value)} /></Field>
                   <Field label="From address"><input type="email" value={form.emailFromAddress} onChange={(e) => set("emailFromAddress", e.target.value)} /></Field>

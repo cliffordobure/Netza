@@ -19,7 +19,7 @@ async function main() {
     : raw.replace(/(\.mongodb\.net)(\?|$)/, "$1");
   const q = raw.includes("?") ? raw.slice(raw.indexOf("?")) : "";
   await checkDb("test (default)", `${base}/test${q}`);
-  await checkDb("netza", `${base}/netza${q}`);
+  await checkDb("tajira", `${base}/tajira${q}`);
 }
 
 main().catch((e) => {
