@@ -5,7 +5,7 @@ const { asyncHandler, httpError } = require("../../middleware/error");
 const { quoteDelivery } = require("../../lib/delivery");
 
 const router = Router();
-router.use(auth());
+router.use(auth(false));
 
 router.get(
   "/quote",
@@ -16,10 +16,11 @@ router.get(
       street: req.query.street,
     };
     if (req.query.addressId) {
+      if (!req.user) throw httpError(401, "Authentication required");
       const found = await Address.findOne({ _id: req.query.addressId, user: req.user._id });
       if (!found) throw httpError(404, "Delivery address not found");
       address = found.toJSON();
-    } else if (!address.city && !address.county && !address.street) {
+    } else if (req.user && !address.city && !address.county && !address.street) {
       const fallback = await Address.findOne({ user: req.user._id, isDefault: true })
         || await Address.findOne({ user: req.user._id }).sort({ createdAt: -1 });
       if (fallback) address = fallback.toJSON();

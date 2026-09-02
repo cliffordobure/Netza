@@ -1,10 +1,11 @@
 const { Router } = require("express");
 const { z } = require("zod");
-const { Product, Cart, idOf } = require("../../models");
+const { Product, Cart, Address, idOf } = require("../../models");
 const { auth } = require("../../middleware/auth");
 const { asyncHandler, httpError } = require("../../middleware/error");
 const { activeFlashMap, decorateProduct } = require("../../services/pricing.service");
 const { pointsFromPurchase } = require("../../services/points.service");
+const { quoteDelivery } = require("../../lib/delivery");
 
 const router = Router();
 router.use(auth());
@@ -71,12 +72,28 @@ async function serializeCart(cart) {
       product,
     });
   }
+  const address = cart.user
+    ? (await Address.findOne({ user: cart.user, isDefault: true })) || (await Address.findOne({ user: cart.user }))
+    : null;
+  const [standard, express] = await Promise.all([
+    quoteDelivery({ address: address || {}, method: "STANDARD", subtotalKes: subtotal }),
+    quoteDelivery({ address: address || {}, method: "EXPRESS", subtotalKes: subtotal }),
+  ]);
   return {
     id: cart.id,
     items,
     subtotalKes: subtotal,
     pointsEstimate: await pointsFromPurchase(subtotal),
     itemCount: items.reduce((s, i) => s + i.quantity, 0),
+    deliveryKes: standard.deliveryKes,
+    expressDeliveryKes: express.deliveryKes,
+    deliveryZone: standard.zoneName,
+    shipping: {
+      standardKes: standard.deliveryKes,
+      expressKes: express.deliveryKes,
+      zoneName: standard.zoneName,
+      eta: standard.eta,
+    },
   };
 }
 

@@ -57,6 +57,7 @@ class _CartScreenState extends State<CartScreen> {
         } else {
           selected.removeWhere((id) => !ids.contains(id));
         }
+        _applyShipping(next);
       });
       await session.refreshCart();
       await refreshQuote();
@@ -92,6 +93,14 @@ class _CartScreenState extends State<CartScreen> {
   int get promoOff => (subtotal * promoPercent / 100).round();
 
   int get delivery => chosen.isEmpty ? 0 : deliveryKes;
+
+  void _applyShipping(Map next) {
+    final ship = next['shipping'];
+    final fromCart = (next['deliveryKes'] as num?)?.toInt();
+    final fromShip = ship is Map ? (ship['standardKes'] as num?)?.toInt() : null;
+    final value = fromCart ?? fromShip;
+    if (value != null) deliveryKes = value;
+  }
 
   Future<void> refreshQuote() async {
     if (!mounted || chosen.isEmpty) {

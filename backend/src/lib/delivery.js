@@ -160,11 +160,8 @@ function decorateZone(row, index) {
 
 async function loadZones() {
   const stored = await loadJson(ZONES_KEY, null);
-  const rows = Array.isArray(stored) && stored.length ? stored : DEFAULT_ZONES;
-  if (!Array.isArray(stored) || !stored.length) {
-    await saveJson(ZONES_KEY, DEFAULT_ZONES);
-  }
-  return rows.map(decorateZone);
+  if (!Array.isArray(stored) || !stored.length) return [];
+  return stored.map(decorateZone);
 }
 
 async function saveZones(zones) {

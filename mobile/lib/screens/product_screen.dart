@@ -27,6 +27,7 @@ class _ProductScreenState extends State<ProductScreen> {
   bool busy = false;
   Timer? ticker;
   Duration remaining = Duration.zero;
+  int? deliveryKes;
 
   @override
   void initState() {
@@ -53,9 +54,18 @@ class _ProductScreenState extends State<ProductScreen> {
       final res = await context.read<Session>().dio.get('/products/${widget.id}');
       setState(() => product = Map<String, dynamic>.from(res.data['product'] as Map));
       _tick();
+      await _loadDelivery();
     } catch (e) {
       setState(() => error = apiMessage(e));
     }
+  }
+
+  Future<void> _loadDelivery() async {
+    try {
+      final res = await context.read<Session>().dio.get('/shipping/quote');
+      if (!mounted) return;
+      setState(() => deliveryKes = (res.data['standardKes'] as num?)?.toInt());
+    } catch (_) {}
   }
 
   Future<void> addToCart({bool buyNow = false}) async {
@@ -433,7 +443,10 @@ class _ProductScreenState extends State<ProductScreen> {
                           ],
                         ),
                       ),
-                      Text(money(150), style: inter(size: 14, weight: FontWeight.w800, color: const Color(0xFF16A34A))),
+                      Text(
+                        deliveryKes == null ? '—' : money(deliveryKes),
+                        style: inter(size: 14, weight: FontWeight.w800, color: const Color(0xFF16A34A)),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 18),

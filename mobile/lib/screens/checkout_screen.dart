@@ -64,6 +64,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         addressId = (def?['id'] ?? (list.isNotEmpty ? (list.first as Map)['id'] : null))?.toString();
         error = null;
         loading = false;
+        final ship = next['shipping'];
+        standardKes = (next['deliveryKes'] as num?)?.toInt()
+            ?? (ship is Map ? (ship['standardKes'] as num?)?.toInt() : null)
+            ?? standardKes;
+        expressKes = (next['expressDeliveryKes'] as num?)?.toInt()
+            ?? (ship is Map ? (ship['expressKes'] as num?)?.toInt() : null)
+            ?? expressKes;
+        quoteZone = (next['deliveryZone'] ?? (ship is Map ? ship['zoneName'] : null))?.toString();
       });
       await refreshQuote();
     } catch (e) {
