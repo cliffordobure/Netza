@@ -1,8 +1,9 @@
 const os = require("os");
+const { verifyAccess } = require("./jwt");
 
-const PRESENCE_TTL_MS = 45_000;
+const PRESENCE_TTL_MS = 90_000;
 const SAMPLE_MS = 5_000;
-const HISTORY_LEN = 180; // 15 minutes at 5s
+const HISTORY_LEN = 180;
 
 const STAFF_ROLES = new Set([
   "SUPER_ADMIN",
@@ -13,15 +14,22 @@ const STAFF_ROLES = new Set([
   "DELIVERY_MANAGER",
 ]);
 
-const SKIP_PATH = /\/health$|\/uploads\/|\/presence\/heartbeat|\/admin\/live/;
+const SKIP_TRAFFIC = /\/health$|\/uploads\/|\/presence\/heartbeat|\/admin\/live/;
+const SKIP_PRESENCE =
+  /\/health$|\/uploads\/|\/admin\/|\/presence\/heartbeat|\/payments\/pesapal|\/auth\/(login|register|refresh|logout)/;
 
 const presence = new Map();
 const history = [];
+const enriching = new Set();
 
 let requestCount = 0;
 let lastProcCpu = process.cpuUsage();
 let lastHr = process.hrtime.bigint();
 let lastSys = readCpuTimes();
+
+function models() {
+  return require("../models");
+}
 
 function readCpuTimes() {
   let idle = 0;
@@ -34,25 +42,151 @@ function readCpuTimes() {
   return { idle, total };
 }
 
-function recordRequest(req) {
-  const url = String(req.originalUrl || req.url || "");
-  if (SKIP_PATH.test(url.split("?")[0])) return;
-  requestCount += 1;
+function inferAppPath(url) {
+  const p = String(url || "").split("?")[0].replace(/^\/api\/v1/, "") || "/";
+  if (p.startsWith("/cart")) return "/cart";
+  if (p.startsWith("/orders")) return "/orders";
+  if (/^\/products\/[a-f0-9]{24}/i.test(p)) return `/product/${p.split("/")[2]}`;
+  if (p.startsWith("/products")) return "/catalog";
+  if (p.startsWith("/categories") || p.startsWith("/brands")) return "/shop";
+  if (p.startsWith("/points")) return "/points";
+  if (p.startsWith("/flash-drops")) return "/flash";
+  if (p.startsWith("/competitions")) return "/challenges";
+  if (p.startsWith("/quotes")) return "/quotes";
+  if (p.startsWith("/addresses") || p.startsWith("/auth/me")) return "/account";
+  if (p.startsWith("/shipping") || p.startsWith("/payments")) return "/checkout";
+  if (p.startsWith("/banners")) return "/";
+  return "/";
 }
 
-function heartbeat({ sessionId, userId, name, role, path, client }) {
+function persist(row) {
+  try {
+    const { mongoose, LiveSession } = models();
+    if (mongoose.connection.readyState !== 1) return;
+    LiveSession.findOneAndUpdate(
+      { sessionId: row.sessionId },
+      {
+        $set: {
+          userId: row.userId || "",
+          name: row.name,
+          role: row.role,
+          path: row.path,
+          client: row.client,
+          explicit: Boolean(row.explicit),
+          lastSeen: new Date(row.lastSeen),
+        },
+      },
+      { upsert: true }
+    ).catch(() => {});
+  } catch {
+    // Mongo not ready
+  }
+}
+
+function enrichName(sessionId, userId) {
+  if (!userId || enriching.has(sessionId)) return;
+  enriching.add(sessionId);
+  try {
+    const { mongoose, User } = models();
+    if (mongoose.connection.readyState !== 1) {
+      enriching.delete(sessionId);
+      return;
+    }
+    User.findById(userId)
+      .select("firstName lastName phone")
+      .lean()
+      .then((u) => {
+        enriching.delete(sessionId);
+        if (!u) return;
+        const name = `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.phone || "Customer";
+        const row = presence.get(sessionId);
+        if (row) {
+          row.name = name;
+          persist(row);
+        }
+      })
+      .catch(() => enriching.delete(sessionId));
+  } catch {
+    enriching.delete(sessionId);
+  }
+}
+
+function recordRequest(req) {
+  const url = String(req.originalUrl || req.url || "");
+  if (!SKIP_TRAFFIC.test(url.split("?")[0])) requestCount += 1;
+  touchFromRequest(req);
+}
+
+function touchFromRequest(req) {
+  const url = String(req.originalUrl || req.url || "");
+  if (SKIP_PRESENCE.test(url.split("?")[0])) return;
+
+  let sessionId = "";
+  let userId = null;
+  let name = "Guest";
+  let role = "CUSTOMER";
+  const header = req.headers.authorization || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : "";
+  if (token) {
+    try {
+      const payload = verifyAccess(token);
+      sessionId = `u:${payload.sub}`;
+      userId = payload.sub;
+      role = payload.role || "CUSTOMER";
+      name = payload.phone || "Customer";
+    } catch {
+      // expired token — still count the device by IP
+    }
+  }
+  if (!sessionId) {
+    const ip = String(req.headers["x-forwarded-for"] || req.ip || "guest")
+      .split(",")[0]
+      .trim();
+    sessionId = `g:${ip || "guest"}`;
+  }
+
+  heartbeat(
+    {
+      sessionId,
+      userId,
+      name,
+      role,
+      path: inferAppPath(url),
+      client: "mobile",
+    },
+    { infer: true }
+  );
+}
+
+function heartbeat({ sessionId, userId, name, role, path, client }, opts = {}) {
+  const infer = Boolean(opts.infer);
   const id = String(sessionId || userId || "").trim().slice(0, 80);
   if (!id) return;
+  const existing = presence.get(id);
+  if (infer && existing?.explicit && Date.now() - existing.lastSeen < 40_000) {
+    existing.lastSeen = Date.now();
+    persist(existing);
+    return;
+  }
+
   const safeClient = client === "dashboard" ? "dashboard" : "mobile";
-  presence.set(id, {
+  const nextName = infer && existing?.name && existing.name !== "Guest" && existing.name !== "Customer"
+    ? existing.name
+    : String(name || existing?.name || "Guest").slice(0, 80);
+  const row = {
     sessionId: id,
-    userId: userId ? String(userId) : null,
-    name: String(name || "Guest").slice(0, 80),
-    role: String(role || "CUSTOMER"),
-    path: String(path || "/").slice(0, 200),
+    userId: userId ? String(userId) : existing?.userId || null,
+    name: nextName,
+    role: String(role || existing?.role || "CUSTOMER"),
+    path: infer && existing?.explicit ? existing.path : String(path || "/").slice(0, 200),
     client: safeClient,
+    explicit: infer ? Boolean(existing?.explicit) : true,
     lastSeen: Date.now(),
-  });
+  };
+  presence.set(id, row);
+  persist(row);
+  const looksLikePhone = /^\+?\d{8,}$/.test(row.name) || row.name === "Customer";
+  if (row.userId && looksLikePhone) enrichName(id, row.userId);
 }
 
 function prune() {
@@ -71,7 +205,7 @@ function readProcessCpu() {
   const cores = Math.max(1, os.cpus()?.length || 1);
   if (elapsedUs <= 0) return 0;
   const used = (delta.user + delta.system) / elapsedUs;
-  return Math.min(100, Math.round((used * 100) / cores * 10) / 10);
+  return Math.min(100, Math.round(((used * 100) / cores) * 10) / 10);
 }
 
 function systemCpuPct() {
@@ -155,9 +289,40 @@ function isStaff(role, client) {
   return client === "dashboard";
 }
 
-function snapshot() {
+function toSession(row) {
+  return {
+    sessionId: row.sessionId,
+    userId: row.userId || null,
+    name: row.name,
+    role: row.role,
+    path: row.path,
+    client: row.client,
+    lastSeen: typeof row.lastSeen === "number" ? row.lastSeen : new Date(row.lastSeen).getTime(),
+  };
+}
+
+async function loadPersisted() {
+  try {
+    const { mongoose, LiveSession } = models();
+    if (mongoose.connection.readyState !== 1) return [];
+    const rows = await LiveSession.find({
+      lastSeen: { $gt: new Date(Date.now() - PRESENCE_TTL_MS) },
+    }).lean();
+    return rows.map(toSession);
+  } catch {
+    return [];
+  }
+}
+
+async function snapshot() {
   prune();
-  const sessions = [...presence.values()].sort((a, b) => b.lastSeen - a.lastSeen);
+  const map = new Map();
+  for (const row of presence.values()) map.set(row.sessionId, toSession(row));
+  for (const row of await loadPersisted()) {
+    const current = map.get(row.sessionId);
+    if (!current || row.lastSeen >= current.lastSeen) map.set(row.sessionId, row);
+  }
+  const sessions = [...map.values()].sort((a, b) => b.lastSeen - a.lastSeen);
   const routes = {};
   for (const row of sessions) {
     const key = `${row.client}:${row.path}`;
@@ -214,4 +379,4 @@ function snapshot() {
 setInterval(sample, SAMPLE_MS).unref();
 sample();
 
-module.exports = { recordRequest, heartbeat, snapshot };
+module.exports = { recordRequest, heartbeat, snapshot, touchFromRequest };

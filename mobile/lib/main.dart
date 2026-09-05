@@ -109,9 +109,13 @@ class _TajiraAppState extends State<TajiraApp> {
   }
 
   String _currentPath() {
-    final uri = router.state.uri;
-    final query = uri.hasQuery ? '?${uri.query}' : '';
-    return '${uri.path}$query';
+    try {
+      final uri = router.state.uri;
+      final query = uri.hasQuery ? '?${uri.query}' : '';
+      return '${uri.path}$query';
+    } catch (_) {
+      return '/';
+    }
   }
 
   void _openDeepLink(Uri uri) {

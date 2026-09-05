@@ -108,9 +108,12 @@ function uploadImageMw(req, res, next) {
   });
 }
 
-router.get("/live", (_req, res) => {
-  res.json(liveMonitor.snapshot());
-});
+router.get(
+  "/live",
+  asyncHandler(async (_req, res) => {
+    res.json(await liveMonitor.snapshot());
+  })
+);
 
 router.post("/live/heartbeat", (req, res) => {
   const u = req.user;

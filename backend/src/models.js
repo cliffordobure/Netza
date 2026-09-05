@@ -436,6 +436,21 @@ const inventoryAdjustmentSchema = new mongoose.Schema(
 );
 jsonId(inventoryAdjustmentSchema);
 
+const liveSessionSchema = new mongoose.Schema(
+  {
+    sessionId: { type: String, required: true, unique: true },
+    userId: { type: String, default: "" },
+    name: { type: String, default: "Guest" },
+    role: { type: String, default: "CUSTOMER" },
+    path: { type: String, default: "/" },
+    client: { type: String, default: "mobile" },
+    explicit: { type: Boolean, default: false },
+    lastSeen: { type: Date, default: Date.now },
+  },
+  { timestamps: false }
+);
+liveSessionSchema.index({ lastSeen: 1 }, { expireAfterSeconds: 90 });
+
 const User = mongoose.model("User", userSchema);
 const RefreshToken = mongoose.model("RefreshToken", refreshTokenSchema);
 const Address = mongoose.model("Address", addressSchema);
@@ -455,6 +470,7 @@ const Competition = mongoose.model("Competition", competitionSchema);
 const Quote = mongoose.model("Quote", quoteSchema);
 const Banner = mongoose.model("Banner", bannerSchema);
 const InventoryAdjustment = mongoose.model("InventoryAdjustment", inventoryAdjustmentSchema);
+const LiveSession = mongoose.model("LiveSession", liveSessionSchema);
 
 function isOid(id) {
   return mongoose.isValidObjectId(id);
@@ -487,6 +503,7 @@ module.exports = {
   Quote,
   Banner,
   InventoryAdjustment,
+  LiveSession,
   isOid,
   idOf,
 };

@@ -267,7 +267,7 @@ export default function Live() {
             <span className="muted">{sessions.length} active</span>
           </div>
           {sessions.length === 0 ? (
-            <p className="muted">Waiting for heartbeats from the app and this dashboard.</p>
+            <p className="muted">Waiting for the app or another admin tab. Open a product on the phone, then this list refreshes in a few seconds.</p>
           ) : (
             <div className="live-table-wrap">
               <table className="live-table">

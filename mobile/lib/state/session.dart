@@ -14,6 +14,7 @@ class Session extends ChangeNotifier {
     ));
     dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) {
+        options.headers['X-Tajira-Client'] = 'mobile';
         if (access != null) {
           options.headers['Authorization'] = 'Bearer $access';
         }
