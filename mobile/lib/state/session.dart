@@ -51,6 +51,9 @@ class Session extends ChangeNotifier {
   bool ready = false;
   CatalogSnapshot? catalog;
   Completer<void>? _refreshGate;
+  Timer? _presenceTimer;
+  String? _presenceId;
+  String _lastPath = '/';
 
   bool get isLoggedIn => user != null;
 
@@ -224,6 +227,39 @@ class Session extends ChangeNotifier {
   void updateUser(Map<String, dynamic> next) {
     user = next;
     notifyListeners();
+  }
+
+  Future<String> presenceId() async {
+    if (_presenceId != null) return _presenceId!;
+    final prefs = await SharedPreferences.getInstance();
+    var id = prefs.getString('tajira.presence.id');
+    if (id == null || id.isEmpty) {
+      id = DateTime.now().microsecondsSinceEpoch.toRadixString(16);
+      await prefs.setString('tajira.presence.id', id);
+    }
+    _presenceId = id;
+    return id;
+  }
+
+  Future<void> sendPresence(String path) async {
+    _lastPath = path.isEmpty ? '/' : path;
+    if (!ready) return;
+    try {
+      final sid = await presenceId();
+      await dio.post('/presence/heartbeat', data: {
+        'sessionId': sid,
+        'path': _lastPath,
+        'client': 'mobile',
+      });
+    } catch (_) {}
+  }
+
+  void startPresence(String Function() pathOf) {
+    _presenceTimer?.cancel();
+    sendPresence(pathOf());
+    _presenceTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      sendPresence(pathOf());
+    });
   }
 
   Future<void> logout() async {

@@ -102,6 +102,11 @@ export function Icon({ name, size = 18 }) {
     chevron: <path d="m6 9 6 6 6-6" />,
     bag: <path d="M6 7h12l1 14H5zM9 7V5a3 3 0 0 1 6 0v2" />,
     trend: <path d="M4 17 10 11l4 4 7-8" />,
+    activity: (
+      <>
+        <path d="M22 12h-4l-3 7-6-14-3 7H2" />
+      </>
+    ),
     gift: (
       <>
         <rect x="3" y="10" width="18" height="11" rx="1" />

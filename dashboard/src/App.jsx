@@ -29,6 +29,7 @@ import Competitions from "./pages/Competitions";
 import CompetitionForm from "./pages/CompetitionForm";
 import CompetitionAnalytics from "./pages/CompetitionAnalytics";
 import CompetitionDetail from "./pages/CompetitionDetail";
+import Live from "./pages/Live";
 
 function Guard({ children }) {
   const { user } = useAuth();
@@ -51,6 +52,7 @@ export default function App() {
             }
           >
             <Route index element={<Overview />} />
+            <Route path="live" element={<Live />} />
             <Route path="products" element={<Products />} />
             <Route path="products/new" element={<ProductForm />} />
             <Route path="products/categories" element={<Categories />} />

@@ -48,6 +48,7 @@ const { getDeliveryCouriers } = require("./delivery-couriers");
 const { getDeliveryZones, upsertDeliveryZone, deleteDeliveryZone } = require("./delivery-zones");
 const { getDeliveryReturns } = require("./delivery-returns");
 const { getDeliveryReports } = require("./delivery-reports");
+const liveMonitor = require("../../lib/live-monitor");
 const { getDeliverySettings, saveDeliverySettings, resetDeliverySettings } = require("./delivery-settings");
 const { getPaymentsCatalog } = require("./payments-catalog");
 const { getSalesReports } = require("./sales-reports");
@@ -106,6 +107,24 @@ function uploadImageMw(req, res, next) {
     return next(err.status ? err : httpError(400, err.message || "Upload failed"));
   });
 }
+
+router.get("/live", (_req, res) => {
+  res.json(liveMonitor.snapshot());
+});
+
+router.post("/live/heartbeat", (req, res) => {
+  const u = req.user;
+  const name = `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.email || "Admin";
+  liveMonitor.heartbeat({
+    sessionId: String(req.body?.sessionId || u.id),
+    userId: String(u.id),
+    name,
+    role: u.role || "ADMIN",
+    path: String(req.body?.path || "/").slice(0, 200),
+    client: "dashboard",
+  });
+  res.json({ ok: true });
+});
 
 router.post(
   "/uploads",

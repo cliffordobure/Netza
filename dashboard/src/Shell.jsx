@@ -7,6 +7,7 @@ import { useAutoRefresh } from "./useAutoRefresh";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: "home", end: true },
+  { to: "/live", label: "Live", icon: "activity" },
   {
     to: "/products",
     label: "Products",
@@ -205,6 +206,28 @@ export default function Shell() {
   useEffect(() => {
     if (isMobile) setSidebarOpen(false);
   }, [location.pathname, isMobile]);
+
+  useEffect(() => {
+    let sid = localStorage.getItem("tajira_live_session");
+    if (!sid) {
+      sid = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+      localStorage.setItem("tajira_live_session", sid);
+    }
+    function ping() {
+      if (document.visibilityState !== "visible") return;
+      api("/admin/live/heartbeat", {
+        method: "POST",
+        body: JSON.stringify({
+          sessionId: sid,
+          path: `${location.pathname}${location.search || ""}`,
+          client: "dashboard",
+        }),
+      }).catch(() => {});
+    }
+    ping();
+    const id = setInterval(ping, 15000);
+    return () => clearInterval(id);
+  }, [location.pathname, location.search]);
 
   useEffect(() => {
     document.body.classList.toggle("sb-scroll-lock", isMobile && sidebarOpen);

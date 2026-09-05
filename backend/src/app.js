@@ -20,6 +20,8 @@ const bannerRoutes = require("./modules/banners/banners.routes");
 const competitionRoutes = require("./modules/competitions/competitions.routes");
 const adminRoutes = require("./modules/admin/admin.routes");
 const shippingRoutes = require("./modules/shipping/shipping.routes");
+const { auth } = require("./middleware/auth");
+const liveMonitor = require("./lib/live-monitor");
 
 function createApp() {
   ensureUploadRoot();
@@ -40,12 +42,17 @@ function createApp() {
   );
   app.use(express.json({ limit: "8mb" }));
   app.use(morgan(config.env === "production" ? "combined" : "dev"));
+  app.use((req, _res, next) => {
+    liveMonitor.recordRequest(req);
+    next();
+  });
   app.use(
     rateLimit({
       windowMs: 15 * 60 * 1000,
       limit: 400,
       standardHeaders: true,
       legacyHeaders: false,
+      skip: (req) => /\/presence\/heartbeat|\/admin\/live/.test(req.originalUrl || ""),
     })
   );
 
@@ -68,6 +75,27 @@ function createApp() {
   app.use("/api/v1/quotes", quoteRoutes);
   app.use("/api/v1/banners", bannerRoutes);
   app.use("/api/v1/competitions", competitionRoutes);
+  app.post(
+    "/api/v1/presence/heartbeat",
+    auth(false),
+    (req, res) => {
+      const u = req.user;
+      const body = req.body || {};
+      const guestId = String(body.sessionId || req.ip || "guest").slice(0, 64);
+      const name = u
+        ? `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.phone || u.email || "Customer"
+        : "Guest";
+      liveMonitor.heartbeat({
+        sessionId: u ? `u:${u.id}` : `g:${guestId}`,
+        userId: u ? String(u.id) : null,
+        name,
+        role: u?.role || "CUSTOMER",
+        path: body.path || "/",
+        client: body.client === "dashboard" ? "dashboard" : "mobile",
+      });
+      res.json({ ok: true });
+    }
+  );
   app.use("/api/v1/admin", adminRoutes);
 
   app.use(notFound);

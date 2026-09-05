@@ -98,8 +98,20 @@ class _TajiraAppState extends State<TajiraApp> {
         ),
       ],
     );
-    session.restore();
+    session.restore().then((_) {
+      session.startPresence(_currentPath);
+    });
+    router.routerDelegate.addListener(() {
+      if (!session.ready) return;
+      session.sendPresence(_currentPath());
+    });
     _bindPaymentReturnLinks();
+  }
+
+  String _currentPath() {
+    final uri = router.state.uri;
+    final query = uri.hasQuery ? '?${uri.query}' : '';
+    return '${uri.path}$query';
   }
 
   void _openDeepLink(Uri uri) {
