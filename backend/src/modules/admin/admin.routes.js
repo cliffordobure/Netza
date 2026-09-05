@@ -49,6 +49,8 @@ const { getDeliveryZones, upsertDeliveryZone, deleteDeliveryZone } = require("./
 const { getDeliveryReturns } = require("./delivery-returns");
 const { getDeliveryReports } = require("./delivery-reports");
 const liveMonitor = require("../../lib/live-monitor");
+const { listTechnicians, sendPromoSms } = require("../../lib/technicians");
+const { configured: smsConfigured } = require("../../lib/beem");
 const { getDeliverySettings, saveDeliverySettings, resetDeliverySettings } = require("./delivery-settings");
 const { getPaymentsCatalog } = require("./payments-catalog");
 const { getSalesReports } = require("./sales-reports");
@@ -111,7 +113,29 @@ function uploadImageMw(req, res, next) {
 router.get(
   "/live",
   asyncHandler(async (_req, res) => {
-    res.json(await liveMonitor.snapshot());
+    const snap = await liveMonitor.snapshot();
+    const mobile = (snap.people?.sessions || []).filter((s) => s.client === "mobile");
+    const technicians = (await listTechnicians(mobile)).map(({ phone, ...t }) => t);
+    res.json({
+      ...snap,
+      sms: { configured: smsConfigured(), technicians },
+    });
+  })
+);
+
+router.post(
+  "/live/sms",
+  asyncHandler(async (req, res) => {
+    const result = await sendPromoSms({
+      userId: req.body?.userId || req.body?.technicianId || "all",
+      message: req.body?.message || req.body?.body,
+    });
+    const who = result.total === 1 ? result.names[0] || "1 technician" : `${result.total} technicians`;
+    res.json({
+      ok: true,
+      ...result,
+      message: `SMS sent to ${who}.`,
+    });
   })
 );
 

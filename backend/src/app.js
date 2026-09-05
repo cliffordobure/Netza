@@ -82,11 +82,12 @@ function createApp() {
       const u = req.user;
       const body = req.body || {};
       const guestId = String(body.sessionId || req.ip || "guest").slice(0, 64);
+      const sessionId = u ? `u:${u.id}` : `g:${guestId}`;
       const name = u
         ? `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.phone || u.email || "Customer"
         : "Guest";
       liveMonitor.heartbeat({
-        sessionId: u ? `u:${u.id}` : `g:${guestId}`,
+        sessionId,
         userId: u ? String(u.id) : null,
         name,
         role: u?.role || "CUSTOMER",

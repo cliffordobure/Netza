@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   --navy: #071526;
   --navy-2: #0c2340;
   --sidebar: #0b1f3a;
@@ -9724,6 +9724,33 @@ button.pts-cust { border: 0; background: transparent; cursor: pointer; text-alig
 .ordd-head h1 { font-size: var(--fs-h1); }
 .link-reset { font-size: 11.5px; }
 
+.live-nudge { margin-bottom: 14px; }
+.live-nudge-form { display: grid; gap: 10px; }
+.live-nudge-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.live-nudge-presets button {
+  border: 1px solid var(--line);
+  background: #f3f5f9;
+  border-radius: 99px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+}
+.live-nudge-presets button.on { background: var(--purple); color: #fff; border-color: var(--purple); }
+.live-nudge-form label { display: grid; gap: 4px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.live-nudge-form input,
+.live-nudge-form textarea,
+.live-nudge-form select {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 10px;
+  font: inherit;
+  color: #0b1f3a;
+  background: #fff;
+}
+.live-nudge-send { width: auto; margin-top: 0; justify-self: start; padding: 10px 16px; }
+.live-nudge-ok { color: #166534; font-size: 13px; font-weight: 700; margin: 0; }
 .live-kpis { grid-template-columns: repeat(5, 1fr); }
 .live-svg { height: 168px; }
 .live-scale-pill {

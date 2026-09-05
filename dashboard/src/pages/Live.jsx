@@ -121,9 +121,22 @@ const KPIS = [
   { key: "rpm", label: "Requests / min", icon: "activity", tone: "red" },
 ];
 
+const SMS_PRESETS = [
+  { label: "New stock", message: "Tajira: Fresh CCTV and networking stock has landed. Call or open the app to order today." },
+  { label: "Flash drop", message: "Tajira: A Flash Drop is live now. Limited kits — order before they sell out." },
+  { label: "Weekend promo", message: "Tajira: Weekend prices are on for installers. Check the catalog or reply to this SMS." },
+];
+
 export default function Live() {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
+  const [sms, setSms] = useState({
+    userId: "all",
+    message: "Tajira: Fresh CCTV and networking stock has landed. Call or open the app to order today.",
+  });
+  const [smsBusy, setSmsBusy] = useState(false);
+  const [smsMsg, setSmsMsg] = useState("");
+  const [smsErr, setSmsErr] = useState("");
 
   function load() {
     api("/admin/live")
@@ -152,9 +165,29 @@ export default function Live() {
   if (error && !data) return <p className="error">{error}</p>;
   if (!data) return <p className="muted">Loading live monitor…</p>;
 
+  async function sendSms(e) {
+    e?.preventDefault?.();
+    setSmsBusy(true);
+    setSmsMsg("");
+    setSmsErr("");
+    try {
+      const res = await api("/admin/live/sms", {
+        method: "POST",
+        body: JSON.stringify(sms),
+      });
+      setSmsMsg(res.message || `SMS sent to ${res.sent || 0}.`);
+    } catch (err) {
+      setSmsErr(err.message || "Could not send the SMS.");
+    } finally {
+      setSmsBusy(false);
+    }
+  }
+
   const people = data.people || {};
   const host = data.host || {};
   const scale = data.scale || {};
+  const smsInfo = data.sms || {};
+  const technicians = smsInfo.technicians || [];
   const sessions = people.sessions || [];
   const routes = people.routes || [];
   const maxRoute = Math.max(1, ...routes.map((r) => r.count));
@@ -201,6 +234,58 @@ export default function Live() {
             </div>
           </article>
         ))}
+      </section>
+
+      <section className="card live-nudge">
+        <div className="card-head">
+          <h2>Promotional SMS</h2>
+          <span className="muted">
+            {smsInfo.configured
+              ? `${technicians.length} technician${technicians.length === 1 ? "" : "s"} with a phone`
+              : "Add Beem SMS keys on the API to send"}
+          </span>
+        </div>
+        <form className="live-nudge-form" onSubmit={sendSms}>
+          <div className="live-nudge-presets">
+            {SMS_PRESETS.map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                className={sms.message === item.message ? "on" : ""}
+                onClick={() => setSms((s) => ({ ...s, message: item.message }))}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <label>
+            Send to
+            <select value={sms.userId} onChange={(e) => setSms((s) => ({ ...s, userId: e.target.value }))}>
+              <option value="all">All technicians ({technicians.length})</option>
+              {technicians.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                  {t.online ? " · in the app" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Message
+            <textarea
+              rows={3}
+              maxLength={480}
+              value={sms.message}
+              onChange={(e) => setSms((s) => ({ ...s, message: e.target.value }))}
+              placeholder="Write a short promotional SMS."
+            />
+          </label>
+          {smsErr ? <p className="error">{smsErr}</p> : null}
+          {smsMsg ? <p className="live-nudge-ok">{smsMsg}</p> : null}
+          <button className="btn btn-primary live-nudge-send" type="submit" disabled={smsBusy || !technicians.length}>
+            {smsBusy ? "Sending…" : sms.userId === "all" ? "Send SMS to all technicians" : "Send SMS to this technician"}
+          </button>
+        </form>
       </section>
 
       <section className={`live-hints ${scale.level || "ok"}`}>
