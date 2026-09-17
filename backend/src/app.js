@@ -1,9 +1,11 @@
+const path = require("path");
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const rateLimit = require("express-rate-limit");
 const config = require("./config");
+const PUBLIC_DIR = path.join(__dirname, "../public");
 const { notFound, errorHandler } = require("./middleware/error");
 const { ensureUploadRoot, UPLOAD_ROOT } = require("./lib/localUpload");
 const authRoutes = require("./modules/auth/auth.routes");
@@ -58,6 +60,14 @@ function createApp() {
 
   app.get("/health", (_req, res) => {
     res.json({ ok: true, service: "tajira-api", time: new Date().toISOString() });
+  });
+
+  app.get(["/privacy", "/privacy.html"], (_req, res) => {
+    res.setHeader(
+      "Content-Security-Policy",
+      "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'"
+    );
+    res.sendFile(path.join(PUBLIC_DIR, "privacy.html"));
   });
 
   app.use("/uploads", express.static(UPLOAD_ROOT));

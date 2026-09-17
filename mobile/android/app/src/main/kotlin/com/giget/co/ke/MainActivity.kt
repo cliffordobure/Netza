@@ -1,4 +1,4 @@
-package ke.tajira.tajira_mobile
+package com.giget.co.ke
 
 import io.flutter.embedding.android.FlutterActivity
 

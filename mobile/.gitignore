@@ -43,3 +43,9 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Play Store signing and local upload artifacts
+/android/key.properties
+**/*.keystore
+**/*.jks
+/playstore/
