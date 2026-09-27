@@ -10,6 +10,7 @@ import '../state/session.dart';
 import 'categories_screen.dart' show categoryIcon;
 import '../widgets/offline_guard.dart';
 import '../widgets/storefront_chrome.dart';
+import '../widgets/tajira_loader.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -262,7 +263,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 20),
                   child: fetching
-                      ? const Center(child: CircularProgressIndicator(color: orange))
+                      ? const Center(child: TajiraLoader.inline())
                       : Text('No products yet. Pull to refresh.', style: inter(size: 13, color: muted)),
                 )
               else

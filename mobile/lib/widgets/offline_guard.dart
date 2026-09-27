@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import '../core/theme.dart';
 import '../core/type.dart';
+import 'tajira_loader.dart';
 
 bool isConnectionError(Object e) {
   if (e is! DioException) return false;
@@ -136,11 +137,7 @@ class _OfflineGuardState extends State<OfflineGuard> {
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                           child: checking
-                              ? const SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white),
-                                )
+                              ? const TajiraLoader.button()
                               : Text('Reload', style: inter(size: 15, weight: FontWeight.w800, color: Colors.white)),
                         ),
                       ),

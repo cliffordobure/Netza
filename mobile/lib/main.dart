@@ -20,6 +20,7 @@ import 'screens/quotes_screen.dart';
 import 'screens/shell.dart';
 import 'state/session.dart';
 import 'widgets/offline_guard.dart';
+import 'widgets/tajira_loader.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -147,10 +148,7 @@ class _TajiraAppState extends State<TajiraApp> {
             listenable: session,
             builder: (context, _) {
               if (!session.ready) {
-                return const Scaffold(
-                  backgroundColor: navy,
-                  body: Center(child: CircularProgressIndicator(color: orange)),
-                );
+                return const TajiraSplash();
               }
               return OfflineGuard(child: child ?? const SizedBox.shrink());
             },

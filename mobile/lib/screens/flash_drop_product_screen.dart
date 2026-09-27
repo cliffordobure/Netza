@@ -10,6 +10,7 @@ import '../core/type.dart';
 import '../state/session.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/storefront_chrome.dart';
+import '../widgets/tajira_loader.dart';
 
 class FlashDropProductScreen extends StatefulWidget {
   const FlashDropProductScreen({super.key, required this.id, this.product});
@@ -212,7 +213,7 @@ class _FlashDropProductScreenState extends State<FlashDropProductScreen> {
     if (product == null) {
       return const Scaffold(
         backgroundColor: Colors.white,
-        body: Center(child: CircularProgressIndicator(color: orange)),
+        body: Center(child: TajiraLoader.inline()),
       );
     }
 

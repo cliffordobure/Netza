@@ -7,6 +7,7 @@ import '../core/theme.dart';
 import '../core/type.dart';
 import '../state/session.dart';
 import '../widgets/storefront_chrome.dart';
+import '../widgets/tajira_loader.dart';
 import 'order_success_screen.dart';
 
 class OrdersScreen extends StatefulWidget {
@@ -211,7 +212,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                         physics: const AlwaysScrollableScrollPhysics(),
                         children: const [
                           SizedBox(height: 120),
-                          Center(child: CircularProgressIndicator(color: orange)),
+                          Center(child: TajiraLoader.inline()),
                         ],
                       )
                     : error != null && orders.isEmpty

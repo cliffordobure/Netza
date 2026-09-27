@@ -8,6 +8,7 @@ import '../core/type.dart';
 import '../state/session.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/storefront_chrome.dart';
+import '../widgets/tajira_loader.dart';
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
@@ -301,7 +302,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 ),
               Expanded(
                 child: loading
-                    ? const Center(child: CircularProgressIndicator(color: orange))
+                    ? const Center(child: TajiraLoader.inline())
                     : ListView(
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
                         children: step == 0 ? _deliveryChildren(session) : _paymentChildren(session),

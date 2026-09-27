@@ -9,6 +9,7 @@ import '../core/type.dart';
 import '../state/session.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/storefront_chrome.dart';
+import '../widgets/tajira_loader.dart';
 import 'flash_drop_product_screen.dart';
 
 class ProductScreen extends StatefulWidget {
@@ -147,7 +148,7 @@ class _ProductScreenState extends State<ProductScreen> {
       );
     }
     if (product == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator(color: orange)));
+      return const Scaffold(body: Center(child: TajiraLoader.inline()));
     }
 
     final images = _images;

@@ -70,6 +70,14 @@ function createApp() {
     res.sendFile(path.join(PUBLIC_DIR, "privacy.html"));
   });
 
+  app.get(["/account-deletion", "/delete-account"], (_req, res) => {
+    res.setHeader(
+      "Content-Security-Policy",
+      "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'"
+    );
+    res.sendFile(path.join(PUBLIC_DIR, "account-deletion.html"));
+  });
+
   app.use("/uploads", express.static(UPLOAD_ROOT));
 
   app.use("/api/v1/auth", authRoutes);

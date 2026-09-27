@@ -6,6 +6,7 @@ import '../core/type.dart';
 import '../data/catalog_cache.dart';
 import '../state/session.dart';
 import '../widgets/storefront_chrome.dart';
+import '../widgets/tajira_loader.dart';
 
 IconData categoryIcon(String slug) {
   switch (slug) {
@@ -128,7 +129,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
               if (loading)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 32),
-                  child: Center(child: CircularProgressIndicator(color: orange)),
+                  child: Center(child: TajiraLoader.inline()),
                 )
               else if (categories.isEmpty)
                 Padding(

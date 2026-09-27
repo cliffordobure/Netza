@@ -12,6 +12,7 @@ import '../core/theme.dart';
 import '../core/type.dart';
 import '../state/session.dart';
 import '../widgets/storefront_chrome.dart';
+import '../widgets/tajira_loader.dart';
 
 void _goBack(BuildContext context, {String fallback = '/quotes'}) {
   if (context.canPop()) {
@@ -237,7 +238,7 @@ class _QuotesScreenState extends State<QuotesScreen> {
         color: orange,
         onRefresh: load,
         child: loading
-            ? const Center(child: CircularProgressIndicator(color: orange))
+            ? const Center(child: TajiraLoader.inline())
             : ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
@@ -618,7 +619,7 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
       backgroundColor: const Color(0xFFF7F8FA),
       appBar: _quoteAppBar(context, title: isNew ? 'New quote' : 'Edit quote'),
       body: loading
-          ? const Center(child: CircularProgressIndicator(color: orange))
+          ? const Center(child: TajiraLoader.inline())
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
@@ -638,7 +639,7 @@ class _QuoteEditScreenState extends State<QuoteEditScreen> {
                     OutlinedButton.icon(
                       onPressed: uploading ? null : _pickLogo,
                       icon: uploading
-                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                          ? const TajiraLoader.button(color: orange, size: 16)
                           : const Icon(Icons.business),
                       label: Text(logoUrl.isEmpty ? 'Add logo' : 'Change logo'),
                     ),
@@ -882,7 +883,7 @@ class _QuoteDetailScreenState extends State<QuoteDetailScreen> {
         ],
       ),
       body: loading
-          ? const Center(child: CircularProgressIndicator(color: orange))
+          ? const Center(child: TajiraLoader.inline())
           : error != null
               ? Center(child: Text(error!, style: inter(color: Colors.red)))
               : ListView(

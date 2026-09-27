@@ -8,6 +8,7 @@ import '../core/theme.dart';
 import '../core/type.dart';
 import '../state/session.dart';
 import '../widgets/storefront_chrome.dart';
+import '../widgets/tajira_loader.dart';
 
 class AccountScreen extends StatefulWidget {
   const AccountScreen({super.key});
@@ -379,7 +380,7 @@ class _AccountScreenState extends State<AccountScreen> {
             const Padding(padding: EdgeInsets.fromLTRB(12, 4, 12, 0), child: _AccountHeader()),
             Expanded(
               child: loading
-                  ? const Center(child: CircularProgressIndicator(color: orange))
+                  ? const Center(child: TajiraLoader.inline())
                   : RefreshIndicator(
                       color: orange,
                       onRefresh: load,

@@ -7,6 +7,7 @@ import '../data/competitions.dart';
 import '../state/session.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/storefront_chrome.dart';
+import '../widgets/tajira_loader.dart';
 
 class ChallengesScreen extends StatefulWidget {
   const ChallengesScreen({super.key});
@@ -149,7 +150,7 @@ class _ChallengesScreenState extends State<ChallengesScreen> {
     if (loading) {
       return const Scaffold(
         backgroundColor: Colors.white,
-        body: Center(child: CircularProgressIndicator(color: orange)),
+        body: Center(child: TajiraLoader.inline()),
       );
     }
 

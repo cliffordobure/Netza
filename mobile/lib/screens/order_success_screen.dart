@@ -11,6 +11,7 @@ import '../core/type.dart';
 import '../state/session.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/storefront_chrome.dart';
+import '../widgets/tajira_loader.dart';
 
 class OrderSuccessScreen extends StatefulWidget {
   const OrderSuccessScreen({super.key, required this.id});
@@ -213,7 +214,7 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> with WidgetsBin
     if (order == null) {
       return const Scaffold(
         backgroundColor: Colors.white,
-        body: Center(child: CircularProgressIndicator(color: orange)),
+        body: Center(child: TajiraLoader.inline()),
       );
     }
 
@@ -276,7 +277,7 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen> with WidgetsBin
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                       child: _resumingPay
-                          ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          ? const TajiraLoader.button()
                           : Text(_failed ? 'TRY PAYMENT AGAIN' : 'PAY WITH PESAPAL', style: T.playNow.copyWith(fontSize: 13)),
                     ),
                   ],

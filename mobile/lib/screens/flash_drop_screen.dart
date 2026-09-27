@@ -8,6 +8,7 @@ import '../core/type.dart';
 import '../state/session.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/storefront_chrome.dart';
+import '../widgets/tajira_loader.dart';
 
 class FlashDropScreen extends StatefulWidget {
   const FlashDropScreen({super.key});
@@ -149,7 +150,7 @@ class _FlashDropScreenState extends State<FlashDropScreen> {
             ),
             Expanded(
               child: loading
-                  ? const Center(child: CircularProgressIndicator(color: orange))
+                  ? const Center(child: TajiraLoader.inline())
                   : RefreshIndicator(
                       color: orange,
                       onRefresh: load,

@@ -10,6 +10,7 @@ import '../data/competitions.dart';
 import '../state/session.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/storefront_chrome.dart';
+import '../widgets/tajira_loader.dart';
 
 class ChallengeDetailScreen extends StatefulWidget {
   const ChallengeDetailScreen({super.key, required this.id});
@@ -164,7 +165,7 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
     if (loading) {
       return const Scaffold(
         backgroundColor: Color(0xFFF7F8FA),
-        body: Center(child: CircularProgressIndicator(color: orange)),
+        body: Center(child: TajiraLoader.inline()),
       );
     }
     if (error != null || comp == null) {

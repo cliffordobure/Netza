@@ -8,6 +8,7 @@ import '../core/type.dart';
 import '../state/session.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/storefront_chrome.dart';
+import '../widgets/tajira_loader.dart';
 
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
@@ -261,7 +262,7 @@ class _CartScreenState extends State<CartScreen> {
               ),
             Expanded(
               child: loading
-                  ? const Center(child: CircularProgressIndicator(color: orange))
+                  ? const Center(child: TajiraLoader.inline())
                   : ListView(
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
                       children: [
